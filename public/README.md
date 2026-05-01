@@ -2,6 +2,14 @@
 
 This folder contains static assets that are served at the root path.
 
+## App splash logo (optional)
+
+To show a small logo on the production intro screen, add:
+
+- **`ShaderNoice-logo.png`** — recommended square PNG or SVG (the UI uses ~32×32 CSS pixels; a 64×64 or 128×128 source is fine).
+
+The file is loaded from `${base}ShaderNoice-logo.png` (with Vite `base`, e.g. `/ShaderNoice/ShaderNoice-logo.png` on GitHub Pages). If the file is missing, the title and subtitle still show.
+
 ## Audio Files
 
 Place your audio files (MP3) here to make them available to the app’s audio system.

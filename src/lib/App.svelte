@@ -38,7 +38,7 @@
   import type { NodeSpec } from '../types';
   import { UndoRedoManager } from '../ui/editor';
   import { errorStore, errorAnnouncer, formatErrorForAnnouncer } from './stores';
-  import { ErrorDisplay, ErrorAnnouncer } from './components/ui';
+  import { ErrorDisplay, ErrorAnnouncer, AppSplashScreen } from './components/ui';
   import { getHelpContent } from '../utils/ContextualHelpManager';
   import type { HelpContent } from '../utils/ContextualHelpManager';
 
@@ -58,6 +58,11 @@
   import type { CanvasOverlayBridge, SignalSelectPayload } from './CanvasOverlayBridge';
 
   import { graphStore } from './stores';
+  import { isAppSplashEnabled } from '../utils/appSplash';
+  const splashFeatureEnabled = isAppSplashEnabled();
+  let splashOverlayVisible = $state(splashFeatureEnabled);
+  /** Initial load finished; splash may still be visible until the user dismisses it. */
+  let splashReadyForDismiss = $state(false);
 
   const nodeSpecs: NodeSpec[] = nodeSystemSpecs;
   let hasInitialFit = false;
@@ -535,6 +540,7 @@
       const mount = previewMount;
       if (!mount) {
         console.error('[App] Preview mount not found');
+        splashOverlayVisible = false;
         return;
       }
       if (cancelled) return;
@@ -544,6 +550,7 @@
       mount.appendChild(previewCanvas);
 
       const showWebGLUnsupported = (err: WebGLContextError): void => {
+        splashOverlayVisible = false;
         mount.removeChild(previewCanvas);
         const msg = document.createElement('div');
         msg.style.cssText = `
@@ -576,6 +583,7 @@
           showWebGLUnsupported(err);
           return;
         }
+        splashOverlayVisible = false;
         throw err;
       }
       if (cancelled) return;
@@ -592,6 +600,10 @@
       runtimeDispatcher?.setAudioSetup(graphStore.audioSetup);
       await runtimeDispatcher?.loadGraph(initialGraph);
       if (cancelled) return;
+
+      if (splashFeatureEnabled) {
+        splashReadyForDismiss = true;
+      }
 
       document.addEventListener('visibilitychange', () => {
         isVisible = !document.hidden;
@@ -666,6 +678,14 @@
 {/snippet}
 
 <div class="app-root" style="position: fixed; inset: 0; overflow: hidden; background: var(--layout-bg, #1a1a1a);">
+  {#if splashOverlayVisible}
+    <AppSplashScreen
+      ready={splashReadyForDismiss}
+      onDismiss={() => {
+        splashOverlayVisible = false;
+      }}
+    />
+  {/if}
   <ErrorDisplay />
   <ErrorAnnouncer />
 

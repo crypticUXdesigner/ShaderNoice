@@ -43,6 +43,7 @@ export type IconName =
   | 'photo'
   | 'image-square'
   | 'video'
+  | 'warning'
   | 'brand-youtube'
   | 'help-circle'
   | 'keyboard'
@@ -57,6 +58,7 @@ export type IconName =
   | 'minus-circle'
   | 'wave-sine'
   | 'waveform'
+  | 'flame'
   | 'lock-access'
   | 'lock-access-off'
   | 'plug'
@@ -111,6 +113,7 @@ export const iconNameMap: Record<IconName, string> = {
   'photo': 'image',
   'image-square': 'image-square',
   'video': 'video',
+  'warning': 'warning',
   'brand-youtube': 'youtube-logo',
   'help-circle': 'question',
   'keyboard': 'keyboard',
@@ -125,6 +128,7 @@ export const iconNameMap: Record<IconName, string> = {
   'minus-circle': 'minus-circle',
   'wave-sine': 'wave-sine',
   'waveform': 'waveform',
+  'flame': 'flame',
   'lock-access': 'lock',
   'lock-access-off': 'lock-open',
   'plug': 'plug',
