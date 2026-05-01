@@ -24,9 +24,11 @@
     portState?: ParamPortState;
     signalName?: string;
     liveValue?: number;
+    supportsAudio?: boolean;
+    supportsAnimation?: boolean;
     onModeClick?: () => void;
     onPortPointerDown?: (e: PointerEvent) => void;
-    onPortDoubleClick?: (e: PointerEvent) => void;
+    onPortDoubleClick?: (e: MouseEvent) => void;
     disabled?: boolean;
     class?: string;
     children?: import('svelte').Snippet<[]>;
@@ -44,6 +46,8 @@
     portState = 'default',
     signalName = '',
     liveValue = 0,
+    supportsAudio,
+    supportsAnimation,
     onModeClick,
     onPortPointerDown,
     onPortDoubleClick,
@@ -72,7 +76,6 @@
       state={portState}
       {signalName}
       showSignalName={false}
-      {liveValue}
       onPointerDown={onPortPointerDown}
       onDoubleClick={onPortDoubleClick}
       {disabled}
@@ -103,6 +106,8 @@
   connected={isConnected}
   {label}
   class={className}
+  supportsAudio={supportsAudio}
+  supportsAnimation={supportsAnimation}
   leftBottom={showPort ? portRowContent : undefined}
 >
   {#snippet control()}

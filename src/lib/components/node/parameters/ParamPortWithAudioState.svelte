@@ -48,7 +48,7 @@
     /** WP 03: Current timeline time for automation-driven parameter display. */
     getTimelineCurrentTime?: () => number;
     onPortPointerDown?: (e: PointerEvent) => void;
-    onPortDoubleClick?: (e: PointerEvent) => void;
+    onPortDoubleClick?: (e: MouseEvent) => void;
     disabled?: boolean;
     class?: string;
     children?: import('svelte').Snippet<[{
@@ -219,8 +219,8 @@
   portState={portState}
   signalName={signalName}
   liveValue={liveValue}
-  data-supports-audio={supportsAudio ? 'true' : 'false'}
-  data-supports-animation={supportsAnimation ? 'true' : 'false'}
+  supportsAudio={supportsAudio}
+  supportsAnimation={supportsAnimation}
   {onPortPointerDown}
   {onPortDoubleClick}
   onModeClick={handleModeClick}

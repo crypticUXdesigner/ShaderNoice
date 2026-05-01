@@ -41,7 +41,7 @@
     /** WP 03: Current timeline time for automation-driven parameter display. */
     getTimelineCurrentTime?: () => number;
     onPortPointerDownForConnection?: (screenX: number, screenY: number, pointerId?: number) => void;
-    onPortDoubleClick?: (e: PointerEvent, paramName: string) => void;
+    onPortDoubleClick?: (e: MouseEvent, paramName: string) => void;
     onParameterInputModeChanged?: (paramName: string, mode: ParameterInputMode) => void;
     onParameterChange: (paramName: string, value: number) => void;
     disabled?: boolean;
@@ -245,7 +245,7 @@
     modeButtonIcon: MODE_TO_ICON[getInputMode(paramX)] ?? 'equal',
     onModeClick: () => handleModeClick(paramX),
     onPortPointerDown: (e: PointerEvent) => onPortPointerDownForConnection?.(e.clientX, e.clientY, e.pointerId),
-    onPortDoubleClick: (e: PointerEvent) => onPortDoubleClick?.(e, paramX),
+    onPortDoubleClick: (e: MouseEvent) => onPortDoubleClick?.(e, paramX),
     disabled,
   });
 
@@ -259,7 +259,7 @@
     modeButtonIcon: MODE_TO_ICON[getInputMode(paramY)] ?? 'equal',
     onModeClick: () => handleModeClick(paramY),
     onPortPointerDown: (e: PointerEvent) => onPortPointerDownForConnection?.(e.clientX, e.clientY, e.pointerId),
-    onPortDoubleClick: (e: PointerEvent) => onPortDoubleClick?.(e, paramY),
+    onPortDoubleClick: (e: MouseEvent) => onPortDoubleClick?.(e, paramY),
     disabled,
   });
 

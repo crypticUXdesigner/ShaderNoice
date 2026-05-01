@@ -4,25 +4,13 @@
    * Owns param-cell structure and scoped styles; root keeps .param-cell for node-category and NodeBody overrides.
    * Uses param-cell-* tokens (from tokens-node-editor.css).
    */
-
-  interface Props {
-    /** When true, applies .connected styling (bg/border). */
-    connected?: boolean;
-    /** Extra class(es) for the root (e.g. span-2-cols, coord-pad-with-ports). */
-    class?: string;
-    /** Label text in the left column top row. */
-    label: string;
-    /** Optional snippet for left column bottom (port row(s)). */
-    leftBottom?: import('svelte').Snippet;
-    /** Snippet for the control slot (slider, pad, etc.). */
-    control: import('svelte').Snippet;
-    /** Default slot (accepted but unused; layout uses leftBottom + control). */
-    children?: import('svelte').Snippet;
-  }
+  import type { ParamCellProps as Props } from './ParamCell.types';
 
   let {
     connected = false,
     class: className = '',
+    supportsAudio,
+    supportsAnimation,
     label,
     leftBottom: leftBottomSlot,
     control,
@@ -33,6 +21,12 @@
 <div
   class="param-cell {className}"
   class:connected
+  data-supports-audio={supportsAudio === undefined ? undefined : supportsAudio ? 'true' : 'false'}
+  data-supports-animation={supportsAnimation === undefined
+    ? undefined
+    : supportsAnimation
+      ? 'true'
+      : 'false'}
 >
   <div class="left-column">
     <div class="top">

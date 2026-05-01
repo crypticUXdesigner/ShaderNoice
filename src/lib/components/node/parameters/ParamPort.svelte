@@ -12,11 +12,10 @@
     signalName?: string;
     /** When false, hide signal name in port (parent may show it elsewhere, e.g. bottom row) */
     showSignalName?: boolean;
-    liveValue?: number;
     /** Start connection drag from port */
     onPointerDown?: (e: PointerEvent) => void;
-    /** Open connection menu (signal picker) */
-    onDoubleClick?: (e: PointerEvent) => void;
+    /** Open connection menu (signal picker); DOM uses dblclick (MouseEvent). */
+    onDoubleClick?: (e: MouseEvent) => void;
     disabled?: boolean;
     class?: string;
   }
@@ -29,7 +28,6 @@
     state = 'default',
     signalName = '',
     showSignalName = true,
-    liveValue = 0,
     onPointerDown,
     onDoubleClick,
     disabled = false,
@@ -41,7 +39,7 @@
     onPointerDown?.(e);
   }
 
-  function handleDoubleClick(e: PointerEvent) {
+  function handleDoubleClick(e: MouseEvent) {
     if (disabled) return;
     onDoubleClick?.(e);
   }

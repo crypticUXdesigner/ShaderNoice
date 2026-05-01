@@ -25,17 +25,24 @@
     ...restProps
   }: Props = $props();
 
-  const { class: _omitClass, ...safeRest } = restProps as Record<string, unknown>;
+  /** Re-read `restProps` when parent updates; merge stray `class` into the root class, omit from spread. */
+  const restSpread = $derived.by(() => {
+    const { class: extraFromRest, ...rest } = restProps as Record<string, unknown>;
+    return {
+      rest,
+      extraClass: typeof extraFromRest === 'string' ? extraFromRest : ''
+    };
+  });
 </script>
 
 <button
-  class="button {variant} {size} {mode} {className || ''} {_omitClass || ''}"
+  class="button {variant} {size} {mode} {className || ''} {restSpread.extraClass}"
   class:rounded
   class:icon-trailing={mode === 'both' && iconPosition === 'trailing'}
   disabled={disabled}
   class:disabled={disabled}
   {onclick}
-  {...safeRest}
+  {...restSpread.rest}
 >
   {@render children?.()}
 </button>

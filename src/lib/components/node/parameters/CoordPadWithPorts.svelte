@@ -20,7 +20,7 @@
     modeButtonIcon: IconName;
     onModeClick?: () => void;
     onPortPointerDown?: (e: PointerEvent) => void;
-    onPortDoubleClick?: (e: PointerEvent) => void;
+    onPortDoubleClick?: (e: MouseEvent) => void;
     disabled: boolean;
   }
 
@@ -112,7 +112,6 @@
         state={portGroupX.portState}
         signalName={portGroupX.signalName}
         showSignalName={false}
-        liveValue={portGroupX.liveValue}
         onPointerDown={portGroupX.onPortPointerDown}
         onDoubleClick={portGroupX.onPortDoubleClick}
         {disabled}
@@ -144,7 +143,6 @@
         state={portGroupY.portState}
         signalName={portGroupY.signalName}
         showSignalName={false}
-        liveValue={portGroupY.liveValue}
         onPointerDown={portGroupY.onPortPointerDown}
         onDoubleClick={portGroupY.onPortDoubleClick}
         {disabled}
