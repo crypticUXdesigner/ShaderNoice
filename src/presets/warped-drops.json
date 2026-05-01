@@ -208,7 +208,7 @@
             840
           ]
         ],
-        "smoothing": 0.84,
+        "smoothingHalfLifeSeconds": 0.0031519616556917917,
         "fftSize": 2048
       },
       {
@@ -221,7 +221,7 @@
             296
           ]
         ],
-        "smoothing": 0.1,
+        "smoothingHalfLifeSeconds": 0.05482344565800487,
         "fftSize": 2048
       }
     ],

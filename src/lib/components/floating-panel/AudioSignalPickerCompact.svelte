@@ -157,9 +157,15 @@
           sampleRate={spectrumDataByBand.get(bandId)?.sampleRate ?? 44100}
           fftSize={band.fftSize}
           fftSizeValue={band.fftSize}
-          smoothing={band.smoothing}
+          smoothingHalfLifeSeconds={band.smoothingHalfLifeSeconds}
+          attackHalfLifeSeconds={band.attackHalfLifeSeconds}
+          releaseHalfLifeSeconds={band.releaseHalfLifeSeconds}
           onChange={(bands) => handleBandChange(bandId, (b) => ({ ...b, frequencyBands: bands }))}
-          onSmoothingChange={(v) => handleBandChange(bandId, (b) => ({ ...b, smoothing: Math.max(0, Math.min(1, v)) }))}
+          onSmoothingHalfLifeSecondsChange={(v) => handleBandChange(bandId, (b) => ({ ...b, smoothingHalfLifeSeconds: Math.max(0, v) }))}
+          onAttackHalfLifeSecondsChange={(v) =>
+            handleBandChange(bandId, (b) => ({ ...b, attackHalfLifeSeconds: v != null ? Math.max(0, v) : undefined }))}
+          onReleaseHalfLifeSecondsChange={(v) =>
+            handleBandChange(bandId, (b) => ({ ...b, releaseHalfLifeSeconds: v != null ? Math.max(0, v) : undefined }))}
           onFftSizeChange={(v) => handleBandChange(bandId, (b) => ({ ...b, fftSize: Math.max(256, Math.min(8192, Math.round(v / 256) * 256)) }))}
         />
       </div>

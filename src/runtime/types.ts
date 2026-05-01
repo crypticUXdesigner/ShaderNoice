@@ -183,7 +183,9 @@ export interface IAudioManager {
     nodeId: string,
     audioFileNodeId: string,
     frequencyBands: import('./AudioManager').FrequencyBand[],
-    smoothing: number[],
+    smoothingHalfLifeSeconds: number[],
+    attackHalfLifeSeconds: Array<number | undefined> | undefined,
+    releaseHalfLifeSeconds: Array<number | undefined> | undefined,
     fftSize?: number
   ): void;
   

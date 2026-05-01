@@ -25,6 +25,11 @@ import { AudioLoader } from './audio/AudioLoader';
 import { AudioPlaybackController, type AudioNodeState } from './audio/AudioPlaybackController';
 import { FrequencyAnalyzer, type FrequencyBand, type AnalyzerNodeState } from './audio/FrequencyAnalyzer';
 import { collectAudioUniformUpdates } from './audio/audioUniformUpdates';
+import { createOfflineAudioProvider, type OfflineAudioProvider } from '../video-export/OfflineAudioProvider';
+import { audioAnalysisStatusStore } from '../lib/stores/audioAnalysisStatusStore';
+import { AudioAnalysisCurveSampler } from './audio-analysis/AudioAnalysisCurveSampler';
+import type { AudioAnalysisWorkerCanceled, AudioAnalysisWorkerError, AudioAnalysisWorkerProgress, AudioAnalysisWorkerResult } from './audio-analysis/audioAnalysisWorkerTypes';
+import { buildOfflineAudioAnalysisConfigs } from '../video-export/OfflineAudioProvider';
 
 // Re-export types for backward compatibility
 export type { FrequencyBand, AudioNodeState, AnalyzerNodeState };
@@ -39,6 +44,16 @@ export class AudioManager implements Disposable {
   
   /** Current audio setup from panel (for analyzer sync and uniform updates) */
   private audioSetup: AudioSetup | null = null;
+
+  /**
+   * File-backed canonical analysis providers (Phase 2 live): map audio file id → provider that can
+   * sample band/remap/remapperOut uniforms by playback time.
+   */
+  private offlineProvidersByFileId: Map<string, OfflineAudioProvider> = new Map();
+  private curveSamplersByFileId: Map<string, AudioAnalysisCurveSampler> = new Map();
+  private offlineBuildGeneration: number = 0;
+  private analysisWorker: Worker | null = null;
+  private activeWorkerBuildKeys: string[] = [];
   
   // Track previous uniform values to detect changes
   private previousUniformValues: Map<string, number> = new Map();
@@ -75,6 +90,7 @@ export class AudioManager implements Disposable {
   setAudioSetup(audioSetup: AudioSetup | null): void {
     this.audioSetup = audioSetup ?? null;
     syncPanelAnalyzers(audioSetup, this.frequencyAnalyzer, this.playbackController);
+    this.rebuildOfflineProviders();
   }
 
   /**
@@ -91,13 +107,15 @@ export class AudioManager implements Disposable {
     const audioContext = this.contextManager.getContext();
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 4096; // Good resolution for frequency analysis
-    analyser.smoothingTimeConstant = 0.8;
+    // Phase 2: prefer deterministic file-backed analysis curves; avoid opaque analyser smoothing.
+    analyser.smoothingTimeConstant = 0;
     
     const gain = audioContext.createGain();
     gain.gain.value = 1.0;
     
     // Create audio node state
     this.playbackController.createAudioNodeState(nodeId, audioBuffer, analyser, gain);
+    this.rebuildOfflineProviders();
   }
   
   /**
@@ -148,7 +166,9 @@ export class AudioManager implements Disposable {
     nodeId: string,
     audioFileNodeId: string,
     frequencyBands: FrequencyBand[],
-    smoothing: number[],
+    smoothingHalfLifeSeconds: number[],
+    attackHalfLifeSeconds: Array<number | undefined> | undefined,
+    releaseHalfLifeSeconds: Array<number | undefined> | undefined,
     fftSize: number = 4096
   ): void {
     const audioState = this.playbackController.getAudioNodeState(audioFileNodeId);
@@ -160,7 +180,9 @@ export class AudioManager implements Disposable {
       nodeId,
       audioFileNodeId,
       frequencyBands,
-      smoothing,
+      smoothingHalfLifeSeconds,
+      attackHalfLifeSeconds,
+      releaseHalfLifeSeconds,
       fftSize,
       audioState
     );
@@ -180,6 +202,9 @@ export class AudioManager implements Disposable {
     } | null,
     forcePushAll?: boolean
   ): void {
+    // Phase 2 live: if we have file-backed offline providers, prefer them over analyser-driven updates
+    // so audio reactivity is stable across monitor refresh and matches export semantics.
+    const offlineUniforms = this.curveSamplersByFileId.size > 0 ? this.curveSamplersByFileId : undefined;
     const updates = collectAudioUniformUpdates(
       this.playbackController,
       this.frequencyAnalyzer,
@@ -187,8 +212,20 @@ export class AudioManager implements Disposable {
       this.previousUniformValues,
       this.VALUE_CHANGE_THRESHOLD,
       graph ?? null,
-      forcePushAll ?? false
+      forcePushAll ?? false,
+      offlineUniforms
     );
+    // Update status chip state opportunistically.
+    if (this.offlineProvidersByFileId.size > 0) {
+      const allReady = this.curveSamplersByFileId.size >= this.offlineProvidersByFileId.size;
+      if (allReady) {
+        audioAnalysisStatusStore.set({ state: 'ready' });
+      } else {
+        audioAnalysisStatusStore.update((s) =>
+          s.state === 'building' ? s : { state: 'fallback', label: 'Using live preview approximation' }
+        );
+      }
+    }
     if (updates.length > 0) {
       if (updates.length === 1) {
         setUniform(updates[0].nodeId, updates[0].paramName, updates[0].value);
@@ -196,6 +233,213 @@ export class AudioManager implements Disposable {
         setUniforms(updates);
       }
     }
+  }
+
+  private rebuildOfflineProviders(): void {
+    const setup = this.audioSetup;
+    if (!setup) {
+      this.offlineProvidersByFileId.clear();
+      audioAnalysisStatusStore.set({ state: 'idle' });
+      return;
+    }
+
+    // Build providers only for file-backed sources that are loaded and referenced by bands.
+    const fileIdsWithBands = new Set(setup.bands.map((b) => b.sourceFileId));
+    if (fileIdsWithBands.size === 0) {
+      this.offlineProvidersByFileId.clear();
+      audioAnalysisStatusStore.set({ state: 'idle' });
+      return;
+    }
+    const audioNodeStates = this.playbackController.getAllAudioNodeStates();
+    const next = new Map<string, OfflineAudioProvider>();
+
+    for (const fileId of fileIdsWithBands) {
+      const state = audioNodeStates.get(fileId);
+      const buffer = state?.audioBuffer;
+      if (!buffer) continue;
+      const sampleRate = buffer.sampleRate;
+      const frameRate = 120; // canonical analysis rate
+      const maxFrames = Math.ceil(buffer.duration * frameRate) + 2;
+      next.set(
+        fileId,
+        createOfflineAudioProvider(setup, fileId, buffer, sampleRate, frameRate, 0, maxFrames, {
+          cacheBuildMode: 'async',
+          cacheYieldEveryFrames: 240,
+          onCacheBuildProgress01: (p01: number) => {
+            if (this.offlineBuildGeneration !== buildGen) return;
+            audioAnalysisStatusStore.set({ state: 'building', progress01: p01, label: 'Preparing audio analysis…' });
+          },
+        })
+      );
+    }
+
+    this.offlineProvidersByFileId = next;
+    this.curveSamplersByFileId.clear();
+    if (this.offlineProvidersByFileId.size === 0) {
+      // We have bands, but no loaded buffers yet; no build is running.
+      audioAnalysisStatusStore.set({ state: 'idle' });
+      return;
+    }
+
+    const buildGen = ++this.offlineBuildGeneration;
+    // Note: progress updates are delivered via each provider's onCacheBuildProgress01 callback.
+    audioAnalysisStatusStore.set({ state: 'building', progress01: 0, label: 'Preparing audio analysis…' });
+
+    // Start worker build for the primary file-backed source. (Phase 2 perf)
+    // For now, we build one combined curve per file sequentially (keeps UX responsive; can parallelize later).
+    this.startWorkerBuildForFiles(buildGen).catch((err) => {
+      if (this.offlineBuildGeneration !== buildGen) return;
+      audioAnalysisStatusStore.set({ state: 'failed', label: err instanceof Error ? err.message : String(err) });
+    });
+  }
+
+  private async startWorkerBuildForFiles(buildGen: number): Promise<void> {
+    if (this.analysisWorker == null) {
+      const { default: WorkerConstructor } = await import('./audio-analysis/audioAnalysisWorker.ts?worker');
+      this.analysisWorker = new WorkerConstructor();
+    }
+
+    const worker = this.analysisWorker;
+
+    // Cancel any in-flight worker builds from previous generations.
+    for (const key of this.activeWorkerBuildKeys) {
+      const [buildId, fileId] = key.split('::');
+      if (buildId && fileId) worker.postMessage({ type: 'cancel', buildId, fileId });
+    }
+    this.activeWorkerBuildKeys = [];
+
+    const fileIds = Array.from(this.offlineProvidersByFileId.keys());
+    const totalFiles = Math.max(1, fileIds.length);
+    const fileIndexById = new Map<string, number>(fileIds.map((id, i) => [id, i]));
+
+    // Resolve gates per file build so we can sequence cleanly.
+    const pending = new Map<string, { resolve: () => void; reject: (e: Error) => void; lastProgress01: number }>();
+    const removeActiveKey = (key: string) => {
+      const idx = this.activeWorkerBuildKeys.indexOf(key);
+      if (idx >= 0) this.activeWorkerBuildKeys.splice(idx, 1);
+    };
+
+    const failAllPending = (err: Error) => {
+      for (const [key, p] of pending) {
+        p.reject(err);
+        removeActiveKey(key);
+      }
+      pending.clear();
+    };
+
+    worker.onmessage = (ev: MessageEvent<AudioAnalysisWorkerProgress | AudioAnalysisWorkerResult | AudioAnalysisWorkerError | AudioAnalysisWorkerCanceled>) => {
+      const msg = ev.data;
+      const isCurrentGen = this.offlineBuildGeneration === buildGen;
+
+      if (msg.type === 'progress') {
+        if (!isCurrentGen) return;
+        const key = `${msg.buildId}::${msg.fileId}`;
+        const p = pending.get(key);
+        if (!p) return;
+        p.lastProgress01 = msg.progress01;
+        const fileIndex = fileIndexById.get(msg.fileId) ?? 0;
+        const overall = (Math.max(0, fileIndex) + msg.progress01) / totalFiles;
+        audioAnalysisStatusStore.set({ state: 'building', progress01: overall, label: 'Preparing audio analysis…' });
+        return;
+      }
+
+      if (msg.type === 'error') {
+        const key = `${msg.buildId}::${msg.fileId}`;
+        const p = pending.get(key);
+        if (!p) return;
+        p.reject(new Error(msg.message));
+        pending.delete(key);
+        removeActiveKey(key);
+        return;
+      }
+
+      if (msg.type === 'canceled') {
+        const key = `${msg.buildId}::${msg.fileId}`;
+        const p = pending.get(key);
+        if (!p) return;
+        p.resolve();
+        pending.delete(key);
+        removeActiveKey(key);
+        return;
+      }
+
+      if (msg.type === 'result') {
+        const key = `${msg.buildId}::${msg.fileId}`;
+        const p = pending.get(key);
+        if (!p) return;
+        if (isCurrentGen) {
+          this.curveSamplersByFileId.set(msg.fileId, new AudioAnalysisCurveSampler(msg.cache));
+        }
+        p.resolve();
+        pending.delete(key);
+        removeActiveKey(key);
+      }
+    };
+
+    // Surface worker-level errors (syntax errors, OOM, etc.) as failed status and unblock awaits.
+    worker.onerror = (e: ErrorEvent) => {
+      const err = e?.message ? new Error(e.message) : new Error('Audio analysis worker error');
+      // Always unblock the current sequence so we don't hang. Only show failed UI for the active generation.
+      failAllPending(err);
+      if (this.offlineBuildGeneration === buildGen) {
+        audioAnalysisStatusStore.set({ state: 'failed', label: err.message });
+      }
+    };
+
+    // Build each file sequentially (keeps memory bounded).
+    for (let idx = 0; idx < fileIds.length; idx++) {
+      const fileId = fileIds[idx]!;
+      if (this.offlineBuildGeneration !== buildGen) return;
+
+      const state = this.playbackController.getAudioNodeState(fileId);
+      const buffer = state?.audioBuffer;
+      if (!buffer) continue;
+
+      const buildId = `analysis-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const key = `${buildId}::${fileId}`;
+      this.activeWorkerBuildKeys.push(key);
+
+      const gate = new Promise<void>((resolve, reject) => {
+        pending.set(key, { resolve, reject, lastProgress01: 0 });
+      });
+
+      // Copy PCM so we can transfer without detaching AudioBuffer's underlying storage.
+      const pcmChannels: Float32Array[] = [];
+      for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+        const src = buffer.getChannelData(ch);
+        const copy = new Float32Array(src.length);
+        copy.set(src);
+        pcmChannels.push(copy);
+      }
+
+      const transferables = pcmChannels.map((a) => a.buffer);
+      const hopHz = 120;
+      const frameRateForDuration = 120;
+      const maxFrames = Math.ceil(buffer.duration * frameRateForDuration) + 2;
+      const { analyzerConfigs, remapperConfigs } = buildOfflineAudioAnalysisConfigs(this.audioSetup!, fileId);
+
+      worker.postMessage(
+        {
+          type: 'build',
+          buildId,
+          fileId,
+          sampleRate: buffer.sampleRate,
+          startTimeSeconds: 0,
+          hopHz,
+          frameRateForDuration,
+          maxFrames,
+          pcmChannels,
+          analyzerConfigs,
+          remapperConfigs,
+        },
+        transferables
+      );
+
+      await gate;
+    }
+
+    audioAnalysisStatusStore.set({ state: 'ready' });
+    this.activeWorkerBuildKeys = [];
   }
   
   /**

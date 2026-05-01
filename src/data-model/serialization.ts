@@ -16,6 +16,7 @@ import { validateGraph } from './validation';
 import type { NodeSpecification } from './validation';
 import { migrateBandRemapToRemappers } from './audioBandRemapMigration';
 import { migrateMixedWaveSignalShapes } from './mixedWaveSignalShapeMigration';
+import { ensureBandSmoothingHalfLife } from './audioSmoothingMigration';
 
 const CURRENT_FORMAT_VERSION = '2.0' as const;
 
@@ -55,6 +56,11 @@ const MIGRATIONS_BY_VERSION: Record<string, MigrationStep[]> = {
       if (!audio || audio.bands.length === 0) return ctx;
       const migrated = migrateBandRemapToRemappers(ctx.graph, audio);
       return { graph: migrated.graph, audioSetup: migrated.audioSetup };
+    },
+    (ctx: MigrationContext): MigrationContext => {
+      const audio = ctx.audioSetup;
+      if (!audio || audio.bands.length === 0) return ctx;
+      return { ...ctx, audioSetup: ensureBandSmoothingHalfLife(audio) };
     },
   ],
 };

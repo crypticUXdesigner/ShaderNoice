@@ -168,7 +168,7 @@
 
   let curveEditorLaneId = $state<string | null>(null);
   let curveEditorRegionId = $state<string | null>(null);
-  let curveEditorLaneLabel = $state<string>('');
+  let curveEditorParamLabel = $state<string>('');
   let presets = $state<Array<{ name: string; displayName: string }>>([]);
   let selectedPreset = $state<string | null>(null);
   let isPanelVisible = $state(true);
@@ -661,10 +661,10 @@
     getTimelineState={() => runtimeManager?.getTimelineState() ?? null}
     onSeek={(t) => runtimeManager?.seekGlobalAudio(t)}
     waveformService={waveformService}
-    onOpenCurveEditor={(laneId, regionId, laneLabel) => {
+    onOpenCurveEditor={(laneId, regionId, labels) => {
       curveEditorLaneId = laneId;
       curveEditorRegionId = regionId;
-      curveEditorLaneLabel = laneLabel;
+      curveEditorParamLabel = labels.paramLabel;
     }}
     onClose={() => bottomBarRef?.setTimelinePanelOpen(false)}
     nodeSpecs={nodeSpecs}
@@ -682,11 +682,11 @@
       onClose={() => {
         curveEditorLaneId = null;
         curveEditorRegionId = null;
-        curveEditorLaneLabel = '';
+        curveEditorParamLabel = '';
       }}
       laneId={curveEditorLaneId}
       regionId={curveEditorRegionId}
-      laneLabel={curveEditorLaneLabel}
+      paramLabel={curveEditorParamLabel}
       nodeSpecs={nodeSpecs}
       getWaveformData={waveformService ? async () => waveformService!.getWaveformForPrimary() : undefined}
     />

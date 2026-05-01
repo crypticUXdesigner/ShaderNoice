@@ -18,7 +18,15 @@ export interface AudioBandEntry {
   name: string;
   sourceFileId: string;
   frequencyBands: [[number, number]];
-  smoothing: number;
+  /**
+   * Time-based symmetric smoothing half-life (seconds): after this duration, half of the previous value remains.
+   * 0 means immediate response. Infinity means frozen.
+   */
+  smoothingHalfLifeSeconds?: number;
+  /** Future: time-based half-life for rising edges (seconds). */
+  attackHalfLifeSeconds?: number;
+  /** Future: time-based half-life for falling edges (seconds). */
+  releaseHalfLifeSeconds?: number;
   fftSize: number;
   remapInMin?: number;
   remapInMax?: number;

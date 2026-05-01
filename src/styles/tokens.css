@@ -38,7 +38,7 @@
 /* === GHOST TOKENS === */
 --ghost-bg: transparent;
 --ghost-bg-hover: var(--color-gray-70);
---ghost-bg-active: var(--color-gray-80);
+--ghost-bg-active: var(--color-gray-70);
 --ghost-print: var(--color-gray-110);
 --ghost-print-hover: var(--color-gray-120);
 --ghost-print-active: var(--color-teal-light-130);

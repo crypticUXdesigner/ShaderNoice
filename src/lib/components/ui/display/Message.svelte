@@ -39,6 +39,8 @@
     variant?: 'success' | 'error' | 'info';
     /** When true, renders inline (no fixed position, no visibility/transition). */
     inline?: boolean;
+    /** When true, toast participates in a parent stack (no fixed positioning on wrapper). */
+    stacked?: boolean;
     /** Optional heading shown above the message body (e.g. "What you see:"). */
     heading?: import('svelte').Snippet<[]>;
     /** When true, the variant icon is not shown (e.g. for inline help callouts). */
@@ -53,6 +55,7 @@
     visible = false,
     variant = 'success',
     inline = false,
+    stacked = false,
     heading,
     hideIcon = false,
     onclose,
@@ -113,7 +116,7 @@
     </span>
   </div>
 {:else if visible && deferredVisible}
-  <div class="message-wrapper">
+  <div class="message-wrapper" class:is-stacked={stacked}>
     <div
       class="message {className || ''}"
       class:is-success={variant === 'success'}
@@ -151,6 +154,13 @@
     transform-style: preserve-3d;
     perspective: 400px;
     perspective-origin: 50% 100%;
+
+    &.is-stacked {
+      position: relative;
+      bottom: auto;
+      left: auto;
+      transform: none;
+    }
 
     /* Message: the rotating face (child gets perspective from wrapper) */
     .message {

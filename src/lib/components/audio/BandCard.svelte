@@ -96,7 +96,7 @@
       sampleRate={spectrumData?.sampleRate ?? 44100}
       fftSize={band.fftSize}
       fftSizeValue={band.fftSize}
-      smoothing={band.smoothing}
+      smoothingHalfLifeSeconds={band.smoothingHalfLifeSeconds}
       showSmoothingFft={false}
       onChange={(bands) => onBandChange?.((b) => ({ ...b, frequencyBands: bands }))}
     />

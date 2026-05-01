@@ -37,7 +37,7 @@
         "name": "Highs",
         "sourceFileId": "f1",
         "frequencyBands": [[2568, 20000]],
-        "smoothing": 0.03,
+        "smoothingHalfLifeSeconds": 0.18963810885644505,
         "fftSize": 4096,
         "remapInMin": 0,
         "remapInMax": 0.52,

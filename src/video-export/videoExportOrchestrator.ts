@@ -300,7 +300,7 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
   const writable = createFileSystemWritableStream(fileStream);
 
   const offlineProvider = hasAudio
-    ? createOfflineAudioProvider(audioSetup, primaryNodeId, buffer!, sampleRate, frameRate, startSeconds)
+    ? createOfflineAudioProvider(audioSetup, primaryNodeId, buffer!, sampleRate, frameRate, startSeconds, maxFrames)
     : null;
 
   const renderPath = createExportRenderPath(graph, compiler, audioSetup, {

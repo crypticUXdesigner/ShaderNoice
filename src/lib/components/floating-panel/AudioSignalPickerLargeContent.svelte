@@ -254,16 +254,68 @@
       {#if selectedBand}
         <div class="toolbar">
           <div class="row">
-            <span class="label">Smooth</span>
+            <span class="label">Half-life</span>
             <ValueInput
-              value={selectedBand.smoothing}
+              value={Math.round((selectedBand.smoothingHalfLifeSeconds ?? 0) * 1000)}
               min={0}
-              max={1}
-              step={0.01}
-              decimals={2}
+              max={10000}
+              step={1}
+              decimals={0}
               size="sm"
-              onChange={(v) => handleBandChange(selectedBand.id, (b) => ({ ...b, smoothing: Math.max(0, Math.min(1, v)) }))}
-              onCommit={(v) => handleBandChange(selectedBand.id, (b) => ({ ...b, smoothing: Math.max(0, Math.min(1, v)) }))}
+              onChange={(v) =>
+                handleBandChange(selectedBand.id, (b) => ({
+                  ...b,
+                  smoothingHalfLifeSeconds: Math.max(0, v) / 1000,
+                }))}
+              onCommit={(v) =>
+                handleBandChange(selectedBand.id, (b) => ({
+                  ...b,
+                  smoothingHalfLifeSeconds: Math.max(0, v) / 1000,
+                }))}
+              class="smoothing"
+            />
+          </div>
+          <div class="row">
+            <span class="label">Attack</span>
+            <ValueInput
+              value={Math.round(((selectedBand.attackHalfLifeSeconds ?? selectedBand.smoothingHalfLifeSeconds ?? 0) as number) * 1000)}
+              min={0}
+              max={10000}
+              step={1}
+              decimals={0}
+              size="sm"
+              onChange={(v) =>
+                handleBandChange(selectedBand.id, (b) => ({
+                  ...b,
+                  attackHalfLifeSeconds: Math.max(0, v) / 1000,
+                }))}
+              onCommit={(v) =>
+                handleBandChange(selectedBand.id, (b) => ({
+                  ...b,
+                  attackHalfLifeSeconds: Math.max(0, v) / 1000,
+                }))}
+              class="smoothing"
+            />
+          </div>
+          <div class="row">
+            <span class="label">Release</span>
+            <ValueInput
+              value={Math.round(((selectedBand.releaseHalfLifeSeconds ?? selectedBand.smoothingHalfLifeSeconds ?? 0) as number) * 1000)}
+              min={0}
+              max={10000}
+              step={1}
+              decimals={0}
+              size="sm"
+              onChange={(v) =>
+                handleBandChange(selectedBand.id, (b) => ({
+                  ...b,
+                  releaseHalfLifeSeconds: Math.max(0, v) / 1000,
+                }))}
+              onCommit={(v) =>
+                handleBandChange(selectedBand.id, (b) => ({
+                  ...b,
+                  releaseHalfLifeSeconds: Math.max(0, v) / 1000,
+                }))}
               class="smoothing"
             />
           </div>

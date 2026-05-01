@@ -8,6 +8,7 @@ export type IconName =
   | 'x'
   | 'rotate-cw'
   | 'plus'
+  | 'google-chrome-logo'
   | 'sparkles'
   | 'eye'
   | 'eye-off'
@@ -30,6 +31,7 @@ export type IconName =
   | 'layout-grid'
   | 'grid-pattern'
   | 'square-split-horizontal'
+  | 'tree-structure'
   | 'hash-straight'
   | 'transition-left'
   | 'square-x'
@@ -56,6 +58,7 @@ export type IconName =
   | 'equal'
   | 'minus'
   | 'minus-circle'
+  | 'trash'
   | 'wave-sine'
   | 'waveform'
   | 'flame'
@@ -68,7 +71,8 @@ export type IconName =
   | 'skip-back'
   | 'skip-forward'
   | 'swap'
-  | 'arrows-in-line-vertical';
+  | 'arrows-in-line-vertical'
+  | 'dots-nine';
 
 /** IconName → Phosphor icon name (kebab-case) */
 export const iconNameMap: Record<IconName, string> = {
@@ -77,6 +81,7 @@ export const iconNameMap: Record<IconName, string> = {
   'x': 'x',
   'rotate-cw': 'arrow-clockwise',
   'plus': 'plus',
+  'google-chrome-logo': 'google-chrome-logo',
   'sparkles': 'sparkle',
   'eye': 'eye',
   'eye-off': 'eye-slash',
@@ -99,6 +104,7 @@ export const iconNameMap: Record<IconName, string> = {
   'layout-grid': 'grid-four',
   'grid-pattern': 'checkerboard',
   'square-split-horizontal': 'square-split-horizontal',
+  'tree-structure': 'tree-structure',
   'hash-straight': 'hash-straight',
   'transition-left': 'arrow-left',
   'square-x': 'x-square',
@@ -126,6 +132,7 @@ export const iconNameMap: Record<IconName, string> = {
   'equal': 'equals',
   'minus': 'minus',
   'minus-circle': 'minus-circle',
+  'trash': 'trash',
   'wave-sine': 'wave-sine',
   'waveform': 'waveform',
   'flame': 'flame',
@@ -138,4 +145,5 @@ export const iconNameMap: Record<IconName, string> = {
   'skip-forward': 'skip-forward',
   'swap': 'swap',
   'arrows-in-line-vertical': 'arrows-in-line-vertical',
+  'dots-nine': 'dots-nine',
 };

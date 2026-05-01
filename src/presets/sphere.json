@@ -381,7 +381,7 @@
             120
           ]
         ],
-        "smoothing": 0.1,
+        "smoothingHalfLifeSeconds": 0.05482344565800487,
         "fftSize": 4096,
         "remapInMin": 0,
         "remapInMax": 1,
@@ -398,7 +398,7 @@
             376
           ]
         ],
-        "smoothing": 0.1,
+        "smoothingHalfLifeSeconds": 0.05482344565800487,
         "fftSize": 4096,
         "remapInMin": 0,
         "remapInMax": 1,
@@ -415,7 +415,7 @@
             4000
           ]
         ],
-        "smoothing": 0.1,
+        "smoothingHalfLifeSeconds": 0.05482344565800487,
         "fftSize": 4096,
         "remapInMin": 0.20504293274038105,
         "remapInMax": 1,
@@ -432,7 +432,7 @@
             20000
           ]
         ],
-        "smoothing": 0.03,
+        "smoothingHalfLifeSeconds": 0.18963810885644505,
         "fftSize": 4096,
         "remapInMin": 0,
         "remapInMax": 0.5243271213728334,
@@ -449,7 +449,7 @@
             84
           ]
         ],
-        "smoothing": 0.1,
+        "smoothingHalfLifeSeconds": 0.05482344565800487,
         "fftSize": 4096,
         "remapInMin": 0.8214285714285715,
         "remapInMax": 1,

@@ -9,9 +9,9 @@
   import VerticalResizeHandle from './VerticalResizeHandle.svelte';
   import PreviewContainer from './PreviewContainer.svelte';
   import ConfirmPresetImportModal from './ConfirmPresetImportModal.svelte';
-  import ConfirmPresetLoadModal from './ConfirmPresetLoadModal.svelte';
   import PresetPickerDialog from './PresetPickerDialog.svelte';
   import { portal } from '../../actions/portal';
+  import { audioAnalysisStatusStore } from '../../stores/audioAnalysisStatusStore';
   import { getGraph } from '../../stores';
   import { globalErrorHandler } from '../../../utils/errorHandling';
   import type { ViewMode, LayoutCallbacks } from './types';
@@ -77,13 +77,20 @@
   let resizeMoveRafId = 0;
   let latestMoveEvent = null as MouseEvent | null;
 
+  /** Matches Message flip-out duration so we clear content after non-stacked exit. */
+  const MESSAGE_FLIP_OUT_MS = 240;
+  /** Keeps stacked layout stable while success slot height eases shut (audio toast moves down smoothly). */
+  const TOAST_STACK_SLOT_COLLAPSE_MS = 300;
+
   let toastVisible = $state(false);
   let toastMessage = $state('');
   let toastVariant = $state<'success' | 'error' | 'info'>('success');
+  /** Drives max-height transition on placeholder under the audio toast when success hides. */
+  let toastStackSlotCollapsed = $state(false);
+  /** True once preset toast hid while audio was visible; keeps collapse slot until message clears even if audio ends mid-animation. */
+  let toastExitSlotLatched = $state(false);
   let presetLoading = $state(false);
   let shortcutsModalOpen = $state(false);
-  /** When set, show "Load preset?" confirmation modal; confirm runs load for this preset name. */
-  let pendingLoadPresetName = $state<string | null>(null);
   /** When set, show "Import preset?" confirmation modal; confirm runs import with this JSON. */
   let pendingImportJson = $state<string | null>(null);
 
@@ -105,6 +112,76 @@
   const bottomSafeInset = $derived(isUiHidden ? 0 : Math.max(bottomBarHeight, SAFE_DISTANCE));
   const rawPanelOffset = $derived(isPanelVisible ? panelWidth : 0);
   const panelOffset = $derived(isUiHidden ? 0 : rawPanelOffset);
+
+  const audioAnalysisToast = $derived.by((): {
+    show: boolean;
+    variant: 'info' | 'error';
+    label: string;
+    percent?: number;
+  } => {
+    const status = $audioAnalysisStatusStore;
+    if (status.state === 'building') {
+      const label = status.label?.trim() || 'Preparing audio analysis';
+      const percent = Math.max(0, Math.min(100, Math.round((status.progress01 ?? 0) * 100)));
+      return { show: true, variant: 'info', label, percent };
+    }
+    if (status.state === 'fallback') {
+      const label = status.label?.trim() || 'Audio analysis fallback';
+      return { show: true, variant: 'info', label };
+    }
+    if (status.state === 'failed') {
+      const label = status.label?.trim() || 'Audio analysis failed';
+      return { show: true, variant: 'error', label };
+    }
+    return { show: false, variant: 'info', label: '' };
+  });
+
+  $effect(() => {
+    if (!toastMessage) {
+      toastExitSlotLatched = false;
+      return;
+    }
+    if (toastVisible) {
+      toastExitSlotLatched = false;
+      return;
+    }
+    if (audioAnalysisToast.show) {
+      toastExitSlotLatched = true;
+    }
+  });
+
+  const showToastStackExitSlot = $derived(
+    !!(toastMessage && !toastVisible && (audioAnalysisToast.show || toastExitSlotLatched))
+  );
+
+  /** After hide, clear message once exit animation finishes (collapse slot if audio toast is stacked; else flip-out cadence). */
+  $effect(() => {
+    if (!toastMessage || toastVisible) return;
+    const delay = audioAnalysisToast.show ? TOAST_STACK_SLOT_COLLAPSE_MS : MESSAGE_FLIP_OUT_MS;
+    const id = window.setTimeout(() => {
+      toastMessage = '';
+    }, delay);
+    return () => window.clearTimeout(id);
+  });
+
+  $effect(() => {
+    if (!showToastStackExitSlot) {
+      toastStackSlotCollapsed = false;
+      return;
+    }
+    toastStackSlotCollapsed = false;
+    let raf1 = 0;
+    let raf2 = 0;
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        toastStackSlotCollapsed = true;
+      });
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  });
 
   // Show toast helper
   function showToast(message: string, type: 'success' | 'error' | 'info') {
@@ -130,10 +207,6 @@
     toastVisible = false;
   }
 
-  function clearToastAfterExit() {
-    toastMessage = '';
-  }
-
   // View mode
   function setViewMode(mode: ViewMode) {
     if (viewMode === mode) return;
@@ -155,7 +228,7 @@
     function onKeyDown(e: KeyboardEvent) {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (isTypingTarget(e.target)) return;
-      if (shortcutsModalOpen || pendingLoadPresetName !== null || pendingImportJson !== null) return;
+      if (shortcutsModalOpen || pendingImportJson !== null) return;
       if (presetDialogOpen) return;
 
       if (e.key === 'Tab') {
@@ -294,6 +367,10 @@
 
   async function handleVideoExport() {
     try {
+      const status = $audioAnalysisStatusStore;
+      if (status.state === 'building' || status.state === 'fallback') {
+        showToast('Live audio is still preparing — export uses deterministic analysis.', 'info');
+      }
       await callbacks.onVideoExport?.();
       showToast('Video exported successfully!', 'success');
     } catch (err) {
@@ -309,18 +386,12 @@
 
   async function handleLoadPreset(presetName: string) {
     presetDialogOpen = false;
-    const graph = getGraph();
-    if (graph.nodes.length > 0) {
-      pendingLoadPresetName = presetName;
-      return;
-    }
     await doLoadPreset(presetName);
   }
 
   async function doLoadPreset(presetName: string) {
     try {
       presetLoading = true;
-      pendingLoadPresetName = null;
       await callbacks.onLoadPreset?.(presetName);
       showToast(`Loaded preset: ${presetName}`, 'success');
     } catch (err) {
@@ -435,12 +506,6 @@
 
   <KeyboardShortcutsModal open={shortcutsModalOpen} onClose={() => (shortcutsModalOpen = false)} />
 
-  <ConfirmPresetLoadModal
-    open={pendingLoadPresetName !== null}
-    onClose={() => (pendingLoadPresetName = null)}
-    onConfirm={() => pendingLoadPresetName != null && doLoadPreset(pendingLoadPresetName)}
-  />
-
   <ConfirmPresetImportModal
     open={pendingImportJson !== null}
     onClose={() => (pendingImportJson = null)}
@@ -538,15 +603,63 @@
   {/if}
 </div>
 
-{#if toastMessage}
-  <div use:portal style="position: fixed; inset: 0; z-index: 10000; pointer-events: none;">
-    <Message visible={toastVisible} variant={toastVariant} onclose={dismissToast} onExited={clearToastAfterExit}>
-      <span>{toastMessage}</span>
-    </Message>
+{#if audioAnalysisToast.show || toastMessage}
+  <div use:portal class="toast-stack" role="status" aria-live="polite">
+    {#if toastMessage}
+      {#if toastVisible}
+        <Message stacked visible={toastVisible} variant={toastVariant} onclose={dismissToast}>
+          <span>{toastMessage}</span>
+        </Message>
+      {:else if showToastStackExitSlot}
+        <div
+          class="toast-stack-exit-slot"
+          class:is-collapsed={toastStackSlotCollapsed}
+          aria-hidden="true"
+        ></div>
+      {/if}
+    {/if}
+    {#if audioAnalysisToast.show}
+      <Message stacked visible={true} variant={audioAnalysisToast.variant}>
+        <span>
+          <span>{audioAnalysisToast.label}</span>
+          {#if audioAnalysisToast.percent !== undefined}
+            <span aria-hidden="true"> {audioAnalysisToast.percent}%</span>
+          {/if}
+        </span>
+      </Message>
+    {/if}
   </div>
 {/if}
 
 <style>
+  /* Stack preset / action toasts with audio analysis (success at bottom, audio above). */
+  .toast-stack {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    pointer-events: none;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--pd-sm);
+    padding-bottom: calc(var(--bottom-bar-height) + var(--pd-md));
+  }
+
+  .toast-stack-exit-slot {
+    width: min(var(--message-max-width), 100%);
+    flex-shrink: 0;
+    max-height: min(40vh, 12rem);
+    overflow: hidden;
+    transition: max-height 0.28s cubic-bezier(0.33, 1, 0.68, 1);
+    pointer-events: none;
+  }
+
+  .toast-stack-exit-slot.is-collapsed {
+    max-height: 0;
+  }
+
   /* Panel-affected layout: animate in sync with node panel slide (0.3s ease) */
   .node-editor-layout {
     overflow: visible;

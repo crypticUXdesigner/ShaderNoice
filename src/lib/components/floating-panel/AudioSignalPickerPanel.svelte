@@ -162,7 +162,7 @@
       name: `Band ${bands.length + 1}`,
       sourceFileId: primaryId,
       frequencyBands: [[20, 20000]],
-      smoothing: 0.5,
+      smoothingHalfLifeSeconds: 1 / 120,
       fftSize: 2048,
     };
     onAudioSetupChange(addAudioBand(audioSetup, newBand));

@@ -360,7 +360,7 @@
             317
           ]
         ],
-        "smoothing": 0.5,
+        "smoothingHalfLifeSeconds": 0.008333333333333333,
         "fftSize": 2048
       },
       {
@@ -373,7 +373,7 @@
             3013
           ]
         ],
-        "smoothing": 0.5,
+        "smoothingHalfLifeSeconds": 0.008333333333333333,
         "fftSize": 2048
       }
     ],

@@ -472,7 +472,7 @@ describe('NodeShaderCompiler', () => {
 
       const audioSetup: AudioSetup = {
         files: [],
-        bands: [{ id: 'band-1', name: 'B1', sourceFileId: 'f1', frequencyBands: [[0, 1000]], smoothing: 0.8, fftSize: 4096 }],
+        bands: [{ id: 'band-1', name: 'B1', sourceFileId: 'f1', frequencyBands: [[0, 1000]], smoothingHalfLifeSeconds: 1 / 120, fftSize: 4096 }],
         remappers: [
           { id: remapperId, name: 'R1', bandId: 'band-1', inMin: 0, inMax: 1, outMin: 0, outMax: 1 },
         ],

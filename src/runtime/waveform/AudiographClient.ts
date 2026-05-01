@@ -3,21 +3,21 @@
  * Fetches RMS-normalized uint32[] per resource name; caches by (resource_name, resolution, channels).
  * Normalizes values to 0–1 for drawing.
  *
- * Checklist (matches rpc.audiotool.com):
- * - URL: POST {baseUrl}/audiotool.audiograph.v1.AudiographService/GetAudiographs (default base: https://rpc.audiotool.com)
- * - Headers: Content-Type: application/json; optional Authorization: Bearer <VITE_AUDIOTOOL_API_TOKEN>
- * - Body: JSON with resource_names (e.g. ["tracks/12345"]), resolution (120|240|480|960|1920|3840), channels (1|2)
- * - Track ID must be a valid Audiotool track/sample resource name (e.g. tracks/xyz).
+ * Uses protobuf-generated RPC from @audiotool/nexus (Connect + JSON against rpc.audiotool.com).
+ * Headers: Content-Type handled by Connect; optional Authorization: Bearer <VITE_AUDIOTOOL_API_TOKEN>.
+ * Track ID must be a valid Audiotool track/sample resource name (e.g. tracks/xyz).
  */
 
-import type { AudiographChannels, AudiographResolution } from './types';
+import {
+  AudiographService,
+  GetAudiographChannels,
+  GetAudiographResolution,
+  GetAudiographsResponse,
+} from '@audiotool/nexus/api';
+import { Code, ConnectError, createClient } from '@connectrpc/connect';
+import { createConnectTransport } from '@connectrpc/connect-web';
 
-/** Response shape from GetAudiographs (JSON). */
-interface GetAudiographsResponse {
-  audiographs?: Array<{
-    graphs?: Array<{ values?: unknown[] }>;
-  }>;
-}
+import type { AudiographChannels, AudiographResolution } from './types';
 
 /** Resolution for scrubber/timeline (reference: 120). */
 export const SCRUBBER_RESOLUTION: AudiographResolution = 120;
@@ -29,6 +29,15 @@ const UINT32_MAX = 0xffff_ffff;
 
 /** Default base URL for Audiograph RPC (override with VITE_AUDIOGRAPH_API_URL). */
 const DEFAULT_AUDIOGRAPH_BASE_URL = 'https://rpc.audiotool.com';
+
+const RESOLUTION_TO_PROTO: Record<AudiographResolution, GetAudiographResolution> = {
+  120: GetAudiographResolution.GET_AUDIOGRAPH_RESOLUTION_120,
+  240: GetAudiographResolution.GET_AUDIOGRAPH_RESOLUTION_240,
+  480: GetAudiographResolution.GET_AUDIOGRAPH_RESOLUTION_480,
+  960: GetAudiographResolution.GET_AUDIOGRAPH_RESOLUTION_960,
+  1920: GetAudiographResolution.GET_AUDIOGRAPH_RESOLUTION_1920,
+  3840: GetAudiographResolution.GET_AUDIOGRAPH_RESOLUTION_3840,
+};
 
 function getAudiographBaseUrl(): string {
   try {
@@ -50,16 +59,12 @@ function getApiToken(): string {
   }
 }
 
-/**
- * Request body for GetAudiographs (snake_case as per API checklist).
- * resource_names, resolution (120|240|480|960|1920|3840), channels (1|2).
- */
-function buildGetAudiographsBody(resourceName: string, resolution: number, channels: number): Record<string, unknown> {
-  return {
-    resource_names: [resourceName],
-    resolution,
-    channels,
-  };
+function toProtoResolution(resolution: AudiographResolution): GetAudiographResolution {
+  return RESOLUTION_TO_PROTO[resolution] ?? GetAudiographResolution.GET_AUDIOGRAPH_RESOLUTION_UNSPECIFIED;
+}
+
+function toProtoChannels(channels: AudiographChannels): GetAudiographChannels {
+  return channels === 2 ? GetAudiographChannels.STEREO : GetAudiographChannels.MONO;
 }
 
 /**
@@ -88,10 +93,11 @@ function peakNormalize(values: number[]): void {
   }
 }
 
-/**
- * Audiograph API client with in-memory cache.
- * Uses HTTP POST with JSON body (grpc-gateway style); base URL from VITE_AUDIOGRAPH_API_URL.
- */
+/** True when audiograph routes are gone (matches prior 404 disable behavior). */
+function shouldDisableClient(err: ConnectError): boolean {
+  return err.code === Code.NotFound || err.code === Code.Unimplemented;
+}
+
 type MonoCacheEntry = { values: number[]; fetchedAt: number };
 type StereoCacheEntry = { left: number[]; right: number[]; fetchedAt: number };
 
@@ -102,12 +108,27 @@ export class AudiographClient {
   private stereoInFlight = new Map<string, Promise<{ left: number[]; right: number[] } | null>>();
   private readonly baseUrl: string;
   private readonly cacheTtlMs: number;
+  /** Connect client for audiograph RPC (pinned proto via @audiotool/nexus). */
+  private readonly rpcClient: ReturnType<typeof createClient<typeof AudiographService>>;
   private lastErrorLogged: string | null = null;
   private disabled = false;
 
   constructor(options?: { baseUrl?: string; cacheTtlMs?: number }) {
     this.baseUrl = options?.baseUrl ?? getAudiographBaseUrl();
     this.cacheTtlMs = options?.cacheTtlMs ?? 300_000; // 5 min
+
+    const transport = createConnectTransport({
+      baseUrl: this.baseUrl.replace(/\/$/, ''),
+      interceptors: [
+        (next) => async (req) => {
+          const token = getApiToken();
+          if (token) req.header.set('Authorization', `Bearer ${token}`);
+          return next(req);
+        },
+      ],
+    });
+
+    this.rpcClient = createClient(AudiographService, transport);
   }
 
   private cacheKey(resourceName: string, resolution: AudiographResolution, channels: AudiographChannels): string {
@@ -146,30 +167,17 @@ export class AudiographClient {
     key: string
   ): Promise<number[] | null> {
     try {
-      const url = `${this.baseUrl.replace(/\/$/, '')}/audiotool.audiograph.v1.AudiographService/GetAudiographs`;
-      const body = buildGetAudiographsBody(resourceName, resolution, channels);
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const token = getApiToken();
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
+      const res = await this.rpcClient.getAudiographs({
+        resourceNames: [resourceName],
+        resolution: toProtoResolution(resolution),
+        channels: toProtoChannels(channels),
       });
-      if (!res.ok) {
-        // Audiograph routes appear to be removed in some environments. If we get a 404,
-        // disable further requests and let callers fall back to buffer-derived waveforms.
-        if (res.status === 404) this.disabled = true;
-        const msg = `Audiograph API error: ${res.status} ${res.statusText}`;
-        this.logErrorOnce(msg);
-        return null;
-      }
-      const data = (await res.json()) as GetAudiographsResponse;
-      const ag = data.audiographs?.[0];
+
+      const ag = res.audiographs[0];
       const graphs = ag?.graphs;
       const raw = Array.isArray(graphs) ? graphs[0]?.values : undefined;
       if (!Array.isArray(raw) || raw.length === 0) {
-        this.logEmptyAudiograph(resourceName, data, 'mono');
+        this.logEmptyAudiograph(resourceName, res, 'mono');
         return null;
       }
       const values = raw.map((v) => parseValue(v));
@@ -178,6 +186,7 @@ export class AudiographClient {
       this.lastErrorLogged = null;
       return values;
     } catch (err) {
+      if (err instanceof ConnectError && shouldDisableClient(err)) this.disabled = true;
       const msg = err instanceof Error ? err.message : String(err);
       this.logErrorOnce(`Audiograph fetch failed: ${msg}`);
       return null;
@@ -214,24 +223,13 @@ export class AudiographClient {
     key: string
   ): Promise<{ left: number[]; right: number[] } | null> {
     try {
-      const url = `${this.baseUrl.replace(/\/$/, '')}/audiotool.audiograph.v1.AudiographService/GetAudiographs`;
-      const body = buildGetAudiographsBody(resourceName, resolution, 2);
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      const token = getApiToken();
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
+      const data = await this.rpcClient.getAudiographs({
+        resourceNames: [resourceName],
+        resolution: toProtoResolution(resolution),
+        channels: GetAudiographChannels.STEREO,
       });
-      if (!res.ok) {
-        if (res.status === 404) this.disabled = true;
-        const msg = `Audiograph API error: ${res.status} ${res.statusText}`;
-        this.logErrorOnce(msg);
-        return null;
-      }
-      const data = (await res.json()) as GetAudiographsResponse;
-      const ag = data.audiographs?.[0];
+
+      const ag = data.audiographs[0];
       const graphs = ag?.graphs ?? [];
       const rawLeft = Array.isArray(graphs[0]?.values) ? graphs[0].values : undefined;
       const rawRight = Array.isArray(graphs[1]?.values) ? graphs[1].values : undefined;
@@ -244,7 +242,6 @@ export class AudiographClient {
         Array.isArray(rawRight) && rawRight.length === rawLeft.length
           ? rawRight.map((v) => parseValue(v))
           : left.slice();
-      // Reference: shared peak normalization so L/R are comparable
       const maxLeft = left.length ? Math.max(...left) : 0;
       const maxRight = right.length ? Math.max(...right) : 0;
       const maxValue = Math.max(maxLeft, maxRight);
@@ -260,6 +257,7 @@ export class AudiographClient {
       this.lastErrorLogged = null;
       return { left, right };
     } catch (err) {
+      if (err instanceof ConnectError && shouldDisableClient(err)) this.disabled = true;
       const msg = err instanceof Error ? err.message : String(err);
       this.logErrorOnce(`Audiograph stereo fetch failed: ${msg}`);
       return null;

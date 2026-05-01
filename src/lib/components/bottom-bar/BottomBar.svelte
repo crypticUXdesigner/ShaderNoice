@@ -286,4 +286,120 @@
       }
     }
   }
+
+  /* === Timeline panel shell (hosts TimelinePanel + curve editor slot) === */
+  .timeline-panel {
+    /* Region colors by node category — match node panel icon box colors (node-categories/*.css) */
+    --timeline-region-color-inputs: var(--node-icon-box-color-inputs);
+    --timeline-region-color-patterns: var(--node-icon-box-bg-patterns);
+    --timeline-region-color-sdf: var(--node-icon-box-color-sdf);
+    --timeline-region-color-shapes: var(--node-icon-box-color-shapes);
+    --timeline-region-color-math: var(--node-icon-box-color-math);
+    --timeline-region-color-utilities: var(--node-icon-box-color-utilities);
+    --timeline-region-color-distort: var(--node-icon-box-color-distort);
+    --timeline-region-color-blend: var(--node-icon-box-color-blend);
+    --timeline-region-color-mask: var(--node-icon-box-color-mask);
+    --timeline-region-color-effects: var(--node-icon-box-color-effects);
+    --timeline-region-color-output: var(--node-icon-box-color-output);
+    --timeline-region-color-audio: var(--node-icon-box-color-audio);
+    --timeline-region-color-default: var(--node-icon-box-color-default);
+
+    /* Sub-group colors (override category when data-subgroup is set) */
+    --timeline-region-color-inputs-system: var(--node-icon-box-color-inputs-system);
+    --timeline-region-color-patterns-structured: var(--node-icon-box-color-patterns-structured);
+    --timeline-region-color-shapes-derived: var(--node-icon-box-color-shapes-derived);
+    --timeline-region-color-math-functions: var(--node-icon-box-color-math-functions);
+    --timeline-region-color-math-advanced: var(--node-icon-box-color-math-advanced);
+    --timeline-region-color-distort-warp: var(--node-icon-box-color-distort-warp);
+    --timeline-region-color-effects-stylize: var(--node-icon-box-color-effects-stylize);
+
+    --timeline-panel-computed-width: min(
+      var(--timeline-panel-max-width),
+      max(
+        var(--timeline-panel-min-width),
+        calc(var(--timeline-viewport-width, 100vw) * var(--timeline-panel-width-ratio, 0.6))
+      )
+    );
+
+    /* Layout */
+    position: fixed;
+    bottom: calc(var(--bottom-bar-height) + var(--pd-xl));
+    left: calc(
+      var(--timeline-viewport-left, 0) +
+        (var(--timeline-viewport-width, 100vw) - var(--timeline-panel-computed-width)) / 2
+    );
+    display: none;
+    flex-direction: column;
+    min-height: 0;
+
+    /* Box model: width/height from here; frame look from layer .frame */
+    width: var(--timeline-panel-computed-width);
+    min-height: var(--timeline-panel-height);
+    height: auto;
+    max-height: min(80vh, 520px); /* One-off max height */
+    padding: 0;
+
+    /* Other */
+    z-index: var(--timeline-panel-z-index);
+    pointer-events: auto;
+    transition: left 0.3s ease;
+
+    &.is-open {
+      display: flex;
+      /* Use full available height so timeline body (and bg column) can fill it */
+      height: min(30vh, 360px);
+      min-height: var(--timeline-panel-height);
+    }
+
+    &:has(.curve-slot:not(:empty)) {
+      min-height: var(--timeline-panel-height-with-editor);
+      max-height: 80vh;
+    }
+
+    /* With curve editor open: curve-slot has fixed height so graph stays within bounds, timeline below */
+    &:has(.curve-slot:not(:empty)) .curve-slot {
+      flex-shrink: 0;
+      height: 240px; /* One-off - curve editor band; graph must fit inside */
+      max-height: 240px;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    &:has(.curve-slot:not(:empty)) .curve-slot .curve-editor {
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    &:has(.curve-slot:not(:empty)) .content {
+      flex: 1;
+      min-height: 0;
+    }
+
+    .curve-slot {
+      flex-shrink: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .curve-slot:empty {
+      display: none;
+    }
+
+    /* Curve editor inherits track header width when inside timeline panel */
+    --track-header-width: 200px;
+
+    /* Content: flex container for TimelinePanel (.inner) and curve-slot */
+    .content {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      padding: 0;
+    }
+  }
 </style>

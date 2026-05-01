@@ -13,22 +13,44 @@ type PhosphorPathNode = ['path', { d: string }];
 type PhosphorIconData = PhosphorPathNode[];
 type PhosphorIconsMap = Record<string, PhosphorIconData>;
 
-// Phosphor path-data JSON (regular = line, fill = filled)
-import phosphorNodesRegularData from '../../public/phosphor-nodes-regular.json';
-import phosphorNodesFillData from '../../public/phosphor-nodes-fill.json';
+// Public assets are served at the site root. Import URLs and fetch once.
+// (Do not reference `/public/...` — Vite warns and may break under `base`.)
+import phosphorNodesRegularUrl from '/phosphor-nodes-regular.json?url';
+import phosphorNodesFillUrl from '/phosphor-nodes-fill.json?url';
+
+let phosphorNodesRegularData: PhosphorIconsMap | null = null;
+let phosphorNodesFillData: PhosphorIconsMap | null = null;
 
 /**
  * Kept as async for API compatibility with entrypoints.
- * Data is bundled at build time, so this is a no-op.
+ * Data is loaded on demand from `public/` and cached.
  */
 export async function loadPhosphorIconData(): Promise<void> {
-  // No-op: data is bundled at build time
+  if (phosphorNodesRegularData && phosphorNodesFillData) return;
+
+  const [regularRes, fillRes] = await Promise.all([
+    fetch(phosphorNodesRegularUrl),
+    fetch(phosphorNodesFillUrl),
+  ]);
+
+  if (!regularRes.ok || !fillRes.ok) {
+    // Leave caches null; callers will gracefully return empty maps.
+    return;
+  }
+
+  const [regularJson, fillJson] = (await Promise.all([
+    regularRes.json(),
+    fillRes.json(),
+  ])) as [unknown, unknown];
+
+  phosphorNodesRegularData = (regularJson as PhosphorIconsMap) ?? {};
+  phosphorNodesFillData = (fillJson as PhosphorIconsMap) ?? {};
 }
 
 export function getPhosphorNodesOutline(): PhosphorIconsMap {
-  return (phosphorNodesRegularData as unknown as PhosphorIconsMap) ?? {};
+  return phosphorNodesRegularData ?? {};
 }
 
 export function getPhosphorNodesFilled(): PhosphorIconsMap {
-  return (phosphorNodesFillData as unknown as PhosphorIconsMap) ?? {};
+  return phosphorNodesFillData ?? {};
 }

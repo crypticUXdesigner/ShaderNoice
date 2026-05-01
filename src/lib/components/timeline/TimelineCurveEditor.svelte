@@ -4,46 +4,43 @@
    * Edits keyframes and interpolation for one automation region.
    * Normalized time [0,1] horizontal, value [0,1] vertical.
    */
-  import { Button, Input, DropdownMenu, MenuItem, IconSvg, NodeIconSvg } from '../ui';
+  import { Button, DropdownMenu, MenuItem, IconSvg, NodeIconSvg } from '../ui';
+  import EditorParameterValueOverlay from '../editor/EditorParameterValueOverlay.svelte';
   import { updateAutomationRegion } from '../../../data-model';
-  import { evaluateCurveAtNormalizedTime } from '../../../utils/automationEvaluator';
-  import { getNodeIcon } from '../../../utils/nodeSpecUtils';
   import type { NodeGraph } from '../../../data-model/types';
   import type { AutomationCurve, AutomationCurveInterpolation } from '../../../data-model/types';
   import type { NodeSpec } from '../../../types/nodeSpec';
-  import type { ParameterSpec } from '../../../types/nodeSpec';
-  import { getSubGroupSlug } from '../../../utils/cssTokens';
   import { getWaveformSlice } from '../../../runtime/waveform/WaveformService';
+  import {
+    GRAPH_PADDING,
+    curveClientToGraph,
+    curveClientToSvgCoords,
+    curveKeyframeCenterScreen,
+    curveTimeToX,
+    curveValueToY,
+    diamondPolygonPoints,
+  } from './curveEditorGeometry';
+  import { resolveCurveEditorRegion } from './curveEditorRegionContext';
+  import {
+    buildCurveEditorCurvePathD,
+    buildCurveEditorGridLines,
+    buildCurveEditorWaveformPathD,
+  } from './curveEditorSvgScene';
+  import {
+    SNAP_DIVISIONS,
+    type CurveEditorDragSession,
+    type SnapDivision,
+    indexOfInsertedKeyframe,
+    maybeSnapCurveKeyframeTime,
+    proposeDragKeyframes,
+    remapSelectionIndices,
+    stableTimeSortKeyframes,
+  } from './curveEditorKeyframes';
 
-  const GRAPH_PADDING = { top: 8, right: 8, bottom: 24, left: 36 };
+  /** Half side length (SVG units) for endpoint squares; diamonds use same apex radius. */
+  const KEYFRAME_MARK_HALF = 6.5;
+  const KEYFRAME_DIAMOND_R = KEYFRAME_MARK_HALF;
   const WAVEFORM_OPACITY = 0.28;
-  const WAVEFORM_BAND_FRACTION = 0.4; // vertical band height as fraction of graph height
-  const CURVE_HIT_MARGIN = 8;
-  const SAMPLES = 80;
-
-  const SNAP_DIVISIONS = [1, 2, 4, 8, 16] as const;
-  type SnapDivision = (typeof SNAP_DIVISIONS)[number];
-
-  function snapTimeToBarGrid(t: number, regionBars: number, division: number): number {
-    if (regionBars <= 0 || division <= 0) return t;
-    const step = 1 / (regionBars * division);
-    const n = Math.round(t / step);
-    return Math.max(0, Math.min(1, n * step));
-  }
-
-  const categorySlugMap: Record<string, string> = {
-    Inputs: 'inputs',
-    Patterns: 'patterns',
-    Shapes: 'shapes',
-    Math: 'math',
-    Utilities: 'utilities',
-    Distort: 'distort',
-    Blend: 'blend',
-    Mask: 'mask',
-    Effects: 'effects',
-    Output: 'output',
-    Audio: 'audio',
-  };
 
   export type GetWaveformData = () => Promise<{
     values: number[];
@@ -57,7 +54,7 @@
     onClose: () => void;
     laneId: string;
     regionId: string;
-    laneLabel: string;
+    paramLabel: string;
     nodeSpecs?: NodeSpec[];
     /** Optional: for waveform background. Returns full primary waveform; slice is computed from region times. */
     getWaveformData?: GetWaveformData;
@@ -69,7 +66,7 @@
     onClose,
     laneId,
     regionId,
-    laneLabel,
+    paramLabel,
     nodeSpecs = [],
     getWaveformData,
   }: Props = $props();
@@ -80,8 +77,9 @@
 
   let graphWidth = $state(300);
   let graphHeight = $state(120);
-  let selectedKeyframeIndex = $state<number | null>(null);
-  let dragKeyframeIndex = $state<number | null>(null);
+  /** Sorted unique indices into `keyframesSorted` (selection set). */
+  let selectedKeyframeIndices = $state<number[]>([]);
+  let dragKeyframeSession = $state<CurveEditorDragSession | null>(null);
   let snapEnabled = $state(true);
   let snapDivision = $state<SnapDivision>(1);
   let snapGridOpen = $state(false);
@@ -91,21 +89,27 @@
   let waveformSliceLeft = $state<number[]>([]);
   let waveformSliceRight = $state<number[]>([]);
 
+  /** Index into `keyframesSorted` while pointer is over that keyframe hit area. */
+  let hoveredKeyframeIndex = $state<number | null>(null);
+  /** Screen coords for keyframe value tooltip (above mark center). */
+  let keyframeTooltipScreen = $state<{ x: number; y: number } | null>(null);
+
+  let valueOverlayVisible = $state(false);
+  let valueOverlayX = $state(0);
+  let valueOverlayY = $state(0);
+  let valueOverlayW = $state(140);
+  let valueOverlayH = $state(40);
+  let valueOverlayValue = $state(0);
+  let valueOverlayEditIndex = $state<number | null>(null);
+
   const nodeSpecsMap = $derived(new Map(nodeSpecs.map((s) => [s.id, s])));
 
-  /** Param spec for the lane's parameter (min/max for display and numeric input). Default min=0, max=1. */
-  const paramSpec = $derived.by(() => {
-    const graph = getGraph();
-    const lane = graph.automation?.lanes.find((l) => l.id === laneId);
-    if (!lane) return { min: 0, max: 1, step: undefined as number | undefined };
-    const node = graph.nodes.find((n: { id: string }) => n.id === lane.nodeId);
-    const spec = node ? nodeSpecsMap.get(node.type) : undefined;
-    const param = spec?.parameters?.[lane.paramName] as ParameterSpec | undefined;
-    const min = param?.min ?? 0;
-    const max = param?.max ?? 1;
-    const step = param?.step;
-    return { min, max, step };
-  });
+  /** One graph walk: lane, region, node, parameter range, grid bars, CSS slugs. */
+  const regionCtx = $derived.by(() =>
+    resolveCurveEditorRegion(getGraph(), laneId, regionId, nodeSpecsMap)
+  );
+
+  const paramSpec = $derived(regionCtx.paramRange);
 
   function normalizedToParam(n: number): number {
     const { min, max } = paramSpec;
@@ -118,99 +122,70 @@
     return Math.max(0, Math.min(1, (p - min) / (max - min)));
   }
 
-  const curve = $derived.by(() => {
-    const graph = getGraph();
-    const lane = graph.automation?.lanes.find((l) => l.id === laneId);
-    const region = lane?.regions.find((r) => r.id === regionId);
-    return region?.curve ?? null;
-  });
+  const curve = $derived(regionCtx.region?.curve ?? null);
 
-  const categorySlug = $derived.by(() => {
-    const graph = getGraph();
-    const lane = graph.automation?.lanes.find((l) => l.id === laneId);
-    if (!lane) return 'default';
-    const node = graph.nodes.find((n: { id: string }) => n.id === lane.nodeId);
-    const spec = node ? nodeSpecsMap.get(node.type) : undefined;
-    return (spec?.category && categorySlugMap[spec.category]) || 'default';
-  });
+  const categorySlug = $derived(regionCtx.categorySlug);
 
-  const subGroupSlug = $derived.by(() => {
-    const graph = getGraph();
-    const lane = graph.automation?.lanes.find((l) => l.id === laneId);
-    if (!lane) return '';
-    const node = graph.nodes.find((n: { id: string }) => n.id === lane.nodeId);
-    const spec = node ? nodeSpecsMap.get(node.type) : undefined;
-    return node ? getSubGroupSlug(node.type, spec?.category ?? '') : '';
-  });
+  const subGroupSlug = $derived(regionCtx.subGroupSlug);
 
   /** Icon identifier for the node this lane's region belongs to. */
-  const nodeIconIdentifier = $derived.by(() => {
-    const graph = getGraph();
-    const lane = graph.automation?.lanes.find((l) => l.id === laneId);
-    if (!lane) return undefined;
-    const node = graph.nodes.find((n: { id: string }) => n.id === lane.nodeId);
-    const spec = node ? nodeSpecsMap.get(node.type) : undefined;
-    return spec ? getNodeIcon(spec) : undefined;
-  });
+  const nodeIconIdentifier = $derived(regionCtx.nodeIconIdentifier);
 
   const keyframesSorted = $derived.by(() => {
     if (!curve?.keyframes?.length) return [];
     return [...curve.keyframes].sort((a, b) => a.time - b.time);
   });
 
-  const regionBars = $derived.by(() => {
-    const graph = getGraph();
-    const lane = graph.automation?.lanes.find((l) => l.id === laneId);
-    const reg = lane?.regions.find((r) => r.id === regionId);
-    const bpm = graph.automation?.bpm ?? 120;
-    if (!reg || !bpm) return 4;
-    const barSeconds = 60 / bpm;
-    return Math.max(0.25, reg.duration / barSeconds);
-  });
+  const regionBars = $derived(regionCtx.regionBars);
 
   /** Region startTime and duration (seconds) for waveform slice. */
-  const regionTimeRange = $derived.by(() => {
-    const graph = getGraph();
-    const lane = graph.automation?.lanes.find((l) => l.id === laneId);
-    const reg = lane?.regions.find((r) => r.id === regionId);
-    if (!reg) return null;
-    return { startTime: reg.startTime, endTime: reg.startTime + reg.duration };
-  });
+  const regionTimeRange = $derived(regionCtx.regionTimeRange);
 
-  const hasKeyframeSelection = $derived(
-    selectedKeyframeIndex !== null && !!curve && keyframesSorted[selectedKeyframeIndex] != null
-  );
-  const selectedKf = $derived(
-    hasKeyframeSelection && selectedKeyframeIndex !== null ? keyframesSorted[selectedKeyframeIndex] ?? null : null
-  );
-  const keyframeParamVal = $derived(selectedKf != null ? normalizedToParam(selectedKf.value) : '');
+  const selectedKeyframeSet = $derived(new Set(selectedKeyframeIndices));
+
+  const hasKeyframeSelection = $derived(selectedKeyframeIndices.length > 0 && !!curve);
+
+  function formatParamDisplay(p: number): string {
+    return paramSpec.paramType === 'int' ? String(Math.round(p)) : Number(p).toFixed(3);
+  }
 
   function timeToX(t: number): number {
-    return GRAPH_PADDING.left + t * (graphWidth - GRAPH_PADDING.left - GRAPH_PADDING.right);
+    return curveTimeToX(t, graphWidth);
   }
 
   function valueToY(v: number): number {
-    return GRAPH_PADDING.top + (1 - v) * (graphHeight - GRAPH_PADDING.top - GRAPH_PADDING.bottom);
+    return curveValueToY(v, graphHeight);
   }
 
-  function xToTime(x: number): number {
-    const w = graphWidth - GRAPH_PADDING.left - GRAPH_PADDING.right;
-    if (w <= 0) return 0;
-    const t = (x - GRAPH_PADDING.left) / w;
-    return Math.max(0, Math.min(1, t));
+  function pruneSelectedIndicesIfStale(): void {
+    const max = Math.max(0, keyframesSorted.length - 1);
+    const prunedSorted = [...new Set(selectedKeyframeIndices.filter((i) => i >= 0 && i <= max))].sort(
+      (a, b) => a - b
+    );
+    if (
+      prunedSorted.length !== selectedKeyframeIndices.length ||
+      prunedSorted.some((v, j) => v !== selectedKeyframeIndices[j])
+    ) {
+      selectedKeyframeIndices = prunedSorted;
+    }
   }
 
-  function yToValue(y: number): number {
-    const h = graphHeight - GRAPH_PADDING.top - GRAPH_PADDING.bottom;
-    if (h <= 0) return 0;
-    const v = 1 - (y - GRAPH_PADDING.top) / h;
-    return Math.max(0, Math.min(1, v));
+  function applySelectionClick(hitIndex: number, additive: boolean): void {
+    if (!additive) {
+      selectedKeyframeIndices = [hitIndex];
+      return;
+    }
+    const s = new Set(selectedKeyframeIndices);
+    if (s.has(hitIndex)) s.delete(hitIndex);
+    else s.add(hitIndex);
+    selectedKeyframeIndices = [...s].sort((a, b) => a - b);
   }
 
-  function maybeSnapTime(t: number): number {
-    if (!snapEnabled) return t;
-    return snapTimeToBarGrid(t, regionBars, snapDivision);
-  }
+  /** After graph data changes, drop out-of-band selection indices. */
+  $effect(() => {
+    keyframesSorted;
+    pruneSelectedIndicesIfStale();
+  });
 
   function updateCurve(newCurve: AutomationCurve) {
     const graph = getGraph();
@@ -223,12 +198,7 @@
   }
 
   function clientToGraph(clientX: number, clientY: number): { x: number; y: number; t: number; v: number } {
-    const rect = getGraphRect();
-    const scaleX = graphWidth / rect.width;
-    const scaleY = graphHeight / rect.height;
-    const x = (clientX - rect.left) * scaleX;
-    const y = (clientY - rect.top) * scaleY;
-    return { x, y, t: xToTime(x), v: yToValue(y) };
+    return curveClientToGraph(clientX, clientY, getGraphRect(), graphWidth, graphHeight);
   }
 
   function getKeyframeHitRadius(): number {
@@ -240,10 +210,7 @@
 
   function hitKeyframe(clientX: number, clientY: number): number | null {
     const rect = getGraphRect();
-    const scaleX = graphWidth / rect.width;
-    const scaleY = graphHeight / rect.height;
-    const px = (clientX - rect.left) * scaleX;
-    const py = (clientY - rect.top) * scaleY;
+    const { px, py } = curveClientToSvgCoords(clientX, clientY, rect, graphWidth, graphHeight);
     const hitR = getKeyframeHitRadius();
     for (let i = 0; i < keyframesSorted.length; i++) {
       const kf = keyframesSorted[i];
@@ -255,16 +222,77 @@
     return null;
   }
 
-  function hitCurve(clientX: number, clientY: number): { t: number; v: number } | null {
-    const { t, v } = clientToGraph(clientX, clientY);
-    if (!curve) return null;
-    const curveV = evaluateCurveAtNormalizedTime(curve, t);
-    const rect = getGraphRect();
-    const scaleY = graphHeight / rect.height;
-    const dyPx = Math.abs(v - curveV) * (graphHeight - GRAPH_PADDING.top - GRAPH_PADDING.bottom);
-    const dyScaled = dyPx * scaleY;
-    if (dyScaled <= CURVE_HIT_MARGIN) return { t, v: curveV };
-    return null;
+  /** Screen-space center of keyframe mark (for tooltip / value overlay placement). */
+  function keyframeCenterScreen(index: number): { x: number; y: number } | null {
+    return curveKeyframeCenterScreen(index, keyframesSorted, getGraphRect(), graphWidth, graphHeight);
+  }
+
+  function closeValueOverlay(): void {
+    valueOverlayVisible = false;
+    valueOverlayEditIndex = null;
+  }
+
+  function commitKeyframeValueFromOverlay(raw: number): void {
+    const idx = valueOverlayEditIndex;
+    if (idx === null || !curve) {
+      closeValueOverlay();
+      return;
+    }
+    let p = paramSpec.paramType === 'int' ? Math.round(raw) : raw;
+    p = Math.max(paramSpec.min, Math.min(paramSpec.max, p));
+    const normalized = paramToNormalized(p);
+    const keyframes = keyframesSorted.map((k, i) =>
+      i === idx ? { ...k, value: normalized } : k
+    );
+    updateCurve({ ...curve, keyframes });
+    closeValueOverlay();
+  }
+
+  function openValueOverlayForKeyframe(index: number, clientX: number, clientY: number): void {
+    if (!curve || index < 0 || index >= keyframesSorted.length) return;
+    const kf = keyframesSorted[index];
+    const center = keyframeCenterScreen(index);
+    const ax = center?.x ?? clientX;
+    const ay = center?.y ?? clientY;
+    valueOverlayW = 140;
+    valueOverlayH = 40;
+    valueOverlayX = Math.round(ax - valueOverlayW / 2);
+    valueOverlayY = Math.round(ay - valueOverlayH - 10);
+    valueOverlayValue = normalizedToParam(kf.value);
+    valueOverlayEditIndex = index;
+    valueOverlayVisible = true;
+    selectedKeyframeIndices = [index];
+  }
+
+  const keyframeTooltipText = $derived.by(() => {
+    const i = hoveredKeyframeIndex;
+    if (i === null || i < 0 || i >= keyframesSorted.length) return '';
+    return formatParamDisplay(normalizedToParam(keyframesSorted[i]!.value));
+  });
+
+  function handleGraphMousemove(e: MouseEvent): void {
+    if (valueOverlayVisible) {
+      hoveredKeyframeIndex = null;
+      keyframeTooltipScreen = null;
+      return;
+    }
+    const hit = hitKeyframe(e.clientX, e.clientY);
+    hoveredKeyframeIndex = hit;
+    if (hit === null) {
+      keyframeTooltipScreen = null;
+      return;
+    }
+    const center = keyframeCenterScreen(hit);
+    if (center) {
+      keyframeTooltipScreen = { x: center.x, y: center.y - 22 };
+    } else {
+      keyframeTooltipScreen = { x: e.clientX, y: e.clientY - 28 };
+    }
+  }
+
+  function handleGraphMouseleave(): void {
+    hoveredKeyframeIndex = null;
+    keyframeTooltipScreen = null;
   }
 
   const INTERP_OPTIONS: Array<{ value: AutomationCurveInterpolation; label: string }> = [
@@ -301,154 +329,97 @@
     snapEnabled = !snapEnabled;
   }
 
-  function addKeyframeAt(t: number, v: number) {
+  function addKeyframeAt(tRaw: number, vRaw: number) {
     if (!curve) return;
-    const inserted = [...keyframesSorted, { time: t, value: v }].sort((a, b) => a.time - b.time);
+    const t = maybeSnapCurveKeyframeTime(tRaw, { snapEnabled, regionBars, snapDivision });
+    const v = Math.max(0, Math.min(1, vRaw));
+    const inserted = [...keyframesSorted.map((kf) => ({ ...kf })), { time: t, value: v }]
+      .map((kf, idx) => ({ kf, idx }))
+      .sort((a, b) =>
+        a.kf.time !== b.kf.time ? a.kf.time - b.kf.time : a.idx - b.idx
+      )
+      .map((row) => row.kf);
     updateCurve({ ...curve, keyframes: inserted });
-    const idx = inserted.findIndex((k) => k.time === t);
-    selectedKeyframeIndex = idx >= 0 ? idx : null;
+    const sel = indexOfInsertedKeyframe(inserted, t, v);
+    selectedKeyframeIndices = [sel];
   }
 
-  function removeSelectedKeyframe() {
-    if (selectedKeyframeIndex === null) return;
-    if (keyframesSorted.length <= 2) return;
-    if (!curve) return;
-    const removed = keyframesSorted.filter((_, i) => i !== selectedKeyframeIndex);
+  function removeSelectedKeyframes() {
+    if (!curve || selectedKeyframeIndices.length === 0) return;
+    const selSet = new Set(selectedKeyframeIndices);
+    if (keyframesSorted.length - selSet.size < 2) return;
+    const removed = keyframesSorted.filter((_k, i) => !selSet.has(i));
     updateCurve({ ...curve, keyframes: removed });
-    selectedKeyframeIndex = null;
+    selectedKeyframeIndices = [];
+    dragKeyframeSession = null;
   }
 
-  function handleKeyframeValueInput(e: Event) {
-    if (selectedKeyframeIndex === null || !curve) return;
-    const raw = (e.target as HTMLInputElement).value;
-    const num = parseFloat(raw);
-    if (!Number.isFinite(num)) return;
-    const normalized = paramToNormalized(num);
-    const keyframes = keyframesSorted.map((k, i) =>
-      i === selectedKeyframeIndex ? { ...k, value: normalized } : k
-    );
-    updateCurve({ ...curve, keyframes });
-  }
-
-  function handleGraphMousedown(e: MouseEvent) {
+  function handleGraphMousedown(e: MouseEvent): void {
     if (e.button !== 0) return;
-    const keyframeIndex = hitKeyframe(e.clientX, e.clientY);
-    if (keyframeIndex !== null) {
-      dragKeyframeIndex = keyframeIndex;
-      selectedKeyframeIndex = keyframeIndex;
+    graphWrapEl?.focus({ preventScroll: true });
+    const additive = e.shiftKey || e.ctrlKey || e.metaKey;
+    const keyframeHit = hitKeyframe(e.clientX, e.clientY);
+    if (keyframeHit !== null) {
+      /** Second/third click of a double- or triple-click: avoid re-toggling selection or starting drag. */
+      if (e.detail > 1) return;
+      applySelectionClick(keyframeHit, additive);
+      if (selectedKeyframeIndices.length === 0) return;
+
+      const { t: anchorT, v: anchorV } = clientToGraph(e.clientX, e.clientY);
+      dragKeyframeSession = {
+        startKeyframes: keyframesSorted.map((k) => ({ ...k })),
+        selectedIndicesSorted: [...selectedKeyframeIndices],
+        anchorT,
+        anchorV,
+      };
       return;
     }
-    const curveHit = hitCurve(e.clientX, e.clientY);
-    if (curveHit) {
-      const t = maybeSnapTime(curveHit.t);
-      addKeyframeAt(t, curveHit.v);
-      return;
-    }
-    selectedKeyframeIndex = null;
+    if (!additive) selectedKeyframeIndices = [];
+    dragKeyframeSession = null;
   }
 
-  function handleGraphDblclick(e: MouseEvent) {
+  function handleGraphDblclick(e: MouseEvent): void {
     if (e.button !== 0) return;
-    const curveHit = hitCurve(e.clientX, e.clientY);
-    if (curveHit) {
-      const t = maybeSnapTime(curveHit.t);
-      addKeyframeAt(t, curveHit.v);
-    }
-  }
-
-  function handleGraphContextMenu(e: MouseEvent) {
     e.preventDefault();
-    if (selectedKeyframeIndex !== null) {
-      removeSelectedKeyframe();
+    graphWrapEl?.focus({ preventScroll: true });
+    const hit = hitKeyframe(e.clientX, e.clientY);
+    if (hit !== null) {
+      openValueOverlayForKeyframe(hit, e.clientX, e.clientY);
+      return;
     }
+    const { t, v } = clientToGraph(e.clientX, e.clientY);
+    addKeyframeAt(t, v);
   }
 
-  function handleKeyDown(e: KeyboardEvent): void {
-    const target = e.target as HTMLElement;
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return;
+  function handleKeyDownCapture(e: KeyboardEvent): void {
+    const ae = document.activeElement as HTMLElement | null;
+    if (
+      ae?.tagName === 'INPUT' ||
+      ae?.tagName === 'TEXTAREA' ||
+      ae?.tagName === 'SELECT' ||
+      ae?.isContentEditable
+    )
+      return;
+    if (!rootEl?.matches(':focus-within')) return;
     if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-    if (!rootEl?.contains(target) && !rootEl?.contains(document.activeElement ?? null)) return;
+    if (selectedKeyframeIndices.length === 0) return;
     e.preventDefault();
-    removeSelectedKeyframe();
+    removeSelectedKeyframes();
   }
 
-  // Curve path d attribute
   const curvePathD = $derived.by(() => {
     if (!curve) return '';
-    const pathD: string[] = [];
-    for (let i = 0; i <= SAMPLES; i++) {
-      const t = i / SAMPLES;
-      const v = evaluateCurveAtNormalizedTime(curve, t);
-      const x = timeToX(t);
-      const y = valueToY(v);
-      pathD.push(`${i === 0 ? 'M' : 'L'} ${x} ${y}`);
-    }
-    return pathD.join(' ');
+    return buildCurveEditorCurvePathD(curve, graphWidth, graphHeight);
   });
 
-  // Waveform background path (stereo: up = left, down = right; peak-normalized like bottom bar)
-  const waveformPathD = $derived.by(() => {
-    const left = waveformSliceLeft;
-    const right = waveformSliceRight;
-    if (left.length < 2) return '';
-    const n = left.length;
-    const innerH = graphHeight - GRAPH_PADDING.top - GRAPH_PADDING.bottom;
-    const bandHalf = (innerH * WAVEFORM_BAND_FRACTION) / 2;
-    const centerY = valueToY(0.5);
-    const maxL = Math.max(...left);
-    const maxR = Math.max(...right);
-    const scaleL = maxL > 0 ? 1 / maxL : 0;
-    const scaleR = maxR > 0 ? 1 / maxR : 0;
-    const parts: string[] = [];
-    for (let i = 0; i < n; i++) {
-      const t = i / (n - 1);
-      const x = timeToX(t);
-      const vL = (left[i] ?? 0) * scaleL;
-      const topY = centerY - vL * bandHalf;
-      parts.push(`${i === 0 ? 'M' : 'L'} ${x} ${topY}`);
-    }
-    for (let i = n - 1; i >= 0; i--) {
-      const t = i / (n - 1);
-      const x = timeToX(t);
-      const vR = (right[i] ?? 0) * scaleR;
-      const bottomY = centerY + vR * bandHalf;
-      parts.push(`L ${x} ${bottomY}`);
-    }
-    parts.push('Z');
-    return parts.join(' ');
-  });
+  /** Waveform background path (stereo: up = left, down = right; peak-normalized like bottom bar). */
+  const waveformPathD = $derived.by(() =>
+    buildCurveEditorWaveformPathD(waveformSliceLeft, waveformSliceRight, graphWidth, graphHeight)
+  );
 
-  // Grid lines
-  const gridLines = $derived.by(() => {
-    const innerW = graphWidth - GRAPH_PADDING.left - GRAPH_PADDING.right;
-    const innerH = graphHeight - GRAPH_PADDING.top - GRAPH_PADDING.bottom;
-    if (innerW <= 0 || innerH <= 0) return { vertical: [], horizontal: [] };
-    const bars = regionBars;
-    const division = snapDivision;
-    const minorStep = 1 / (bars * division);
-    const vertical: Array<{ x: number; class: string }> = [];
-    for (let t = 0; t <= 1 + 1e-6; t += minorStep) {
-      const x = timeToX(t);
-      const barFrac = t * bars;
-      const inBar = barFrac - Math.floor(barFrac);
-      const isBar = Math.abs(barFrac - Math.round(barFrac)) < 1e-6 || t >= 1 - 1e-6;
-      const isSixteenthOnly =
-        division >= 16 &&
-        !isBar &&
-        Math.abs(inBar * 8 - Math.round(inBar * 8)) > 1e-6 &&
-        Math.abs(inBar * 16 - Math.round(inBar * 16)) < 1e-6;
-      let lineClass = 'grid-line';
-      if (isBar) lineClass += ' grid-line-major';
-      else if (isSixteenthOnly) lineClass += ' grid-line-sub';
-      else lineClass += ' grid-line-minor';
-      vertical.push({ x, class: lineClass });
-    }
-    const horizontal: Array<{ y: number }> = [];
-    for (let i = 1; i <= 3; i++) {
-      horizontal.push({ y: valueToY(i / 4) });
-    }
-    return { vertical, horizontal };
-  });
+  const gridLines = $derived.by(() =>
+    buildCurveEditorGridLines(graphWidth, graphHeight, regionBars, snapDivision)
+  );
 
   // Fetch waveform slice for region when getWaveformData and region available (stereo: left + right)
   $effect(() => {
@@ -510,38 +481,37 @@
     return () => ro.disconnect();
   });
 
-  // Global mousemove for drag
+  // Global pointer move/up while dragging (multi-select group drag uses frozen session snapshot).
   $effect(() => {
-    const idx = dragKeyframeIndex;
-    if (idx === null) return;
-    const dragIdx: number = idx;
+    const cand = dragKeyframeSession;
+    if (cand === null) return;
+    const dragSnap: CurveEditorDragSession = cand;
+
     function onMouseMove(e: MouseEvent) {
-      const { t, v } = clientToGraph(e.clientX, e.clientY);
-      const graph = getGraph();
-      const region = graph.automation?.lanes.find((l) => l.id === laneId)?.regions.find((r) => r.id === regionId);
-      const keyframes = region?.curve ? [...region.curve.keyframes].sort((a, b) => a.time - b.time) : [];
-      if (dragIdx >= keyframes.length) return;
-      const prev = keyframes[dragIdx - 1];
-      const next = keyframes[dragIdx + 1];
-      const isFirst = dragIdx === 0;
-      const isLast = dragIdx === keyframes.length - 1;
-      let time: number;
-      if (isFirst) time = 0;
-      else if (isLast) time = 1;
-      else {
-        time = Math.max(0, Math.min(1, maybeSnapTime(t)));
-        if (prev != null) time = Math.max(time, prev.time + 0.001);
-        if (next != null) time = Math.min(time, next.time - 0.001);
-      }
-      const value = Math.max(0, Math.min(1, v));
-      const newKeyframes = keyframes.map((k, i) => (i === dragIdx ? { time, value } : k));
-      newKeyframes.sort((a, b) => a.time - b.time);
-      const curve = region?.curve;
-      if (curve) updateCurve({ ...curve, keyframes: newKeyframes });
+      if (dragKeyframeSession === null) return;
+      const activeCurve = resolveCurveEditorRegion(getGraph(), laneId, regionId, nodeSpecsMap).region?.curve;
+      if (!activeCurve) return;
+
+      const ptr = clientToGraph(e.clientX, e.clientY);
+      const proposed = proposeDragKeyframes(
+        dragSnap.startKeyframes,
+        dragSnap.selectedIndicesSorted,
+        dragSnap.anchorT,
+        dragSnap.anchorV,
+        ptr.t,
+        ptr.v,
+        (tn) => maybeSnapCurveKeyframeTime(tn, { snapEnabled, regionBars, snapDivision })
+      );
+
+      const { sorted, oldToNew } = stableTimeSortKeyframes(proposed);
+      updateCurve({ ...activeCurve, keyframes: sorted });
+      selectedKeyframeIndices = remapSelectionIndices(dragSnap.selectedIndicesSorted, oldToNew);
     }
+
     function onMouseUp() {
-      dragKeyframeIndex = null;
+      dragKeyframeSession = null;
     }
+
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp, { once: true });
     return () => {
@@ -549,15 +519,24 @@
     };
   });
 
-  // Keydown for Delete/Backspace on selected keyframe (global so it works when focus is elsewhere)
+  /** Focus graph when opened for a lane/region (keyboard + pointer affordances live on the canvas). */
   $effect(() => {
-    const keyHandler = (e: KeyboardEvent) => handleKeyDown(e);
-    document.addEventListener('keydown', keyHandler);
-    return () => document.removeEventListener('keydown', keyHandler);
+    laneId;
+    regionId;
+    queueMicrotask(() => {
+      graphWrapEl?.focus({ preventScroll: true });
+    });
   });
 </script>
 
-<div bind:this={rootEl} class="curve-editor" data-category={categorySlug} data-subgroup={subGroupSlug || undefined}>
+<!-- svelte-ignore a11y_no_noninteractive_tabindex keyboard events require focus trap on graph-wrap; shortcuts gated by focus-within -->
+<div
+  bind:this={rootEl}
+  class="curve-editor"
+  data-category={categorySlug}
+  data-subgroup={subGroupSlug || undefined}
+  onkeydowncapture={handleKeyDownCapture}
+>
   <div class="header">
     <div class="header-left">
       {#if nodeIconIdentifier}
@@ -565,24 +544,9 @@
           <NodeIconSvg identifier={nodeIconIdentifier} />
         </span>
       {/if}
-      <span class="title" title={laneLabel}>{laneLabel}</span>
+      <span class="header-title" title={paramLabel}>{paramLabel}</span>
     </div>
     <div class="header-right">
-      <div class="keyframe-input-wrap">
-        <Input
-          type="number"
-          size="sm"
-          variant="primary"
-          value={keyframeParamVal}
-          step={paramSpec.step ?? (paramSpec.max - paramSpec.min) / 100}
-          min={paramSpec.min}
-          max={paramSpec.max}
-          disabled={!hasKeyframeSelection}
-          placeholder={hasKeyframeSelection ? undefined : '—'}
-          oninput={handleKeyframeValueInput}
-          aria-label="Selected keyframe value"
-        />
-      </div>
       <div class="header-controls">
         <div bind:this={interpButtonEl} class="interp-button-anchor">
           <Button
@@ -613,6 +577,17 @@
             {/each}
           {/snippet}
         </DropdownMenu>
+        <Button
+          variant="ghost"
+          size="sm"
+          mode="icon-only"
+          class="remove-keyframes"
+          title="Remove selected keyframes"
+          disabled={!hasKeyframeSelection}
+          onclick={removeSelectedKeyframes}
+        >
+          <IconSvg name="trash" />
+        </Button>
         <div class="snap-wrap">
           <Button
             variant="ghost"
@@ -667,11 +642,14 @@
   <div
     bind:this={graphWrapEl}
     class="graph-wrap"
+    tabindex="0"
     role="application"
-    aria-label="Automation curve graph"
+    aria-label="Automation curve graph. Double-click empty area adds a keyframe; double-click a keyframe to edit its value. Hover a keyframe to see its value. Shift-click or Ctrl-click to multi-select."
+    aria-keyshortcuts="Delete Backspace"
     onmousedown={handleGraphMousedown}
     ondblclick={handleGraphDblclick}
-    oncontextmenu={handleGraphContextMenu}
+    onmousemove={handleGraphMousemove}
+    onmouseleave={handleGraphMouseleave}
   >
     <svg bind:this={svgEl} class="graph-svg" viewBox="0 0 {graphWidth} {graphHeight}" preserveAspectRatio="none">
       <defs>
@@ -683,6 +661,13 @@
             height={graphHeight - GRAPH_PADDING.top - GRAPH_PADDING.bottom}
           />
         </clipPath>
+        <filter id="curve-keyframe-selected-glow" x="-55%" y="-55%" width="210%" height="210%">
+          <feGaussianBlur stdDeviation="1.35" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
       {#if waveformPathD}
         <g class="graph-waveform" clip-path="url(#curve-editor-clip)" aria-hidden="true">
@@ -724,18 +709,259 @@
         <path class="graph-path" d={curvePathD} clip-path="url(#curve-editor-clip)" />
         <g class="graph-keyframes">
           {#each keyframesSorted as kf, index}
-            <g class="graph-keyframe" data-index={index}>
-              <circle
-                class="graph-keyframe-circle"
-                class:is-selected={selectedKeyframeIndex === index}
-                cx={timeToX(kf.time)}
-                cy={valueToY(kf.value)}
-                data-index={index}
-              />
+            {@const cx = timeToX(kf.time)}
+            {@const cy = valueToY(kf.value)}
+            {@const isEndpoint = index === 0 || index === keyframesSorted.length - 1}
+            <g
+              class="graph-keyframe"
+              class:is-selected={selectedKeyframeSet.has(index)}
+              class:is-endpoint={isEndpoint}
+              data-index={index}
+            >
+              {#if isEndpoint}
+                <rect
+                  class="graph-keyframe-shape graph-keyframe-end"
+                  x={cx - KEYFRAME_MARK_HALF}
+                  y={cy - KEYFRAME_MARK_HALF}
+                  width={KEYFRAME_MARK_HALF * 2}
+                  height={KEYFRAME_MARK_HALF * 2}
+                />
+              {:else}
+                <polygon
+                  class="graph-keyframe-shape graph-keyframe-diamond"
+                  points={diamondPolygonPoints(cx, cy, KEYFRAME_DIAMOND_R)}
+                />
+              {/if}
             </g>
           {/each}
         </g>
       {/if}
     </svg>
   </div>
+
+  {#if keyframeTooltipScreen && keyframeTooltipText && hoveredKeyframeIndex !== null}
+    <div
+      class="keyframe-value-tooltip"
+      role="tooltip"
+      style="left: {keyframeTooltipScreen.x}px; top: {keyframeTooltipScreen.y}px;"
+    >
+      {keyframeTooltipText}
+    </div>
+  {/if}
 </div>
+
+<EditorParameterValueOverlay
+  visible={valueOverlayVisible}
+  x={valueOverlayX}
+  y={valueOverlayY}
+  width={valueOverlayW}
+  height={valueOverlayH}
+  value={valueOverlayValue}
+  paramType={paramSpec.paramType}
+  onCommit={commitKeyframeValueFromOverlay}
+  onCancel={closeValueOverlay}
+/>
+
+<style>
+  .curve-editor {
+    /** Hit slop (~ apex + stroke); diamond corners extend slightly past former circle radius. */
+    --curve-keyframe-radius: 9.5px;
+    --curve-editor-bg: var(--color-gray-60, #2a2a2a);
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    color: var(--print-light, #e8e8e8);
+    background: var(--curve-editor-bg);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    overflow: hidden;
+  }
+
+  .header {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--pd-sm);
+    padding: var(--pd-xs);
+    border-bottom: 1px solid var(--color-gray-70, #333);
+    min-width: 0;
+  }
+
+  .header-left {
+    flex: 1 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--pd-sm);
+    min-width: 0;
+    max-width: 200px;
+  }
+
+  .title-icon {
+    flex-shrink: 0;
+    width: var(--icon-size-sm);
+    height: var(--icon-size-sm);
+    display: inline-flex;
+  }
+
+  .title-icon :global(svg) {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .header-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--print-highlight, #fff);
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    flex: 1;
+    gap: var(--pd-sm);
+    min-width: 0;
+    justify-content: flex-end;
+  }
+
+  .header-controls {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+    gap: var(--pd-xs);
+  }
+
+  .snap-wrap {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 0;
+  }
+
+  .keyframe-value-tooltip {
+    position: fixed;
+    z-index: 900;
+    transform: translate(-50%, -100%);
+    pointer-events: none;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-size: var(--text-2xs);
+    font-family: var(--font-mono);
+    color: var(--print-light, #e8e8e8);
+    background: color-mix(in srgb, var(--curve-editor-bg) 82%, var(--print-highlight, #fff) 18%);
+    border: 1px solid color-mix(in srgb, var(--curve-editor-bg) 55%, var(--print-subtle, #888) 45%);
+    box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
+    white-space: nowrap;
+  }
+
+  .graph-wrap {
+    flex: 1;
+    min-height: 120px;
+    min-width: 0;
+    cursor: crosshair;
+  }
+
+  .graph-svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .graph-border {
+    stroke: var(--color-gray-75, #383838);
+    stroke-width: 0.75px;
+    vector-effect: non-scaling-stroke;
+    opacity: 0.55;
+  }
+
+  .graph-waveform-path {
+    color: var(--print-subtle, #888);
+    fill: currentColor;
+  }
+
+  .graph-path {
+    fill: none;
+    stroke: var(--color-teal-120, #5dd);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+    stroke-linejoin: round;
+  }
+
+  .grid-line {
+    stroke: var(--color-gray-70, #333);
+    stroke-width: 0.66px;
+    vector-effect: non-scaling-stroke;
+    opacity: 0.2;
+  }
+
+  .grid-line-minor {
+    opacity: 0.09;
+  }
+
+  .grid-line-major {
+    stroke: var(--color-gray-85, #444);
+    opacity: 0.32;
+  }
+
+  .grid-line-sub {
+    opacity: 0.06;
+  }
+
+  .value-axis-label {
+    fill: var(--print-subtle, #aaa);
+    font-size: var(--text-2xs);
+    font-family: var(--font-mono);
+  }
+
+  .graph-keyframe {
+    cursor: grab;
+  }
+
+  .graph-keyframe-shape {
+    vector-effect: non-scaling-stroke;
+    paint-order: stroke fill;
+    stroke-linejoin: round;
+  }
+
+  /* Endpoint (t=0 / t=1): fixed in time, non-deletable */
+  .graph-keyframe-end {
+    fill: color-mix(in srgb, var(--color-gray-90, #4a4a4a) 88%, var(--color-teal-100, #3aa) 12%);
+    stroke: var(--curve-editor-bg);
+    stroke-width: 1.2px;
+  }
+
+  .graph-keyframe.is-selected .graph-keyframe-end {
+    fill: color-mix(in srgb, var(--primary-bg-active, #088) 78%, var(--print-highlight, #fff) 22%);
+    stroke: var(--print-highlight, #fff);
+    stroke-width: 2.35px;
+    filter: url(#curve-keyframe-selected-glow);
+  }
+
+  /* Interior keyframes: diamond */
+  .graph-keyframe-diamond {
+    stroke-linejoin: miter;
+    fill: color-mix(in srgb, var(--color-teal-gray-100, #355) 75%, var(--color-teal-120, #5dd) 25%);
+    stroke: var(--curve-editor-bg);
+    stroke-width: 1.25px;
+  }
+
+  .graph-keyframe.is-selected .graph-keyframe-diamond {
+    fill: var(--primary-bg-active, #088);
+    stroke: var(--print-highlight, #fff);
+    stroke-width: 2.5px;
+    filter: url(#curve-keyframe-selected-glow);
+  }
+</style>

@@ -116,7 +116,7 @@
             8000
           ]
         ],
-        "smoothing": 0.75,
+        "smoothingHalfLifeSeconds": 0.004166666666666667,
         "fftSize": 4096
       }
     ],

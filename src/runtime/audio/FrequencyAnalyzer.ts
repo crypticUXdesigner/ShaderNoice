@@ -19,8 +19,14 @@ export interface AnalyzerNodeState {
   nodeId: string;
   analyserNode: AnalyserNode | null;
   frequencyBands: FrequencyBand[];
-  /** Per-band smoothing (0–1). Length matches band count. */
-  smoothing: number[];
+  /** Symmetric half-life per band (seconds). */
+  smoothingHalfLifeSeconds: number[];
+  /** Optional attack half-life per band (seconds). */
+  attackHalfLifeSeconds?: Array<number | undefined>;
+  /** Optional release half-life per band (seconds). */
+  releaseHalfLifeSeconds?: Array<number | undefined>;
+  /** Monotonic clock (seconds) of last smoothing update; null until first update. */
+  lastUpdateTimeSeconds: number | null;
   fftSize: number;
   bandValues: number[];
   smoothedBandValues: number[];
@@ -46,7 +52,9 @@ export class FrequencyAnalyzer extends BaseDisposable {
     nodeId: string,
     audioFileNodeId: string,
     frequencyBands: FrequencyBand[],
-    smoothing: number[],
+    smoothingHalfLifeSeconds: number[],
+    attackHalfLifeSeconds: Array<number | undefined> | undefined,
+    releaseHalfLifeSeconds: Array<number | undefined> | undefined,
     fftSize: number = 4096,
     audioNodeState: AudioNodeState
   ): AnalyzerNodeState {
@@ -56,17 +64,37 @@ export class FrequencyAnalyzer extends BaseDisposable {
       throw new Error(`Audio file node ${audioFileNodeId} does not have an analyser node`);
     }
     
-    // Ensure per-band smoothing array length matches band count
-    const smoothingArray = smoothing.length >= frequencyBands.length
-      ? smoothing.slice(0, frequencyBands.length)
-      : [...smoothing, ...new Array(frequencyBands.length - smoothing.length).fill(0.8)];
+    // Ensure arrays match band count.
+    const DEFAULT_HALF_LIFE_SECONDS = 1 / 120;
+    const halfLifeArray =
+      smoothingHalfLifeSeconds.length >= frequencyBands.length
+        ? smoothingHalfLifeSeconds.slice(0, frequencyBands.length)
+        : [
+            ...smoothingHalfLifeSeconds,
+            ...new Array(frequencyBands.length - smoothingHalfLifeSeconds.length).fill(DEFAULT_HALF_LIFE_SECONDS),
+          ];
+    const attackArray =
+      attackHalfLifeSeconds == null
+        ? undefined
+        : (attackHalfLifeSeconds.length >= frequencyBands.length
+            ? attackHalfLifeSeconds.slice(0, frequencyBands.length)
+            : [...attackHalfLifeSeconds, ...new Array(frequencyBands.length - attackHalfLifeSeconds.length).fill(undefined)]);
+    const releaseArray =
+      releaseHalfLifeSeconds == null
+        ? undefined
+        : (releaseHalfLifeSeconds.length >= frequencyBands.length
+            ? releaseHalfLifeSeconds.slice(0, frequencyBands.length)
+            : [...releaseHalfLifeSeconds, ...new Array(frequencyBands.length - releaseHalfLifeSeconds.length).fill(undefined)]);
     
     // Use the same analyser node from the audio file (shared FFT)
     const analyserState: AnalyzerNodeState = {
       nodeId,
       analyserNode: audioNodeState.analyserNode,
       frequencyBands,
-      smoothing: smoothingArray,
+      smoothingHalfLifeSeconds: halfLifeArray,
+      attackHalfLifeSeconds: attackArray,
+      releaseHalfLifeSeconds: releaseArray,
+      lastUpdateTimeSeconds: null,
       fftSize,
       bandValues: new Array(frequencyBands.length).fill(0),
       smoothedBandValues: new Array(frequencyBands.length).fill(0)
@@ -160,7 +188,7 @@ export class FrequencyAnalyzer extends BaseDisposable {
       }
     }
     
-    // Second pass: Update analyzer node uniforms (only if audio is playing and values changed)
+    // Second pass: Update analyzer node uniforms
     for (const [nodeId, analyzerState] of this.analyzerNodes.entries()) {
       if (!analyzerState.analyserNode) continue;
       
@@ -211,12 +239,36 @@ export class FrequencyAnalyzer extends BaseDisposable {
         analyzerState.fftSize
       );
       
-      // Apply per-band smoothing and check for changes
+      // Apply per-band smoothing (time-based half-life) and check for changes
+      const nowSeconds = performance.now() / 1000;
+      const dtSeconds =
+        analyzerState.lastUpdateTimeSeconds == null ? 0 : Math.max(0, nowSeconds - analyzerState.lastUpdateTimeSeconds);
+      analyzerState.lastUpdateTimeSeconds = nowSeconds;
+
+      const tauFromHalfLife = (halfLifeSeconds: number): number => {
+        if (halfLifeSeconds <= 0) return 0;
+        if (!Number.isFinite(halfLifeSeconds)) return Number.POSITIVE_INFINITY;
+        return halfLifeSeconds / Math.LN2;
+      };
+      const retentionFromTau = (dt: number, tau: number): number => {
+        if (tau === Number.POSITIVE_INFINITY) return 1;
+        if (tau <= 0 || dt <= 0) return dt <= 0 ? 1 : 0;
+        return Math.exp(-dt / tau);
+      };
+
       for (let i = 0; i < analyzerState.bandValues.length; i++) {
         const newValue = analyzerState.bandValues[i];
         const oldValue = analyzerState.smoothedBandValues[i] || 0;
-        const s = analyzerState.smoothing[i] ?? 0.8;
-        const smoothed = s * newValue + (1 - s) * oldValue;
+        const rising = newValue > oldValue;
+        const useAttackRelease =
+          (analyzerState.attackHalfLifeSeconds?.[i] != null) || (analyzerState.releaseHalfLifeSeconds?.[i] != null);
+        const halfLifeSeconds = useAttackRelease
+          ? (rising ? analyzerState.attackHalfLifeSeconds?.[i] : analyzerState.releaseHalfLifeSeconds?.[i])
+          : analyzerState.smoothingHalfLifeSeconds[i];
+        const halfLife = halfLifeSeconds ?? analyzerState.smoothingHalfLifeSeconds[i] ?? (1 / 120);
+        const tau = tauFromHalfLife(halfLife);
+        const retention = retentionFromTau(dtSeconds, tau);
+        const smoothed = retention * oldValue + (1 - retention) * newValue;
         analyzerState.smoothedBandValues[i] = smoothed;
         
         // Single-band analyzer: output name is 'band'

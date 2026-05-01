@@ -19,7 +19,12 @@
     /** `font-weight` for the “Noice” segment (number or CSS value). */
     titleNoiceWeight?: number | string;
     subtitle?: string;
-    /** Resolved against site base, e.g. `/ShaderNoice/ShaderNoice-logo.png` */
+    /**
+     * Optional legacy single-image logo. If omitted, the splash uses the layered
+     * mask-based logo from `public/app-logo/`.
+     *
+     * Resolved against site base, e.g. `/ShaderNoice/ShaderNoice-logo.png`
+     */
     logoSrc?: string;
   }
 
@@ -31,10 +36,18 @@
     titleShaderWeight = 400,
     titleNoiceWeight = 900,
     subtitle = 'Fries GPUs for breakfast.',
-    logoSrc = `${import.meta.env.BASE_URL}ShaderNoice-logo.png`,
+    logoSrc,
   }: Props = $props();
 
   let logoFailed = $state(false);
+
+  const baseUrl = import.meta.env.BASE_URL;
+  const layeredLogo = {
+    layer1: `${baseUrl}app-logo/layer1-badge.webp`,
+    shapeMask: `${baseUrl}app-logo/shape-mask.webp`,
+    patternMask: `${baseUrl}app-logo/pattern-mask.webp`,
+    layer3: `${baseUrl}app-logo/layer3-content.webp`,
+  } as const;
 
   function prefersReducedMotion(): boolean {
     if (typeof window === 'undefined') return false;
@@ -88,7 +101,7 @@
   onclick={handleActivate}
 >
   <div class="app-splash__inner">
-    {#if !logoFailed}
+    {#if logoSrc && !logoFailed}
       <img
         src={logoSrc}
         alt=""
@@ -99,6 +112,27 @@
           logoFailed = true;
         }}
       />
+    {:else if !logoSrc}
+      <div
+        class="app-splash__logo-stack"
+        aria-hidden="true"
+        style:--app-splash-layer1-url={`url("${layeredLogo.layer1}")`}
+        style:--app-splash-shape-mask-url={`url("${layeredLogo.shapeMask}")`}
+        style:--app-splash-pattern-mask-url={`url("${layeredLogo.patternMask}")`}
+        style:--app-splash-layer3-url={`url("${layeredLogo.layer3}")`}
+      >
+        <div class="app-splash__logo-layer app-splash__logo-layer--badge"></div>
+
+        <div class="app-splash__logo-layer app-splash__logo-layer--shape-clip">
+          <div class="app-splash__logo-pattern"></div>
+        </div>
+
+        <div class="app-splash__logo-layer app-splash__logo-layer--shape-clip">
+          <div class="app-splash__logo-pattern-mask">
+            <div class="app-splash__logo-content"></div>
+          </div>
+        </div>
+      </div>
     {/if}
     <h1 id="app-splash-title" class="app-splash__title">
       <span
@@ -120,6 +154,17 @@
         Loading…
       {/if}
     </p>
+    <span
+      class="app-splash__compat"
+      role="note"
+      aria-label="Best in Chrome or Chromium-based browsers. Video export uses WebCodecs (VideoEncoder and AudioEncoder), so other browsers may be limited."
+      title="Video export uses WebCodecs; other browsers may be limited."
+    >
+      <span class="app-splash__compat-icon" aria-hidden="true">
+        <IconSvg name="google-chrome-logo" variant="filled" />
+      </span>
+      Best in Chrome/Chromium
+    </span>
   </div>
 </div>
 
@@ -215,12 +260,179 @@
       drop-shadow(0 0 32px color-mix(in srgb, var(--print-light) 5%, transparent));
   }
 
+  @keyframes app-splash-layer-rotate-a {
+    0% {
+      transform: rotate(0deg);
+      animation-timing-function: cubic-bezier(0.22, 0.61, 0.36, 1);
+    }
+    50% {
+      transform: rotate(-180deg);
+      animation-timing-function: cubic-bezier(0.64, 0, 0.78, 0.39);
+    }
+    100% {
+      transform: rotate(-360deg);
+    }
+  }
+
+  @keyframes app-splash-layer-rotate-b {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes app-splash-layer-pattern-mask-breathe {
+    0% {
+      transform: rotate(0deg) scale(1);
+    }
+    25% {
+      transform: rotate(90deg) scale(0.93);
+    }
+    50% {
+      transform: rotate(180deg) scale(0.987);
+    }
+    75% {
+      transform: rotate(270deg) scale(0.897);
+    }
+    100% {
+      transform: rotate(360deg) scale(1);
+    }
+  }
+
+  @keyframes app-splash-layer-rotate-c {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(-360deg);
+    }
+  }
+
+  @keyframes app-splash-layer-content-breathe {
+    0% {
+      transform: rotate(0deg) scale(1);
+    }
+    20% {
+      transform: rotate(-72deg) scale(1.017);
+    }
+    50% {
+      transform: rotate(-180deg) scale(1.007);
+    }
+    80% {
+      transform: rotate(-288deg) scale(1.023);
+    }
+    100% {
+      transform: rotate(-360deg) scale(1);
+    }
+  }
+
+  .app-splash__logo-stack {
+    width: 120px;
+    height: 120px;
+    position: relative;
+    margin-bottom: var(--pd-lg);
+    border-radius: var(--radius-md);
+    filter: drop-shadow(0 0 7px color-mix(in srgb, var(--color-violet-90) 22%, transparent))
+      drop-shadow(0 0 16px color-mix(in srgb, var(--print-light) 10%, transparent))
+      drop-shadow(0 0 32px color-mix(in srgb, var(--print-light) 5%, transparent));
+  }
+
+  .app-splash__logo-layer {
+    position: absolute;
+    inset: 0;
+    transform-origin: center center;
+  }
+
+  .app-splash__logo-layer--badge {
+    background-image: var(--app-splash-layer1-url);
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-position: center;
+    animation: app-splash-layer-rotate-a 42s infinite;
+  }
+
+  .app-splash__logo-layer--shape-clip {
+    /* Shape mask rotates with the same "A" layer motion */
+    -webkit-mask-image: var(--app-splash-shape-mask-url);
+    mask-image: var(--app-splash-shape-mask-url);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-position: center;
+    mask-position: center;
+    animation: app-splash-layer-rotate-a 42s infinite;
+  }
+
+  .app-splash__logo-pattern {
+    position: absolute;
+    inset: 0;
+    transform-origin: center center;
+    animation: app-splash-layer-pattern-mask-breathe 37s linear infinite;
+
+    /* Display the pattern by using it as a mask over a solid fill */
+    background: color-mix(in srgb, var(--print-light) 70%, transparent);
+    -webkit-mask-image: var(--app-splash-pattern-mask-url);
+    mask-image: var(--app-splash-pattern-mask-url);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+
+  .app-splash__logo-pattern-mask {
+    position: absolute;
+    inset: 0;
+    transform-origin: center center;
+    animation: app-splash-layer-pattern-mask-breathe 37s linear infinite;
+
+    /* Layer 3 is visible only through the pattern mask */
+    -webkit-mask-image: var(--app-splash-pattern-mask-url);
+    mask-image: var(--app-splash-pattern-mask-url);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-position: center;
+    mask-position: center;
+    mask-mode: luminance
+  }
+
+  .app-splash__logo-content {
+    position: absolute;
+    inset: 0;
+    transform-origin: center center;
+    animation: app-splash-layer-content-breathe 33s linear infinite;
+    background-image: var(--app-splash-layer3-url);
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-position: center;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .app-splash__logo {
       animation: none;
       filter: drop-shadow(0 0 10px color-mix(in srgb, var(--print-light) 30%, transparent))
         drop-shadow(0 0 22px color-mix(in srgb, var(--print-light) 14%, transparent))
         drop-shadow(0 0 40px color-mix(in srgb, var(--print-light) 6%, transparent));
+    }
+
+    .app-splash__logo-stack {
+      filter: drop-shadow(0 0 10px color-mix(in srgb, var(--print-light) 30%, transparent))
+        drop-shadow(0 0 22px color-mix(in srgb, var(--print-light) 14%, transparent))
+        drop-shadow(0 0 40px color-mix(in srgb, var(--print-light) 6%, transparent));
+    }
+
+    .app-splash__logo-layer--badge,
+    .app-splash__logo-layer--shape-clip,
+    .app-splash__logo-pattern,
+    .app-splash__logo-pattern-mask,
+    .app-splash__logo-content {
+      animation: none;
     }
   }
 
@@ -275,4 +487,32 @@
     color: var(--print-normal);
     line-height: 1.4;
   }
+
+  .app-splash__compat {
+    position: absolute;
+    left: 50%;
+    bottom: var(--pd-xl);
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--pd-md);
+    border-radius: 999px;
+    font-size: var(--text-sm);
+    line-height: 1;
+    font-weight: 300;
+    font-family: var(--font-mono);
+    color: var(--color-yellow-gray-100);
+    user-select: none;
+    pointer-events: none;
+  }
+
+  .app-splash__compat-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    opacity: 0.9;
+  }
+
 </style>

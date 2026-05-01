@@ -44,7 +44,9 @@ export function syncPanelAnalyzers(
     const frequencyBands = band.frequencyBands?.[0]
       ? [{ minHz: band.frequencyBands[0][0], maxHz: band.frequencyBands[0][1] }]
       : [{ minHz: 20, maxHz: 20000 }];
-    const smoothing = [band.smoothing ?? 0.8];
+    const smoothingHalfLives = [band.smoothingHalfLifeSeconds ?? 1 / 120];
+    const attackHalfLives = band.attackHalfLifeSeconds != null ? [band.attackHalfLifeSeconds] : undefined;
+    const releaseHalfLives = band.releaseHalfLifeSeconds != null ? [band.releaseHalfLifeSeconds] : undefined;
     const fftSize = band.fftSize ?? 2048;
 
     const existing = frequencyAnalyzer.getAnalyzerNodeState(band.id);
@@ -68,7 +70,9 @@ export function syncPanelAnalyzers(
           band.id,
           band.sourceFileId,
           frequencyBands,
-          smoothing,
+          smoothingHalfLives,
+          attackHalfLives,
+          releaseHalfLives,
           fftSize,
           audioState
         );

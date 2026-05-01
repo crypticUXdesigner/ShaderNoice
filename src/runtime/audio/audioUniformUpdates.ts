@@ -6,6 +6,7 @@
 import type { AudioSetup } from '../../data-model/audioSetupTypes';
 import type { AudioPlaybackController } from './AudioPlaybackController';
 import type { FrequencyAnalyzer } from './FrequencyAnalyzer';
+import type { UniformUpdate as OfflineUniformUpdate } from '../../video-export/OfflineAudioProvider';
 
 export interface AudioUniformUpdate {
   nodeId: string;
@@ -47,7 +48,8 @@ export function collectAudioUniformUpdates(
   previousUniformValues: Map<string, number>,
   threshold: number,
   graph?: GraphForUniforms | null,
-  forcePushAll: boolean = false
+  forcePushAll: boolean = false,
+  offlineFileUniforms?: Map<string, { getUniformUpdatesAtTime: (timeSeconds: number) => OfflineUniformUpdate[] }>
 ): AudioUniformUpdate[] {
   const updates: AudioUniformUpdate[] = [];
   const audioNodeStates = playbackController.getAllAudioNodeStates();
@@ -79,6 +81,29 @@ export function collectAudioUniformUpdates(
     }
   }
 
+  // Preferred live path (Phase 2): when we have a decoded AudioBuffer, sample the same
+  // canonical 120 Hz analysis curve used by export and emit those values directly.
+  //
+  // When provided, offlineFileUniforms should cover all file-backed sources in audioSetup;
+  // in that case, we skip the analyser-driven FrequencyAnalyzer path to avoid duplicates.
+  if (offlineFileUniforms && offlineFileUniforms.size > 0) {
+    for (const [fileId, provider] of offlineFileUniforms.entries()) {
+      const state = audioNodeStates.get(fileId);
+      if (!state?.audioBuffer) continue;
+      const uniformUpdates = provider.getUniformUpdatesAtTime(state.currentTime);
+      for (const u of uniformUpdates) {
+        const key = `${u.nodeId}.${u.paramName}`;
+        // For the canonical-curve path we must avoid refresh-rate-dependent "update skipping".
+        // Export pushes every sampled value; live should do the same so 60 Hz and 120 Hz
+        // displays don't diverge due to the change-threshold heuristic.
+        updates.push({ nodeId: u.nodeId, paramName: u.paramName, value: u.value });
+        previousUniformValues.set(key, u.value);
+      }
+    }
+    return updates;
+  }
+
+  // Legacy/live analyser path: FrequencyAnalyzer bands + remaps derived from audioSetup.
   const frequencyUpdates = frequencyAnalyzer.updateFrequencyAnalysis(
     audioNodeStates,
     graph ?? undefined,
