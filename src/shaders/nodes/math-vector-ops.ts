@@ -11,7 +11,7 @@ export const lengthNodeSpec: NodeSpec = {
   description: 'Length (magnitude) of vector',
   icon: 'ruler',
   inputs: [{ name: 'in', type: 'vec2', label: 'Vector' }],
-  outputs: [{ name: 'out', type: 'float', label: 'Length' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = length($input.in);`
 };
@@ -23,10 +23,10 @@ export const distanceNodeSpec: NodeSpec = {
   description: 'Distance between two points',
   icon: 'ruler',
   inputs: [
-    { name: 'a', type: 'vec2', label: 'First vector' },
-    { name: 'b', type: 'vec2', fallbackParameter: 'bX,bY', label: 'Second vector' }
+    { name: 'a', type: 'vec2', label: 'A' },
+    { name: 'b', type: 'vec2', fallbackParameter: 'bX,bY', label: 'B' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
     bX: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Target X' },
     bY: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Target Y' }
@@ -51,10 +51,10 @@ export const dotProductNodeSpec: NodeSpec = {
   description: 'Dot product of two vectors',
   icon: 'vector-dot',
   inputs: [
-    { name: 'a', type: 'vec2', label: 'First vector' },
-    { name: 'b', type: 'vec2', label: 'Second vector' }
+    { name: 'a', type: 'vec2', label: 'A' },
+    { name: 'b', type: 'vec2', label: 'B' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = dot($input.a, $input.b);`
 };
@@ -66,10 +66,10 @@ export const crossProductNodeSpec: NodeSpec = {
   description: 'Cross product of two 3D vectors',
   icon: 'vector-cross',
   inputs: [
-    { name: 'a', type: 'vec3', label: 'First vector' },
-    { name: 'b', type: 'vec3', label: 'Second vector' }
+    { name: 'a', type: 'vec3', label: 'A' },
+    { name: 'b', type: 'vec3', label: 'B' }
   ],
-  outputs: [{ name: 'out', type: 'vec3', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'vec3', label: '=' }],
   parameters: {},
   mainCode: `$output.out = cross($input.a, $input.b);`
 };
@@ -81,7 +81,7 @@ export const normalizeNodeSpec: NodeSpec = {
   description: 'Normalizes vector to unit length',
   icon: 'normalize',
   inputs: [{ name: 'in', type: 'vec2', label: 'Vector' }],
-  outputs: [{ name: 'out', type: 'vec2', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'vec2', label: '=' }],
   parameters: {},
   mainCode: `$output.out = normalize($input.in);`
 };
@@ -96,7 +96,7 @@ export const reflectNodeSpec: NodeSpec = {
     { name: 'I', type: 'vec2', label: 'Incident' },
     { name: 'N', type: 'vec2', label: 'Normal' }
   ],
-  outputs: [{ name: 'out', type: 'vec2', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'vec2', label: '=' }],
   parameters: {},
   mainCode: `$output.out = reflect($input.I, $input.N);`
 };
@@ -112,7 +112,7 @@ export const refractNodeSpec: NodeSpec = {
     { name: 'N', type: 'vec2', label: 'Normal' },
     { name: 'eta', type: 'float', fallbackParameter: 'eta', label: 'Ratio' }
   ],
-  outputs: [{ name: 'out', type: 'vec2', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'vec2', label: '=' }],
   parameters: {
     eta: { type: 'float', default: 0.92, min: 0.01, max: 2.0, step: 0.01, label: 'Eta (IOR)' }
   },

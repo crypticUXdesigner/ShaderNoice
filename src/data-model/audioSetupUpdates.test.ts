@@ -10,7 +10,6 @@ function assert(condition: boolean, message: string): void {
 
 function assertEqual<T>(actual: T, expected: T, message?: string): void {
   if (actual !== expected) {
-    // eslint-disable-next-line no-console
     console.error('Assertion failed', { actual, expected });
     throw new Error(message || `Expected ${String(expected)}, got ${String(actual)}`);
   }

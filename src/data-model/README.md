@@ -186,12 +186,12 @@ layer but still converge through the same serialize/deserialize path:
 
 - `presetManager.loadPreset(name, toValidationSpecs(nodeSystemSpecs))`:
   - Handles legacy preset shapes (raw `graph` vs `SerializedGraphFile` wrapper),
-  - Applies `migrateNoiseNodes` to the in-memory `graph`,
+  - Applies `migrateNoiseNodes`, `migrateBloomSphereColors`, and `migrateDriveHomeLightsSkyGradient` to the in-memory `graph`,
   - Serializes via `serializeGraph` and immediately deserializes via `deserializeGraph` so
     `validateGraph` and the format-version–aware registry run on the final file shape.
 - `presetManager.loadPresetFromJson(json, toValidationSpecs(nodeSystemSpecs))`:
   - Deserializes user-provided JSON via `deserializeGraph`,
-  - Then applies `migrateNoiseNodes` to the validated `graph`.
+  - Then applies `migrateNoiseNodes`, `migrateBloomSphereColors`, and `migrateDriveHomeLightsSkyGradient` to the validated `graph`.
 
 In both flows, the **single source of truth** for persisted graphs is the serialized
 `SerializedGraphFile` shape guarded by `deserializeGraph` and its migration registry.

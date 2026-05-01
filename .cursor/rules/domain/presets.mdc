@@ -6,7 +6,7 @@ alwaysApply: false
 
 # Presets
 
-Presets are JSON files in `src/presets/`. They must follow the **SerializedGraphFile** format so load/save and "Copy Preset" stay compatible.
+Presets are JSON files in `src/presets/`. They must follow the **SerializedGraphFile** format so load/save and preset download stay compatible.
 
 ## Format
 

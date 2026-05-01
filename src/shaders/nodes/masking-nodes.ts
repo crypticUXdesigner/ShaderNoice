@@ -11,11 +11,11 @@ export const compareNodeSpec: NodeSpec = {
   description: 'Compares two values and outputs 0.0 or 1.0',
   icon: 'compare',
   inputs: [
-    { name: 'a', type: 'float', label: 'First value' },
-    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'Second value' }
+    { name: 'a', type: 'float', label: 'A' },
+    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'B' }
   ],
   outputs: [
-    { name: 'out', type: 'float', label: 'Result' }
+    { name: 'out', type: 'float', label: '=' }
   ],
   parameters: {
     operation: {
@@ -25,7 +25,7 @@ export const compareNodeSpec: NodeSpec = {
       max: 5,
       label: 'Operation'
     },
-    b: { type: 'float', default: 0.5, min: -1000.0, max: 1000.0, step: 0.01, label: 'Compare Value' }
+    b: { type: 'float', default: 0.5, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' }
   },
   parameterLayout: {
     elements: [

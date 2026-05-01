@@ -10,7 +10,7 @@
     onChange?: (payload: { low: number; high: number }) => void;
   }
 
-  let props: Props = $props();
+  let componentProps: Props = $props();
   let {
     min = 0,
     max = 1,
@@ -20,15 +20,15 @@
     disabled = false,
     class: className = '',
     onChange
-  } = props;
+  } = componentProps;
 
   let low = $state(lowValue);
   let high = $state(highValue);
   let draggingHandle = $state<'low' | 'high' | null>(null);
 
   $effect(() => {
-    const l = props.lowValue;
-    const h = props.highValue;
+    const l = componentProps.lowValue;
+    const h = componentProps.highValue;
     low = Math.min(l, h);
     high = Math.max(l, h);
   });

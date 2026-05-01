@@ -19,7 +19,13 @@
     { keys: 'Ctrl/Cmd + V', action: 'Paste nodes' },
     { keys: 'Ctrl/Cmd + A', action: 'Select all nodes' },
     { keys: 'Ctrl/Cmd + D', action: 'Duplicate selected nodes' },
+    { keys: '1', action: 'View mode: Node' },
+    { keys: '2', action: 'View mode: Split' },
+    { keys: '3', action: 'View mode: Full' },
+    { keys: 'Tab', action: 'Toggle side panel' },
+    { keys: '<', action: 'Toggle UI visibility' },
     { keys: 'Spacebar (hold)', action: 'Temporary pan (Hand tool)' },
+    { keys: 'F', action: 'Toggle fullscreen' },
   ];
 </script>
 
@@ -27,7 +33,7 @@
   <div class="shortcuts-content">
     <h2 class="shortcuts-title">Keyboard shortcuts</h2>
     <dl class="shortcuts-list">
-      {#each shortcuts as { keys, action }}
+      {#each shortcuts as { keys, action } (keys)}
         <dt class="shortcuts-keys">{keys}</dt>
         <dd class="shortcuts-action">{action}</dd>
       {/each}

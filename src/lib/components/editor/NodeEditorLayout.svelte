@@ -42,7 +42,7 @@
     presetList = [],
     selectedPreset = null,
     primaryTrackKey = null,
-    isPanelVisible = false,
+    isPanelVisible = true,
     zoom = 1.0,
     fps = 0,
     isVideoExportSupported = true,
@@ -64,6 +64,7 @@
   let activeTab = $state<'nodes' | 'docs'>('nodes');
   let dividerPosition = $state(0.5);
   let panelWidth = $state(300);
+  let isUiHidden = $state(false);
 
   let isDraggingDivider = $state(false);
   let isResizingPanel = $state(false);
@@ -100,10 +101,11 @@
     fps <= 0 ? 'var(--layout-button-color)' : fps >= 55 ? 'var(--fps-color-good)' : fps >= 30 ? 'var(--fps-color-moderate)' : 'var(--fps-color-poor)'
   );
 
-  const topBarHeight = $derived(buttonContainerEl ? buttonContainerEl.getBoundingClientRect().height : 60);
-  const bottomBarHeight = $derived(12);
-  const bottomSafeInset = $derived(Math.max(bottomBarHeight, SAFE_DISTANCE));
-  const panelOffset = $derived(isPanelVisible ? panelWidth : 0);
+  const topBarHeight = $derived(isUiHidden ? 0 : (buttonContainerEl ? buttonContainerEl.getBoundingClientRect().height : 60));
+  const bottomBarHeight = $derived(isUiHidden ? 0 : 12);
+  const bottomSafeInset = $derived(isUiHidden ? 0 : Math.max(bottomBarHeight, SAFE_DISTANCE));
+  const rawPanelOffset = $derived(isPanelVisible ? panelWidth : 0);
+  const panelOffset = $derived(isUiHidden ? 0 : rawPanelOffset);
 
   // Show toast helper
   function showToast(message: string, type: 'success' | 'error') {
@@ -130,6 +132,53 @@
     if (viewMode === mode) return;
     viewMode = mode;
   }
+
+  function isTypingTarget(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    return (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.isContentEditable ||
+      target.closest?.('[contenteditable="true"]') != null
+    );
+  }
+
+  // View mode keyboard shortcuts (1/2/3)
+  $effect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (isTypingTarget(e.target)) return;
+      if (shortcutsModalOpen || pendingLoadPresetName !== null || pendingImportJson !== null) return;
+      if (presetMenuOpen) return;
+
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        callbacks.onPanelToggle?.();
+        return;
+      }
+
+      if (e.key === '<') {
+        e.preventDefault();
+        isUiHidden = !isUiHidden;
+        presetMenuOpen = false;
+        return;
+      }
+
+      if (e.key === '1') {
+        e.preventDefault();
+        setViewMode('node');
+      } else if (e.key === '2') {
+        e.preventDefault();
+        setViewMode('split');
+      } else if (e.key === '3') {
+        e.preventDefault();
+        setViewMode('full');
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
 
   // Panel resize handle: show only after open animation; hide instantly on close
   $effect(() => {
@@ -214,14 +263,14 @@
   });
 
   // Action handlers
-  async function handleCopyPreset() {
+  function handleDownloadPreset() {
     try {
-      await callbacks.onCopyPreset?.();
-      showToast('Graph copied to clipboard!', 'success');
+      callbacks.onDownloadPreset?.();
+      showToast('Graph downloaded as JSON', 'success');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to copy graph';
+      const msg = err instanceof Error ? err.message : 'Failed to download graph';
       showToast(msg, 'error');
-      globalErrorHandler.report('runtime', 'error', 'Failed to copy graph', { originalError: err instanceof Error ? err : new Error(msg) });
+      globalErrorHandler.report('runtime', 'error', 'Failed to download graph', { originalError: err instanceof Error ? err : new Error(msg) });
     }
   }
 
@@ -386,6 +435,7 @@
   class:is-resizing-layout={isDraggingDivider || isResizingPanel}
   data-view={viewMode}
   data-preview={viewMode === 'node' ? 'collapsed' : 'expanded'}
+  data-ui-hidden={isUiHidden ? 'true' : 'false'}
   style="position: absolute; inset: 0; --panel-width-dynamic: {panelWidth}px; --top-bar-left-offset: {panelOffset}px; --timeline-viewport-left: {panelOffset}px; --timeline-viewport-width: {containerWidth - panelOffset}px;"
 >
   <!-- Top bar -->
@@ -403,7 +453,7 @@
     panelOffset={panelOffset}
     onPanelToggle={callbacks.onPanelToggle}
     onPresetClick={handlePresetClick}
-    onCopyPreset={handleCopyPreset}
+    onDownloadPreset={handleDownloadPreset}
     onExport={handleExport}
     onVideoExport={handleVideoExport}
     isVideoExportSupported={isVideoExportSupported}
@@ -484,14 +534,14 @@
   />
 
   <!-- Resize handles (same level, above slots so they are never clipped by overflow:hidden on editor/preview) -->
-  {#if showPanelResizeHandle}
+  {#if showPanelResizeHandle && !isUiHidden}
     <VerticalResizeHandle
       edgeLeft={panelWidth}
       onMouseDown={onPanelResizeMouseDown}
       disableTransition={isResizingPanel}
     />
   {/if}
-  {#if viewMode === 'split'}
+  {#if viewMode === 'split' && !isUiHidden}
     <VerticalResizeHandle
       edgeLeft={panelOffset + contentWidth * dividerPosition}
       onMouseDown={onDividerMouseDown}
@@ -576,6 +626,16 @@
     /* During divider or panel resize, follow cursor immediately (no transition) */
     &.is-resizing-layout .node-editor-slot {
       transition: none;
+    }
+  }
+
+  /* Hide all UI chrome (top bar, side panel, bottom bar) but preserve state */
+  .node-editor-layout[data-ui-hidden="true"] {
+    :global(.top-bar),
+    :global(.side-panel-container),
+    :global(.bottom-bar-wrapper),
+    :global(.vertical-resize-handle) {
+      display: none !important;
     }
   }
 </style>

@@ -13,7 +13,7 @@
   import { WebGLContextError } from '../runtime/errors';
   import { nodeSystemSpecs } from '../shaders/nodes/index';
   import { createEmptyGraph } from '../data-model/utils';
-  import { listPresets, loadPreset, loadPresetFromJson, copyGraphToClipboard } from '../utils/presetManager';
+  import { listPresets, loadPreset, loadPresetFromJson, downloadGraphAsJsonFile } from '../utils/presetManager';
   import { toValidationSpecs } from '../utils/nodeSpecUtils';
   import { exportImage } from '../utils/export';
   import { runVideoExportFlow, isSupported as isVideoExportSupported } from '../video-export';
@@ -61,6 +61,19 @@
 
   const nodeSpecs: NodeSpec[] = nodeSystemSpecs;
   let hasInitialFit = false;
+
+  async function toggleFullscreen(): Promise<void> {
+    if (!document.fullscreenEnabled) return;
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      // Ignore: browser may block fullscreen depending on context/policy.
+    }
+  }
 
   $effect(() => {
     const api = canvasApi;
@@ -153,7 +166,7 @@
   let curveEditorLaneLabel = $state<string>('');
   let presets = $state<Array<{ name: string; displayName: string }>>([]);
   let selectedPreset = $state<string | null>(null);
-  let isPanelVisible = $state(false);
+  let isPanelVisible = $state(true);
   let zoom = $state(1.0);
   let fps = $state(0);
   let isVisible = $state(true);
@@ -352,7 +365,7 @@
     try {
       const list = await listPresets();
       presets = list;
-      const selected = list.find((p) => p.name === 'vector-field-noise') ?? list[0];
+      const selected = list.find((p) => p.name === 'new') ?? list[0];
       if (!selected) return createEmptyGraph('Untitled');
       const result = await loadPreset(selected.name, toValidationSpecs(nodeSpecs));
       if (!result.graph) {
@@ -428,8 +441,8 @@
     }
   }
 
-  function handleCopyPreset(): Promise<void> {
-    return copyGraphToClipboard(graphStore.graph, graphStore.audioSetup);
+  function handleDownloadPreset(): void {
+    downloadGraphAsJsonFile(graphStore.graph, graphStore.audioSetup);
   }
 
   async function handleExport(): Promise<void> {
@@ -665,7 +678,7 @@
     fps={fps}
     isVideoExportSupported={isVideoExportSupported()}
     callbacks={{
-      onCopyPreset: handleCopyPreset,
+      onDownloadPreset: handleDownloadPreset,
       onExport: handleExport,
       onVideoExport: handleVideoExport,
       onLoadPreset: handleLoadPreset,
@@ -734,6 +747,9 @@
             graphStore.updateViewState({ selectedNodeIds: ids });
           },
           isDialogVisible: () => bottomBarRef?.isTimelinePanelVisible() ?? false,
+          onToggleFullscreen: () => {
+            void toggleFullscreen();
+          },
         }}
       />
     {/snippet}

@@ -1,0 +1,451 @@
+{
+  "format": "shader-composer-node-graph",
+  "formatVersion": "2.0",
+  "graph": {
+    "id": "graph-1774049305878-ncvtqnxfj",
+    "name": "New",
+    "version": "2.0",
+    "nodes": [
+      {
+        "id": "node-1774049305878-d2fxp63ct",
+        "type": "final-output",
+        "position": {
+          "x": 6733,
+          "y": -591
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774049305878-gyh9lqtyw",
+        "type": "bloom-sphere",
+        "position": {
+          "x": 4008,
+          "y": 5
+        },
+        "parameters": {
+          "sphereRadius": 2.52,
+          "spotCount": 36,
+          "baseSpotAngle": 0.2,
+          "waveSpeed": 0.614,
+          "waveAmplitude": 0.37,
+          "spotSoftness": 0.060000000000000005,
+          "outerL": 0.9638556107668382,
+          "outerC": 0.04250745477672291,
+          "outerH": 106.86794955562198,
+          "innerL": 0.8763853854651648,
+          "innerC": 0.10814423866135636,
+          "innerH": 182.3238269784837,
+          "brightness": 0.4,
+          "bloomCenterX": -0.21999999999999997,
+          "bloomCenterY": -0.6299999999999999,
+          "wavePhase": 0.8399999999999999,
+          "waveDetuneFreq": 0.8500000000000001,
+          "waveDetuneAmp": 1,
+          "indexPhaseScale": 0.265,
+          "latticeSpinSpeed": -0.06000000000000005
+        },
+        "parameterInputModes": {
+          "spotSoftness": "multiply",
+          "baseSpotAngle": "multiply"
+        }
+      },
+      {
+        "id": "node-1774049305878-8h3ajaxp4",
+        "type": "uv-coordinates",
+        "position": {
+          "x": 913,
+          "y": -371
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774049305878-bvamz6jqc",
+        "type": "mixed-wave-signal",
+        "position": {
+          "x": 3800,
+          "y": 1721
+        },
+        "parameters": {
+          "globalSpeed": 0.46000000000000085,
+          "globalOffset": 0,
+          "w0Speed": 1,
+          "w0Offset": 0,
+          "w0Weight": 1,
+          "w0Shape": 0,
+          "w1Speed": 12.270000000000003,
+          "w1Offset": 27.5,
+          "w1Weight": 0.13,
+          "w1Shape": 1,
+          "w2Speed": 20,
+          "w2Offset": 85.35000000000002,
+          "w2Weight": 0.09,
+          "w2Shape": 3,
+          "outMin": 0.15999999999999992,
+          "outMax": 0.43999999999999995
+        }
+      },
+      {
+        "id": "node-1774049305878-5ka8dgs9l",
+        "type": "mixed-wave-signal",
+        "position": {
+          "x": 3030,
+          "y": 1441
+        },
+        "parameters": {
+          "globalSpeed": 0.1899999999999995,
+          "globalOffset": 1.3500000000000085,
+          "w0Speed": 1.8000000000000007,
+          "w0Offset": 2.6500000000000057,
+          "w0Weight": 1,
+          "w0Shape": 0,
+          "w1Speed": 10.400000000000002,
+          "w1Offset": 20.85000000000001,
+          "w1Weight": 0.42,
+          "w1Shape": 1,
+          "w2Speed": 17.6,
+          "w2Offset": 78.70000000000002,
+          "w2Weight": 0.33,
+          "w2Shape": 6,
+          "outMin": 0.050000000000000044,
+          "outMax": 0.7
+        }
+      },
+      {
+        "id": "node-1774049305878-hwxnh0myv",
+        "type": "mixed-wave-signal",
+        "position": {
+          "x": 2295,
+          "y": 1199
+        },
+        "parameters": {
+          "globalSpeed": 0.3000000000000007,
+          "globalOffset": 0.75,
+          "w0Speed": 1,
+          "w0Offset": 2.6500000000000057,
+          "w0Weight": 1,
+          "w0Shape": 1,
+          "w1Speed": 10.400000000000002,
+          "w1Offset": 20.85000000000001,
+          "w1Weight": 0.42,
+          "w1Shape": 6,
+          "w2Speed": 17.6,
+          "w2Offset": 78.70000000000002,
+          "w2Weight": 0.33,
+          "w2Shape": 0,
+          "outMin": 0.30000000000000004,
+          "outMax": 0.7
+        }
+      },
+      {
+        "id": "node-1774049305878-g5qkx7kar",
+        "type": "ripple",
+        "position": {
+          "x": 2128,
+          "y": -404
+        },
+        "parameters": {
+          "rippleCenterX": 0,
+          "rippleCenterY": 0,
+          "rippleMode": 1,
+          "rippleFrequency": 3.8000000000000003,
+          "rippleAmplitude": 0.305,
+          "ripplePhase": 2.8199999999999994,
+          "rippleTimeSpeed": 0.84,
+          "rippleTimeOffset": -10.449999999999989
+        },
+        "parameterInputModes": {
+          "rippleFrequency": "multiply",
+          "rippleTimeOffset": "multiply"
+        }
+      },
+      {
+        "id": "node-1774049305878-pmikihieq",
+        "type": "quad-warp",
+        "position": {
+          "x": 1437,
+          "y": -404
+        },
+        "parameters": {
+          "quadCorner0X": -0.07000000000000006,
+          "quadCorner0Y": -0.7,
+          "quadCorner1X": 1.4900000000000002,
+          "quadCorner1Y": -0.48,
+          "quadCorner2X": -0.4099999999999999,
+          "quadCorner2Y": 1.0300000000000002,
+          "quadCorner3X": 1.63,
+          "quadCorner3Y": 0.6099999999999999
+        }
+      },
+      {
+        "id": "node-1774049305878-2adkx6a4b",
+        "type": "kaleidoscope-smooth",
+        "position": {
+          "x": 3130,
+          "y": -395
+        },
+        "parameters": {
+          "kaleidSmoothCenterX": 0,
+          "kaleidSmoothCenterY": 0,
+          "kaleidSmoothSegments": 32,
+          "kaleidSmoothRotation": 0,
+          "kaleidSmoothEdge": 0.5
+        }
+      },
+      {
+        "id": "node-1774049486453-5tdoeoin8",
+        "type": "mixed-wave-signal",
+        "position": {
+          "x": 1555,
+          "y": 952
+        },
+        "parameters": {
+          "globalSpeed": 0.3000000000000007,
+          "globalOffset": 0.75,
+          "w0Speed": 1,
+          "w0Offset": 2.6500000000000057,
+          "w0Weight": 1,
+          "w0Shape": 1,
+          "w1Speed": 10.400000000000002,
+          "w1Offset": 20.85000000000001,
+          "w1Weight": 0,
+          "w1Shape": 6,
+          "w2Speed": 17.6,
+          "w2Offset": 78.70000000000002,
+          "w2Weight": 0,
+          "w2Shape": 0,
+          "outMin": -0.09999999999999998,
+          "outMax": 0.10000000000000009
+        }
+      },
+      {
+        "id": "node-1774049936979-48q8x7vl9",
+        "type": "chromatic-aberration",
+        "position": {
+          "x": 5130,
+          "y": 0
+        },
+        "parameters": {
+          "chromaticStrength": 1,
+          "chromaticDirection": 120,
+          "chromaticCenterX": -0.7,
+          "chromaticCenterY": -0.7999999999999998,
+          "chromaticFalloff": 0
+        }
+      },
+      {
+        "id": "node-1774050114293-d64muxop6",
+        "type": "mask-composite-vec3",
+        "position": {
+          "x": 6017,
+          "y": -592
+        },
+        "parameters": {
+          "mask": 0.5
+        }
+      },
+      {
+        "id": "node-1774050138317-7fo508pi2",
+        "type": "noise",
+        "position": {
+          "x": 4037,
+          "y": -2657
+        },
+        "parameters": {
+          "noiseMode": 2,
+          "noiseScale": 1.9600000000000002,
+          "noiseOctaves": 3,
+          "noiseLacunarity": 1.26,
+          "noiseGain": 0.89,
+          "noiseTimeSpeed": 0.02,
+          "noiseTimeOffset": 0,
+          "noiseIntensity": 2
+        }
+      },
+      {
+        "id": "node-1774050263394-zj5swo613",
+        "type": "bloom-sphere",
+        "position": {
+          "x": 4027,
+          "y": -1785
+        },
+        "parameters": {
+          "sphereRadius": 2.52,
+          "spotCount": 36,
+          "baseSpotAngle": 0.2,
+          "waveSpeed": 0.614,
+          "waveAmplitude": 0.37,
+          "spotSoftness": 0.060000000000000005,
+          "outerL": 0,
+          "outerC": 0,
+          "outerH": 0,
+          "innerL": 0.9766180719444842,
+          "innerC": 3.6402457858072534e-8,
+          "innerH": 89.8755632483527,
+          "brightness": 0.1,
+          "bloomCenterX": -0.21999999999999997,
+          "bloomCenterY": -0.6299999999999999,
+          "wavePhase": 0.8399999999999999,
+          "waveDetuneFreq": 0.8500000000000001,
+          "waveDetuneAmp": 1,
+          "indexPhaseScale": 0.265,
+          "latticeSpinSpeed": -0.06000000000000005
+        },
+        "parameterInputModes": {
+          "spotSoftness": "multiply",
+          "baseSpotAngle": "multiply"
+        }
+      }
+    ],
+    "connections": [
+      {
+        "id": "conn-1774049305878-4ipdh6gmt",
+        "sourceNodeId": "node-1774049305878-8h3ajaxp4",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774049305878-pmikihieq",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774049305878-tbdenlt5n",
+        "sourceNodeId": "node-1774049305878-pmikihieq",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774049305878-g5qkx7kar",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774049305878-2ffsxri64",
+        "sourceNodeId": "node-1774049305878-g5qkx7kar",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774049305878-2adkx6a4b",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774049305878-9hpv3prwx",
+        "sourceNodeId": "node-1774049305878-2adkx6a4b",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774049305878-gyh9lqtyw",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774049513946-sk65encib",
+        "sourceNodeId": "node-1774049486453-5tdoeoin8",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774049305878-g5qkx7kar",
+        "targetParameter": "rippleTimeOffset"
+      },
+      {
+        "id": "conn-1774049768501-ob3nzf7ny",
+        "sourceNodeId": "node-1774049305878-bvamz6jqc",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774049305878-gyh9lqtyw",
+        "targetParameter": "waveAmplitude"
+      },
+      {
+        "id": "conn-1774049781679-5zm5jgnkg",
+        "sourceNodeId": "node-1774049305878-5ka8dgs9l",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774049305878-gyh9lqtyw",
+        "targetParameter": "spotSoftness"
+      },
+      {
+        "id": "conn-1774049803678-2vad3jazv",
+        "sourceNodeId": "node-1774049305878-hwxnh0myv",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774049305878-gyh9lqtyw",
+        "targetParameter": "baseSpotAngle"
+      },
+      {
+        "id": "conn-1774049940834-fi6fhrf53",
+        "sourceNodeId": "node-1774049305878-gyh9lqtyw",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774049936979-48q8x7vl9",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774050149745-jx6pbv700",
+        "sourceNodeId": "node-1774050138317-7fo508pi2",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774050114293-d64muxop6",
+        "targetPort": "fg"
+      },
+      {
+        "id": "conn-1774050155369-zewi4xwt1",
+        "sourceNodeId": "node-1774049936979-48q8x7vl9",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774050114293-d64muxop6",
+        "targetPort": "bg"
+      },
+      {
+        "id": "conn-1774050231555-lf3homhpf",
+        "sourceNodeId": "node-1774049305878-2adkx6a4b",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774050138317-7fo508pi2",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774050272088-cp8umo4ij",
+        "sourceNodeId": "node-1774049305878-2adkx6a4b",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774050263394-zj5swo613",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774050286472-a0ispf9mr",
+        "sourceNodeId": "node-1774049305878-hwxnh0myv",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774050263394-zj5swo613",
+        "targetParameter": "baseSpotAngle"
+      },
+      {
+        "id": "conn-1774050297137-cplupt0ab",
+        "sourceNodeId": "node-1774049305878-bvamz6jqc",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774050263394-zj5swo613",
+        "targetParameter": "waveAmplitude"
+      },
+      {
+        "id": "conn-1774050304472-lphpmuwgb",
+        "sourceNodeId": "node-1774049305878-5ka8dgs9l",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774050263394-zj5swo613",
+        "targetParameter": "spotSoftness"
+      },
+      {
+        "id": "conn-1774050320630-a1a8i6xe9",
+        "sourceNodeId": "node-1774050263394-zj5swo613",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774050114293-d64muxop6",
+        "targetPort": "mask"
+      },
+      {
+        "id": "conn-1774050669995-2cct5e0my",
+        "sourceNodeId": "node-1774050114293-d64muxop6",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774049305878-d2fxp63ct",
+        "targetPort": "in"
+      }
+    ],
+    "viewState": {
+      "zoom": 0.1744581724243303,
+      "panX": -195.45086249321332,
+      "panY": 592.4913832109847,
+      "selectedNodeIds": []
+    },
+    "automation": {
+      "bpm": 120,
+      "durationSeconds": 30,
+      "lanes": []
+    }
+  },
+  "audioSetup": {
+    "files": [
+      {
+        "id": "file-new-billie",
+        "name": "seb - music xcx",
+        "filePath": "seb - music xcx.mp3",
+        "autoPlay": true
+      }
+    ],
+    "bands": [],
+    "remappers": []
+  }
+}

@@ -103,6 +103,7 @@ export class AudiographClient {
   private readonly baseUrl: string;
   private readonly cacheTtlMs: number;
   private lastErrorLogged: string | null = null;
+  private disabled = false;
 
   constructor(options?: { baseUrl?: string; cacheTtlMs?: number }) {
     this.baseUrl = options?.baseUrl ?? getAudiographBaseUrl();
@@ -122,7 +123,7 @@ export class AudiographClient {
     resolution: AudiographResolution = DEFAULT_RESOLUTION,
     channels: AudiographChannels = DEFAULT_CHANNELS
   ): Promise<number[] | null> {
-    if (!this.baseUrl) return null;
+    if (!this.baseUrl || this.disabled) return null;
 
     const key = this.cacheKey(resourceName, resolution, channels);
     const cached = this.cache.get(key);
@@ -155,12 +156,15 @@ export class AudiographClient {
         headers,
         body: JSON.stringify(body),
       });
-      const data = (await res.json()) as GetAudiographsResponse;
       if (!res.ok) {
+        // Audiograph routes appear to be removed in some environments. If we get a 404,
+        // disable further requests and let callers fall back to buffer-derived waveforms.
+        if (res.status === 404) this.disabled = true;
         const msg = `Audiograph API error: ${res.status} ${res.statusText}`;
         this.logErrorOnce(msg);
         return null;
       }
+      const data = (await res.json()) as GetAudiographsResponse;
       const ag = data.audiographs?.[0];
       const graphs = ag?.graphs;
       const raw = Array.isArray(graphs) ? graphs[0]?.values : undefined;
@@ -188,7 +192,7 @@ export class AudiographClient {
     resourceName: string,
     resolution: AudiographResolution = DEFAULT_RESOLUTION
   ): Promise<{ left: number[]; right: number[] } | null> {
-    if (!this.baseUrl) return null;
+    if (!this.baseUrl || this.disabled) return null;
 
     const key = this.cacheKey(resourceName, resolution, 2);
     const cached = this.stereoCache.get(key);
@@ -220,12 +224,13 @@ export class AudiographClient {
         headers,
         body: JSON.stringify(body),
       });
-      const data = (await res.json()) as GetAudiographsResponse;
       if (!res.ok) {
+        if (res.status === 404) this.disabled = true;
         const msg = `Audiograph API error: ${res.status} ${res.statusText}`;
         this.logErrorOnce(msg);
         return null;
       }
+      const data = (await res.json()) as GetAudiographsResponse;
       const ag = data.audiographs?.[0];
       const graphs = ag?.graphs ?? [];
       const rawLeft = Array.isArray(graphs[0]?.values) ? graphs[0].values : undefined;

@@ -1,0 +1,117 @@
+{
+  "format": "shader-composer-node-graph",
+  "formatVersion": "2.0",
+  "graph": {
+    "id": "graph-1774037407921-6dorn0aa0",
+    "name": "New",
+    "version": "2.0",
+    "nodes": [
+      {
+        "id": "node-1774037407921-8xmewn0de",
+        "type": "uv-coordinates",
+        "position": {
+          "x": -1177,
+          "y": -305
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774037407921-pdb1dnsbz",
+        "type": "orbit-camera",
+        "position": {
+          "x": -456,
+          "y": -274
+        },
+        "parameters": {
+          "orbitRadius": 3.4,
+          "orbitSpeed": 0.35,
+          "targetX": 0,
+          "targetY": 0,
+          "targetZ": 0,
+          "inclination": 0.35,
+          "fovScale": 1.1
+        }
+      },
+      {
+        "id": "node-1774037407921-scxj79eot",
+        "type": "final-output",
+        "position": {
+          "x": 2529,
+          "y": -395
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774037407921-qh7kilhjv",
+        "type": "drive-home-lights",
+        "position": {
+          "x": 842,
+          "y": -348
+        },
+        "parameters": {
+          "timeScale": 0,
+          "laneBias": 0.38,
+          "skyGradientHighL": 0.5528050135104949,
+          "skyGradientHighC": 0.1928346033088717,
+          "skyGradientHighH": 311.3869904484657,
+          "skyGradientLowL": 0.6364196682235852,
+          "skyGradientLowC": 0.043049063373793016,
+          "skyGradientLowH": 219.06076746484476
+        }
+      }
+    ],
+    "connections": [
+      {
+        "id": "conn-1774037407921-vwwn02uv0",
+        "sourceNodeId": "node-1774037407921-8xmewn0de",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774037407921-pdb1dnsbz",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774037407921-xunrs328g",
+        "sourceNodeId": "node-1774037407921-qh7kilhjv",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774037407921-scxj79eot",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774037407921-kfy5awu4b",
+        "sourceNodeId": "node-1774037407921-pdb1dnsbz",
+        "sourcePort": "ro",
+        "targetNodeId": "node-1774037407921-qh7kilhjv",
+        "targetPort": "ro"
+      },
+      {
+        "id": "conn-1774037407921-4rcmiy971",
+        "sourceNodeId": "node-1774037407921-pdb1dnsbz",
+        "sourcePort": "rd",
+        "targetNodeId": "node-1774037407921-qh7kilhjv",
+        "targetPort": "rd"
+      }
+    ],
+    "viewState": {
+      "zoom": 0.21595561079899464,
+      "panX": 329.93401501573,
+      "panY": 282.5768817873392,
+      "selectedNodeIds": []
+    },
+    "automation": {
+      "bpm": 120,
+      "durationSeconds": 30,
+      "lanes": []
+    }
+  },
+  "audioSetup": {
+    "files": [
+      {
+        "id": "file-new-billie",
+        "name": "seb - music xcx",
+        "filePath": "seb - music xcx.mp3",
+        "autoPlay": true
+      }
+    ],
+    "bands": [],
+    "remappers": []
+  }
+}

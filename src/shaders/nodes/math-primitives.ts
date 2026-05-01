@@ -11,12 +11,12 @@ export const addNodeSpec: NodeSpec = {
   description: 'Adds two values together',
   icon: 'plus',
   inputs: [
-    { name: 'a', type: 'float', label: 'First value' },
-    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'Second value' }
+    { name: 'a', type: 'float', label: 'A' },
+    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'B' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Second Value' }
+    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' }
   },
   mainCode: `$output.out = $input.a + $input.b;`
 };
@@ -28,12 +28,12 @@ export const subtractNodeSpec: NodeSpec = {
   description: 'Subtracts second value from first',
   icon: 'minus',
   inputs: [
-    { name: 'a', type: 'float', label: 'First value' },
-    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'Second value' }
+    { name: 'a', type: 'float', label: 'A' },
+    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'B' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Second Value' }
+    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' }
   },
   mainCode: `$output.out = $input.a - $input.b;`
 };
@@ -45,12 +45,12 @@ export const multiplyNodeSpec: NodeSpec = {
   description: 'Multiplies two values',
   icon: 'multiply-x',
   inputs: [
-    { name: 'a', type: 'float', label: 'First value' },
-    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'Second value' }
+    { name: 'a', type: 'float', label: 'A' },
+    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'B' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Multiplier' }
+    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' }
   },
   mainCode: `$output.out = $input.a * $input.b;`
 };
@@ -62,12 +62,12 @@ export const divideNodeSpec: NodeSpec = {
   description: 'Divides first value by second',
   icon: 'divide',
   inputs: [
-    { name: 'a', type: 'float', label: 'First value' },
-    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'Second value' }
+    { name: 'a', type: 'float', label: 'A' },
+    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'B' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Divisor' }
+    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' }
   },
   mainCode: `$output.out = $input.a / $input.b;`
 };
@@ -82,7 +82,7 @@ export const powerNodeSpec: NodeSpec = {
     { name: 'base', type: 'float', label: 'Base' },
     { name: 'exponent', type: 'float', fallbackParameter: 'exponent', label: 'Exponent' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
     exponent: { type: 'float', default: 2.0, min: -100.0, max: 100.0, step: 0.01, label: 'Exponent' }
   },
@@ -96,7 +96,7 @@ export const squareRootNodeSpec: NodeSpec = {
   description: 'Square root of input',
   icon: 'sqrt',
   inputs: [{ name: 'in', type: 'float', label: 'Value' }],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = sqrt($input.in);`
 };
@@ -108,7 +108,7 @@ export const absoluteNodeSpec: NodeSpec = {
   description: 'Absolute value of input',
   icon: 'arrows-left-right',
   inputs: [{ name: 'in', type: 'float', label: 'Value' }],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = abs($input.in);`
 };
@@ -120,7 +120,7 @@ export const floorNodeSpec: NodeSpec = {
   description: 'Floor (round down) of input',
   icon: 'arrow-down',
   inputs: [{ name: 'in', type: 'float', label: 'Value' }],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = floor($input.in);`
 };
@@ -132,7 +132,7 @@ export const ceilNodeSpec: NodeSpec = {
   description: 'Ceiling (round up) of input',
   icon: 'arrow-up',
   inputs: [{ name: 'in', type: 'float', label: 'Value' }],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = ceil($input.in);`
 };
@@ -144,7 +144,7 @@ export const fractNodeSpec: NodeSpec = {
   description: 'Fractional part of input',
   icon: 'hash',
   inputs: [{ name: 'in', type: 'float', label: 'Value' }],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = fract($input.in);`
 };
@@ -156,12 +156,12 @@ export const moduloNodeSpec: NodeSpec = {
   description: 'Modulo (remainder) operation',
   icon: 'percentage',
   inputs: [
-    { name: 'a', type: 'float', label: 'First value' },
-    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'Second value' }
+    { name: 'a', type: 'float', label: 'A' },
+    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'B' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 1.0, min: 0.001, max: 1000.0, step: 0.01, label: 'Divisor' }
+    b: { type: 'float', default: 1.0, min: 0.001, max: 1000.0, step: 0.01, label: 'B' }
   },
   mainCode: `$output.out = mod($input.a, $input.b);`
 };
@@ -173,12 +173,12 @@ export const minNodeSpec: NodeSpec = {
   description: 'Minimum of two values',
   icon: 'math-min',
   inputs: [
-    { name: 'a', type: 'float', label: 'First value' },
-    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'Second value' }
+    { name: 'a', type: 'float', label: 'A' },
+    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'B' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Second Value' }
+    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' }
   },
   mainCode: `$output.out = min($input.a, $input.b);`
 };
@@ -190,12 +190,12 @@ export const maxNodeSpec: NodeSpec = {
   description: 'Maximum of two values',
   icon: 'math-max',
   inputs: [
-    { name: 'a', type: 'float', label: 'First value' },
-    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'Second value' }
+    { name: 'a', type: 'float', label: 'A' },
+    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'B' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Second Value' }
+    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' }
   },
   mainCode: `$output.out = max($input.a, $input.b);`
 };
@@ -211,7 +211,7 @@ export const clampNodeSpec: NodeSpec = {
     { name: 'min', type: 'float', fallbackParameter: 'min', label: 'Minimum' },
     { name: 'max', type: 'float', fallbackParameter: 'max', label: 'Maximum' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
     min: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Minimum' },
     max: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Maximum' }
@@ -226,15 +226,15 @@ export const mixNodeSpec: NodeSpec = {
   description: 'Linear interpolation between two values',
   icon: 'arrows-left-right',
   inputs: [
-    { name: 'a', type: 'float', fallbackParameter: 'a', label: 'First value' },
-    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'Second value' },
-    { name: 't', type: 'float', fallbackParameter: 't', label: 'Factor' }
+    { name: 'a', type: 'float', fallbackParameter: 'a', label: 'A' },
+    { name: 'b', type: 'float', fallbackParameter: 'b', label: 'B' },
+    { name: 't', type: 'float', fallbackParameter: 't', label: 't' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    a: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Start' },
-    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'End' },
-    t: { type: 'float', default: 0.5, min: 0.0, max: 1.0, step: 0.01, label: 'Factor' }
+    a: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'A' },
+    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' },
+    t: { type: 'float', default: 0.5, min: 0.0, max: 1.0, step: 0.01, label: 't' }
   },
   mainCode: `$output.out = mix($input.a, $input.b, $input.t);`
 };
@@ -249,7 +249,7 @@ export const stepNodeSpec: NodeSpec = {
     { name: 'edge', type: 'float', fallbackParameter: 'edge', label: 'Threshold' },
     { name: 'x', type: 'float', label: 'Value' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
     edge: { type: 'float', default: 0.5, min: -1000.0, max: 1000.0, step: 0.01, label: 'Threshold' }
   },
@@ -267,7 +267,7 @@ export const smoothstepNodeSpec: NodeSpec = {
     { name: 'edge1', type: 'float', fallbackParameter: 'edge1', label: 'Upper edge' },
     { name: 'x', type: 'float', label: 'Value' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
     edge0: { type: 'float', default: 0.0, min: 0, max: 1, step: 0.01, label: 'Lower Edge' },
     edge1: { type: 'float', default: 1.0, min: 0, max: 1, step: 0.01, label: 'Upper Edge' }

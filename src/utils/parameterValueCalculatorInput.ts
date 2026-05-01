@@ -16,6 +16,10 @@ import {
   getSignalIdFromVirtualNodeId,
   getVirtualNodeId,
 } from './virtualNodes';
+import {
+  evaluateMixedWaveSignalPreview,
+  getShaderTimeSeconds,
+} from './mixedWaveSignalPreview';
 
 const MAX_INPUT_CHAIN_DEPTH = 8;
 
@@ -103,7 +107,12 @@ export function getInputValue(
   }
   if (sourceNode.type === 'time') {
     if (connection.sourcePort !== 'out') return null;
-    return performance.now() / 1000;
+    return getShaderTimeSeconds();
+  }
+
+  if (sourceNode.type === 'mixed-wave-signal') {
+    if (connection.sourcePort !== 'out') return null;
+    return evaluateMixedWaveSignalPreview(sourceNode);
   }
 
   if (sourceNode.type === 'one-minus') {
@@ -216,7 +225,13 @@ function isConnectionTrackable(
   if (isVirtualNodeId(connection.sourceNodeId) && connection.sourcePort === 'out') return true;
   const sourceNode = graph.nodes.find(n => n.id === connection.sourceNodeId);
   if (!sourceNode) return false;
-  if (sourceNode.type === 'constant-float' || sourceNode.type === 'time') return true;
+  if (
+    sourceNode.type === 'constant-float' ||
+    sourceNode.type === 'time' ||
+    sourceNode.type === 'mixed-wave-signal'
+  ) {
+    return true;
+  }
   if (sourceNode.type === 'one-minus' || sourceNode.type === 'negate') {
     const inConn = graph.connections.find(c => c.targetNodeId === sourceNode.id && c.targetPort === 'in');
     if (!inConn) return false;

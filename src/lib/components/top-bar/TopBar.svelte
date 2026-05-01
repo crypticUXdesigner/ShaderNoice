@@ -22,7 +22,7 @@
     panelOffset: number;
     onPanelToggle?: () => void;
     onPresetClick?: (e: MouseEvent) => void;
-    onCopyPreset?: () => void | Promise<void>;
+    onDownloadPreset?: () => void;
     onExport?: () => void | Promise<void>;
     onVideoExport?: () => void | Promise<void>;
     /** When false, video export button is disabled and title explains WebCodecs is required. */
@@ -48,7 +48,7 @@
     panelOffset = 0,
     onPanelToggle,
     onPresetClick,
-    onCopyPreset,
+    onDownloadPreset,
     onExport,
     onVideoExport,
     isVideoExportSupported = true,
@@ -79,7 +79,7 @@
       {presetLoading}
       {onPanelToggle}
       {onPresetClick}
-      {onCopyPreset}
+      {onDownloadPreset}
       {onExport}
       {onVideoExport}
     />

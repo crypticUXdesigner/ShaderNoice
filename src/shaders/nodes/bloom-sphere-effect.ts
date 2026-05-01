@@ -161,9 +161,8 @@ float bloomSphereSf2Id(vec3 dir, float n) {
 }
 `,
   mainCode: `
-  vec2 uv = $input.in;
-  float aspect = uResolution.x / uResolution.y;
-  vec2 p = (uv * 2.0 - 1.0) * vec2(aspect, 1.0);
+  // in: p-space like UV Coords (aspect-corrected NDC), not raw 0–1 UV
+  vec2 p = $input.in;
 
   vec3 ro = vec3(0.0, 0.0, 3.0);
   vec3 rd = normalize(vec3(p, -1.0));

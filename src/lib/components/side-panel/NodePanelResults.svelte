@@ -45,6 +45,10 @@
     onDragStart,
     onDragEnd,
   }: Props = $props();
+
+  function isDividerStartCategory(category: string): boolean {
+    return category === 'Inputs' || category === 'Blend' || category === 'Math';
+  }
 </script>
 
 <div
@@ -58,11 +62,18 @@
   {#if groupedSpecs.length === 0}
     <div class="no-results">No nodes found</div>
   {:else}
-    {#each groupedSpecs as group}
+    {#each groupedSpecs as group, index}
       {@const isExpanded = expandedCategories.has(group.category)}
       {@const totalCount = categoryCounts.get(group.category) ?? 0}
       {@const subgroupCounts = categorySubgroupCounts.get(group.category)}
-      <div data-section-category={group.category} data-category={getCategorySlug(group.category)}>
+      {@const startsDividerGroup =
+        isDividerStartCategory(group.category) &&
+        (index === 0 || groupedSpecs[index - 1]?.category !== group.category)}
+      <div
+        data-section-category={group.category}
+        data-category={getCategorySlug(group.category)}
+        class:divider-start={startsDividerGroup}
+      >
         <NodePanelSection
           title={group.category}
           count={subgroupCounts?.length ? undefined : totalCount}
@@ -114,6 +125,22 @@
 
   .results::-webkit-scrollbar {
     display: none;
+  }
+
+  .divider-start {
+    position: relative;
+    margin-top: var(--pd-sm);
+    padding-top: var(--pd-sm);
+  }
+
+  .divider-start::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: var(--pd-sm);
+    right: var(--pd-sm);
+    border-top: 1px solid var(--color-gray-70);
+    pointer-events: none;
   }
 
   /* Section badge colors (section wrapper has data-category; badge is inside PanelSection) */

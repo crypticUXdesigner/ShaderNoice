@@ -4,10 +4,9 @@ This directory contains preset files for the node-based shader system.
 
 ## Creating a Preset
 
-1. Use the "Copy Preset" button in the UI to copy your current graph as JSON
-2. Create a new `.json` file in this directory
-3. Paste the copied JSON content into the file
-4. The preset will automatically appear in the preset dropdown
+1. Use the download button (top bar, title "Download graph as JSON") to save your current graph as a `.json` file
+2. Move or copy that file into this directory (or create a new `.json` file here with the same content)
+3. The preset will automatically appear in the preset dropdown after rebuild
 
 ## Preset Format
 
@@ -38,7 +37,7 @@ Presets must follow the `SerializedGraphFile` format:
 }
 ```
 
-The `audioSetup` field is optional. When present, it stores the audio configuration (files, bands, remappers). Copy Preset includes it automatically. Add an audio file via the bottom bar Upload button.
+The `audioSetup` field is optional. When present, it stores the audio configuration (files, bands, remappers). Downloading the graph as JSON includes it automatically. Add an audio file via the bottom bar Upload button.
 
 ## Naming
 

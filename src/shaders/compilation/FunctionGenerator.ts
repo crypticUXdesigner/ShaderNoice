@@ -165,7 +165,8 @@ export class FunctionGenerator {
         }
 
         for (const [originalName, nodeSpecificName] of nodeFunctionNameMap.entries()) {
-          const functionDefRegex = new RegExp(`(\\b(?:float|vec2|vec3|vec4|int|bool|void)\\s+)${this.escapeRegex(originalName)}(\\s*\\()`, 'g');
+          // Match any valid GLSL identifier as return type so struct-returning functions are handled too.
+          const functionDefRegex = new RegExp(`(\\b[a-zA-Z_][a-zA-Z0-9_]*\\s+)${this.escapeRegex(originalName)}(\\s*\\()`, 'g');
           funcCode = funcCode.replace(functionDefRegex, `$1${nodeSpecificName}$2`);
           const functionCallRegex = new RegExp(`\\b${this.escapeRegex(originalName)}\\s*\\(`, 'g');
           funcCode = funcCode.replace(functionCallRegex, `${nodeSpecificName}(`);
@@ -180,19 +181,22 @@ export class FunctionGenerator {
     }
 
     // Extract preamble (code before first function) and functions per node.
-    // Preambles often define consts (e.g. SF_PI, SF_GOLDEN) required by that node's functions.
-    const functionStartRegex = /\b(float|vec2|vec3|vec4|int|bool|void|mat2|mat3|mat4)\s+\w+\s*\(/g;
+    // Preambles often define macros/consts used by that node's functions.
+    //
+    // Important: do not treat preprocessor directives like `#define foo(x) ...` as functions.
+    // So we require a real function definition with `{` after the signature.
+    const functionDefStartRegex = /\b[a-zA-Z_][a-zA-Z0-9_]*\s+\w+\s*\([^)]*\)\s*\{/m;
     const functionMap = new Map<string, { body: string; nodeId: string }>(); // signature -> { body, nodeId }
     const preambleByNode = new Map<string, string>(); // nodeId -> preamble (trimmed)
 
     for (const { nodeId, funcCode } of processedFunctions) {
-      const firstMatch = functionStartRegex.exec(funcCode);
+      const maskedForDef = this.maskCommentsForFunctionScan(funcCode);
+      const firstMatch = functionDefStartRegex.exec(maskedForDef);
       const firstFunctionIndex = firstMatch ? firstMatch.index : funcCode.length;
       const preamble = funcCode.substring(0, firstFunctionIndex).trim();
       if (preamble) {
         preambleByNode.set(nodeId, preamble);
       }
-      functionStartRegex.lastIndex = 0;
 
       const functions = this.extractFunctions(funcCode);
       for (const func of functions) {
@@ -229,15 +233,19 @@ export class FunctionGenerator {
   private extractFunctions(code: string): Array<{signature: string, body: string}> {
     const functions: Array<{signature: string, body: string}> = [];
     
+    // Scan a comment-masked copy so prose in // comments cannot match as functions, e.g.
+    // `// Domain warping (strength...)` or `... single-color output` + newline + `for (...)`.
+    const codeForScan = this.maskCommentsForFunctionScan(code);
+
     // Find all function definitions by looking for "returnType functionName(" pattern
     // Match: returnType functionName(params) { body }
-    // Match common return types: float, vec2, vec3, vec4, int, bool, void, mat2, mat3, mat4
-    const functionStartRegex = /\b(float|vec2|vec3|vec4|int|bool|void|mat2|mat3|mat4)\s+(\w+)\s*\(/g;
+    // Return type can be any GLSL identifier (builtins or user-defined structs).
+    const functionStartRegex = /\b([a-zA-Z_][a-zA-Z0-9_]*)\s+(\w+)\s*\(/g;
     let match;
     const functionStarts: Array<{index: number, returnType: string, name: string}> = [];
     
     // Collect all function start positions
-    while ((match = functionStartRegex.exec(code)) !== null) {
+    while ((match = functionStartRegex.exec(codeForScan)) !== null) {
       const returnType = match[1].trim();
       const functionName = match[2].trim();
       functionStarts.push({
@@ -311,6 +319,68 @@ export class FunctionGenerator {
     }
     
     return functions;
+  }
+
+  /**
+   * Replace line and block comments with spaces (same length) so regex match indices
+   * stay aligned with the original source. Preserves double-quoted string literals.
+   */
+  private maskCommentsForFunctionScan(code: string): string {
+    let out = '';
+    let i = 0;
+    const n = code.length;
+    while (i < n) {
+      const c = code[i];
+      if (c === '/' && i + 1 < n) {
+        if (code[i + 1] === '/') {
+          while (i < n && code[i] !== '\n') {
+            out += ' ';
+            i++;
+          }
+          continue;
+        }
+        if (code[i + 1] === '*') {
+          out += ' ';
+          out += ' ';
+          i += 2;
+          while (i < n - 1 && (code[i] !== '*' || code[i + 1] !== '/')) {
+            out += ' ';
+            i++;
+          }
+          if (i < n - 1) {
+            out += ' ';
+            out += ' ';
+            i += 2;
+          }
+          continue;
+        }
+      }
+      if (c === '"') {
+        out += '"';
+        i++;
+        while (i < n) {
+          if (code[i] === '\\') {
+            out += code[i];
+            i++;
+            if (i < n) {
+              out += code[i];
+              i++;
+            }
+            continue;
+          }
+          out += code[i];
+          if (code[i] === '"') {
+            i++;
+            break;
+          }
+          i++;
+        }
+        continue;
+      }
+      out += c;
+      i++;
+    }
+    return out;
   }
 
   /**

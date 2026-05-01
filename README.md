@@ -1,110 +1,125 @@
 # Shader Composer
 
-A web-based node-based shader editor for creating procedural shader art using WebGL. Build complex shader graphs by connecting nodes visually.
+A web-based node-based shader editor for procedural shader art using WebGL. Build shader graphs by connecting nodes; the preview updates as you edit.
 
-> **⚠️ Prototype Status:** This is an early prototype version. The application is functional but features and APIs are subject to change. Some functionality may be incomplete or experimental.
+> **Prototype status:** The app is under active development. Behavior and file formats can change between releases. Some features depend on browser capabilities (for example WebCodecs for video export).
 
-🌐 **[Live Demo](https://crypticUXdesigner.github.io/shader-composer/)**
+🌐 **[Live demo](https://crypticUXdesigner.github.io/shader-composer/)**
 
 ## Features
 
-- **Node-Based Editor**: Visual node graph editor for composing shaders
-- **Real-time Preview**: Live preview of shader output as you build
-- **Rich Node Library**: 90+ nodes including noise generators, transforms, blending modes, post-processing effects, and more
-- **Preset System**: Save and load shader graphs as presets
-- **Export System**: Export images at custom resolutions (PNG, JPEG, WebP)
-- **Undo/Redo**: Full undo/redo support for all operations
-- **Copy/Paste**: Copy and paste nodes between graphs
-- **Parameter Controls**: Intuitive draggable parameter controls with real-time updates
+- **Node graph editor** — Visual editor for composing shaders; pan, zoom, selection, and context menus
+- **Live preview** — Real-time shader output while you build
+- **Large node library** — 150+ nodes: noise and patterns, 2D/3D shapes and ray marching, color (including OKLCH), math, blending, masking, and post-processing
+- **Audio** — Load tracks, frequency bands and remappers, and drive parameters from audio (see optional env vars below for Audiograph waveforms)
+- **Timeline & automation** — Automate parameters over time with curves
+- **Presets** — Save and load graphs as JSON; built-in presets under `src/presets/`
+- **Export** — Still images (PNG, JPEG, WebP) at custom resolution; **video export** (WebCodecs) with optional audio where the browser supports it
+- **Undo/redo** — History for graph edits; cleared when loading a preset
+- **Copy/paste** — Duplicate and move nodes between graphs
+- **Help** — Node documentation and keyboard shortcut reference in the UI
 
-## Getting Started
+## Getting started
 
 1. Install dependencies:
+
 ```bash
 npm install
 ```
 
-2. Start development server:
+2. Start the dev server:
+
 ```bash
 npm run dev
 ```
 
-3. Open your browser to `http://localhost:3000`
+3. Open **http://localhost:3000** (see `vite.config.ts` if the port changes).
+
+Optional: copy `.env.example` to `.env` for local API tokens or RPC URL overrides (do not commit `.env`).
 
 ## Usage
 
-### Creating a Shader
+### Creating a composition
 
-1. **Add Nodes**: Use the side panel to browse and add nodes by dragging them onto the canvas
-2. **Connect Nodes**: Drag from output ports to input ports to create connections
-3. **Adjust Parameters**: Click on nodes to expand parameter controls, then drag sliders to adjust values
-4. **Preview**: The shader preview updates in real-time as you make changes
-5. **Save Preset**: Use "Copy Preset" to copy your graph as JSON, then save it in `src/presets/`
-6. **Export Image**: Click "Export Image" to save your creation at custom resolutions
+1. **Add nodes** — Use the side panel to search and add nodes, or add from the canvas where supported
+2. **Connect** — Drag from output ports to compatible inputs (one connection per port)
+3. **Parameters** — Select a node to edit parameters; use the signal picker where ports accept audio or signals
+4. **Preview** — The viewport updates as the graph changes
+5. **Save** — Use the top bar to download the graph as JSON; add files under `src/presets/` to ship them as built-in presets
+6. **Export** — Export a still image at a chosen size, or use **Export video** when available (browser must support WebCodecs)
 
-### Keyboard Shortcuts
+### Keyboard shortcuts
 
-- `Delete` / `Backspace` - Delete selected nodes
-- `Ctrl/Cmd + Z` - Undo
-- `Ctrl/Cmd + Shift + Z` - Redo
-- `Ctrl/Cmd + C` - Copy selected nodes
-- `Ctrl/Cmd + V` - Paste nodes
-- `Ctrl/Cmd + A` - Select all nodes
-- `Ctrl/Cmd + D` - Duplicate selected nodes
+Common shortcuts:
 
-## Project Structure
+- `Delete` / `Backspace` — Remove selected nodes
+- `Ctrl/Cmd+Z` — Undo
+- `Ctrl/Cmd+Shift+Z` — Redo
+- `Ctrl/Cmd+C` / `Ctrl/Cmd+V` — Copy / paste
+- `Ctrl/Cmd+A` — Select all nodes
+- `Ctrl/Cmd+D` — Duplicate selection
+
+Use the in-app **keyboard shortcuts** dialog for the full list (including spacebar pan when not typing).
+
+## Project structure
 
 ```
 src/
-├── data-model/            # Graph data structures, validation, serialization
+├── data-model/          # Graph types, validation, serialization, migrations
+├── lib/                 # Svelte 5 app shell and UI (`lib/components/`, `App.svelte`)
+├── runtime/             # WebGL runtime, uniforms, audio/waveform services
 ├── shaders/
-│   ├── elements/          # Visual element node definitions
-│   ├── nodes/             # System nodes (math, blending, transforms, etc.)
-│   └── NodeShaderCompiler.ts  # Compiles node graphs to GLSL
-├── runtime/               # WebGL runtime, shader execution, uniform management
-├── ui/
-│   └── components/        # Node editor UI components
-├── presets/               # Preset shader graphs
-├── utils/                 # Utilities (export, presets, serialization)
-└── main.ts                # Main application entry point
+│   ├── nodes/           # Node specs and GLSL pieces
+│   └── NodeShaderCompiler.ts
+├── video-export/        # WebCodecs video/audio export pipeline
+├── styles/              # Global CSS, tokens, node category styles
+├── utils/               # Export, errors, presets, helpers
+├── presets/             # Built-in preset JSON
+└── main.ts              # Entry point
 ```
 
-## Tech Stack
+## Tech stack
 
-- **TypeScript** - Type-safe development
-- **Svelte 5** - Component framework and reactivity (editor UI)
-- **Vite** - Fast build tool and dev server
-- **WebGL** - GPU-accelerated shader rendering
-- **GLSL** - Shader programming language
-- **Phosphor Icons** - Icon library
+- **TypeScript** — Strict typing across the repo
+- **Svelte 5** — Runes-based UI
+- **Vite** — Dev server and production build
+- **WebGL / GLSL** — Preview and export rendering
+- **Vitest** — Unit tests (`npm test`)
+- **Phosphor Icons** — Icon set (see `scripts/build-phosphor-icons.ts`)
+- **mediabunny** — Media helpers used in the export pipeline
 
 ## Environment variables
 
-Optional variables (copy `.env.example` to `.env` and edit as needed). **Do not commit `.env`** — it is gitignored; it may contain tokens (e.g. `VITE_AUDIOTOOL_API_TOKEN`) and should stay local.
+Optional variables: copy `.env.example` to `.env`. **Do not commit `.env`** — it may contain secrets and is gitignored.
 
 | Variable | Description |
 |----------|-------------|
-| `VITE_AUDIOGRAPH_API_URL` | Optional. Base URL for the Audiograph RPC (default: `https://rpc.audiotool.com`). The mini timeline calls `POST {baseUrl}/audiotool.audiograph.v1.AudiographService/GetAudiographs` with `resource_names`, `resolution`, `channels`. Override only if using a different host or proxy. |
-| `VITE_AUDIOTOOL_API_TOKEN` | Optional. Bearer token sent as `Authorization: Bearer <token>` when set. Required only if rpc.audiotool.com demands auth for your origin. |
+| `VITE_AUDIOGRAPH_API_URL` | Optional. Base URL for the Audiograph RPC (default: `https://rpc.audiotool.com`). When available, waveforms can be fetched via `GetAudiographs`; otherwise decoding falls back to the client. |
+| `VITE_AUDIOTOOL_API_TOKEN` | Optional. `Authorization: Bearer` token when the RPC requires auth. |
 
-### Config scope (public vs private)
-
-All variables above are **client-side**: Vite inlines `VITE_*` (and `BASE_URL`) at build time, so they appear in the client bundle and are visible to anyone who inspects the app. **Tokens** (e.g. `VITE_AUDIOTOOL_API_TOKEN`) must not be committed; use a local `.env` (gitignored) and never put real secrets in `.env.example`.
-
-If a **backend or server-side build** is added later, keep server-only config (secrets, internal API keys) **out of the client**: do not prefix them with `VITE_`, do not add them to `.env.example`, and do not expose them to the client bundle.
+All `VITE_*` values are inlined at build time and visible in the client bundle. Keep tokens out of the repo and out of `.env.example`.
 
 ## Development
 
-### Available Scripts
+### Scripts
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run type-check` - Run TypeScript type checking
-- `npm run test` - Run Vitest test suite
-- `npm run lint` - Run ESLint on TypeScript and Svelte sources
-- `npm run check` - Run type-check, tests, and lint (pre-commit gate)
-- `npm run preview` - Preview production build locally
-- `npm run a11y` - Run automated accessibility checks (axe-core, WCAG 2 A/AA) on the main route. Requires `npm run build` first; optionally set `PREVIEW_URL` if the preview server is already running. See [docs/projects/quality-review-remediation/a11y-baseline.md](docs/projects/quality-review-remediation/a11y-baseline.md).
+- `npm run dev` — Dev server
+- `npm run build` — Production build to `dist/`
+- `npm run type-check` — `tsc --noEmit`
+- `npm test` — Vitest
+- `npm run lint` — ESLint (TS + Svelte + Storybook config)
+- `npm run check` — Type-check, tests, and lint (recommended before commit)
+- `npm run preview` — Serve the production build locally
+- `npm run a11y` — Accessibility checks (expects a running preview; see script / baseline doc)
+- `npm run storybook` — Storybook on port 6006
+- `npm run build-storybook` — Static Storybook to `storybook-static/` (runs in CI)
+- `npm run generate-stories` — Scaffold missing `*.stories.ts` next to components
+
+Utility scripts: `npm run migrate` (preset/data migrations), `npm run build-phosphor-icons`, `npm run build-favicons`.
+
+### Storybook
+
+UI lives under `src/lib/components/` with colocated `*.stories.ts`. Run `npm run storybook` to browse components.
 
 ### Building
 
@@ -112,22 +127,21 @@ If a **backend or server-side build** is added later, keep server-only config (s
 npm run build
 ```
 
-The build output will be in the `dist/` directory, ready for deployment.
+Output is written to `dist/`.
 
 ## Contributors
 
-See [docs/onboarding-checklist.md](docs/onboarding-checklist.md) for a short checklist: clone, run dev, run `npm run check` before commit, and where to find user-goals, rules, and work packages.
+- **[AGENTS.md](./AGENTS.md)** — How the repo is organized: rules in `.cursor/rules/`, user-facing behavior in `docs/user-goals/`, and workflow skills
+- **`docs/user-goals/README.md`** — Index of user-goals docs (product behavior by area)
+
+Before committing, run `npm run check` (and use `npm run build` if you changed anything that could break the production bundle).
 
 ## Deployment
 
-This project is automatically deployed to GitHub Pages via GitHub Actions when changes are pushed to the `main` branch. The deployment workflow:
+Pushes to **`main`** trigger GitHub Actions: install (`npm ci`), `npm audit --audit-level=high`, type-check, tests, lint, `npm run build`, `npm run build-storybook`, then Playwright-based a11y against a preview server (non-blocking `continue-on-error`). The **`dist/`** artifact is deployed to **GitHub Pages**.
 
-1. Builds the project using `npm run build`
-2. Runs automated accessibility checks (axe-core on the main route)
-3. Deploys the `dist/` directory to GitHub Pages
-3. Available at: `https://crypticUXdesigner.github.io/shader-composer/`
+Public URL: **https://crypticUXdesigner.github.io/shader-composer/**
 
 ## License
 
 All Rights Reserved. Unauthorized copying, modification, distribution, or use of this software is strictly prohibited.
-

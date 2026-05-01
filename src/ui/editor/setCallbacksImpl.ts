@@ -21,6 +21,7 @@ export interface CanvasCallbacks {
   onNodeLabelChanged?: (nodeId: string, label: string | undefined) => void;
   onSpacebarStateChange?: (isPressed: boolean) => void;
   isDialogVisible?: () => boolean;
+  onToggleFullscreen?: () => void;
   onTypeLabelClick?: (portType: string, screenX: number, screenY: number, typeLabelBounds?: { left: number; top: number; right: number; bottom: number; width: number; height: number }) => void;
   onNodeContextMenu?: (screenX: number, screenY: number, nodeId: string, nodeType: string) => void;
   onCopySelected?: () => void;
@@ -44,6 +45,7 @@ export interface SetCallbacksCanvas {
   onNodeLabelChanged?: CanvasCallbacks['onNodeLabelChanged'];
   onSpacebarStateChange?: CanvasCallbacks['onSpacebarStateChange'];
   isDialogVisible?: CanvasCallbacks['isDialogVisible'];
+  onToggleFullscreen?: CanvasCallbacks['onToggleFullscreen'];
   onTypeLabelClick?: CanvasCallbacks['onTypeLabelClick'];
   onNodeContextMenu?: CanvasCallbacks['onNodeContextMenu'];
   onCopySelected?: CanvasCallbacks['onCopySelected'];
@@ -69,6 +71,7 @@ export function setCallbacksImpl(canvas: SetCallbacksCanvas, callbacks: CanvasCa
   canvas.onNodeLabelChanged = callbacks.onNodeLabelChanged;
   canvas.onSpacebarStateChange = callbacks.onSpacebarStateChange;
   canvas.isDialogVisible = callbacks.isDialogVisible;
+  canvas.onToggleFullscreen = callbacks.onToggleFullscreen;
   canvas.onTypeLabelClick = callbacks.onTypeLabelClick;
   canvas.onNodeContextMenu = callbacks.onNodeContextMenu;
   canvas.onCopySelected = callbacks.onCopySelected;

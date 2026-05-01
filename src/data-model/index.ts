@@ -161,3 +161,12 @@ export {
   hasLegacyNoiseNodes,
   LEGACY_NOISE_NODE_TYPES,
 } from './noiseNodesMigration';
+
+// Bloom sphere colors migration (RGB -> OKLCH)
+export { migrateBloomSphereColors } from './bloomSphereColorsMigration';
+
+// Drive home lights: single sky OKLCH -> horizon + zenith gradient
+export { migrateDriveHomeLightsSkyGradient } from './driveHomeLightsSkyGradientMigration';
+
+// Mixed wave signal: cosine toggles -> per-wave shape enum
+export { migrateMixedWaveSignalShapes } from './mixedWaveSignalShapeMigration';

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { type Readable } from 'svelte/store';
-  import { Button } from '../ui';
+  import { Button, Message } from '../ui';
 
   interface Props {
     progress: Readable<{ current: number; total: number }>;
@@ -22,9 +22,10 @@
   <div class="modal frame">
     <div class="title">Exporting video…</div>
     <div class="text">Frame {progressValue.current} / {progressValue.total}</div>
-    <div class="hint">
+    {#snippet importantHeading()}Keep this tab focused{/snippet}
+    <Message inline variant="info" heading={importantHeading}>
       Keep this browser tab in focus. If you switch tabs or minimize the window, export can become very slow and audio may go out of sync.
-    </div>
+    </Message>
     <div class="actions">
       <Button variant="secondary" size="md" onclick={onCancel}>Cancel</Button>
     </div>
@@ -45,8 +46,8 @@
       display: flex;
       flex-direction: column;
       gap: var(--pd-lg);
-      min-width: 320px;
-      max-width: 90vw;
+      width: min(90vw, 600px);
+      min-width: min(320px, 90vw);
       /* Box model / visual from layer .frame */
 
       .title {
@@ -58,17 +59,6 @@
       .text {
         font-size: var(--text-md);
         color: var(--color-gray-80);
-      }
-
-      .hint {
-        background: var(--color-gray-15);
-        border: 1px solid var(--frame-border, var(--color-gray-70));
-        border-left: 3px solid var(--color-blue-70);
-        border-radius: var(--radius-sm);
-        padding: var(--pd-md);
-        color: var(--color-gray-90);
-        font-size: var(--text-sm);
-        line-height: 1.4;
       }
 
       .actions {

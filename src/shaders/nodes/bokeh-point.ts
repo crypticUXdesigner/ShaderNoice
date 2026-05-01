@@ -23,7 +23,7 @@ export const bokehPointNodeSpec: NodeSpec = {
       type: 'float',
       default: 0.05,
       min: 0.001,
-      max: 0.5,
+      max: 5.0,
       step: 0.001,
       label: 'Size'
     },

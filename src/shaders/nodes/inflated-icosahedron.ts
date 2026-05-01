@@ -127,12 +127,26 @@ export const inflatedIcosahedronNodeSpec: NodeSpec = {
     ]
   },
   functions: `
-struct Model { float dist; vec3 colour; float id; }
-struct Hit { float len; vec3 colour; float id; }
+struct Model { float dist; vec3 colour; float id; };
+struct Hit { float len; vec3 colour; float id; };
 
 #define PI 3.14159265359
 #define PHI 1.618033988749895
 #define saturate(x) clamp(x, 0.0, 1.0)
+#define GDF13 normalize(vec3(0, PHI, 1))
+#define GDF14 normalize(vec3(0, -PHI, 1))
+#define GDF15 normalize(vec3(1, 0, PHI))
+#define GDF16 normalize(vec3(-1, 0, PHI))
+#define GDF17 normalize(vec3(PHI, 1, 0))
+#define GDF18 normalize(vec3(-PHI, 1, 0))
+#define GDF13b normalize(vec3(0, PHI, -1))
+#define GDF14b normalize(vec3(0, -PHI, -1))
+#define GDF15b normalize(vec3(1, 0, -PHI))
+#define GDF16b normalize(vec3(-1, 0, -PHI))
+#define GDF17b normalize(vec3(PHI, -1, 0))
+#define GDF18b normalize(vec3(-PHI, -1, 0))
+
+vec3 nc, pbc, pca;
 
 mat3 rotationMatrix(vec3 axis, float angle) {
   axis = normalize(axis);
@@ -181,7 +195,6 @@ void pModPolar3(inout vec3 p, vec3 axis, float reps, float offset) {
   p *= m;
 }
 
-vec3 nc, pbc, pca;
 void initIcosahedronInflated() {
   float cospin = cos(PI/5.0), scospin = sqrt(0.75 - cospin*cospin);
   nc = vec3(-0.5, -cospin, scospin);
@@ -229,19 +242,6 @@ vec3 vMinInflated(vec3 p, vec3 a, vec3 b, vec3 c) {
   if (la < lb) return (la < lc) ? a : c;
   return (lb < lc) ? b : c;
 }
-
-#define GDF13 normalize(vec3(0, PHI, 1))
-#define GDF14 normalize(vec3(0, -PHI, 1))
-#define GDF15 normalize(vec3(1, 0, PHI))
-#define GDF16 normalize(vec3(-1, 0, PHI))
-#define GDF17 normalize(vec3(PHI, 1, 0))
-#define GDF18 normalize(vec3(-PHI, 1, 0))
-#define GDF13b normalize(vec3(0, PHI, -1))
-#define GDF14b normalize(vec3(0, -PHI, -1))
-#define GDF15b normalize(vec3(1, 0, -PHI))
-#define GDF16b normalize(vec3(-1, 0, -PHI))
-#define GDF17b normalize(vec3(PHI, -1, 0))
-#define GDF18b normalize(vec3(-PHI, -1, 0))
 
 vec3 icosahedronVertexInflated(vec3 p) {
   if (p.z > 0.0) {

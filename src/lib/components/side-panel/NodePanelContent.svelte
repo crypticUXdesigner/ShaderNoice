@@ -38,18 +38,18 @@
   let expandedCategoriesSet = $state<Set<string>>(new Set());
 
   const CATEGORY_ORDER: string[] = [
-    'Inputs',
     'Distort',
-    'Audio',
     'Patterns',
-    'SDF',
     'Shapes',
-    'Math',
-    'Utilities',
+    'SDF',
     'Blend',
     'Mask',
     'Effects',
+    'Audio',
+    'Inputs',
     'Output',
+    'Math',
+    'Utilities',
   ];
 
   function sortCategories(categories: string[]): string[] {

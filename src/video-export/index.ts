@@ -12,6 +12,12 @@ export {
 } from './OfflineAudioProvider';
 
 export {
+  HighFidelityOfflineAudioProvider,
+  createHighFidelityOfflineAudioProvider,
+  type HighFidelityProviderConfig,
+} from './HighFidelityOfflineAudioProvider';
+
+export {
   createExportRenderPath,
   createExportRenderer,
   type ExportRenderPathConfig,

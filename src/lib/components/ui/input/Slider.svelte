@@ -10,7 +10,7 @@
     [key: string]: unknown;
   }
 
-  let props: Props = $props();
+  let componentProps: Props = $props();
   let {
     min = 0,
     max = 100,
@@ -20,11 +20,11 @@
     disabled = false,
     class: className = '',
     ...restProps
-  } = props;
+  } = componentProps;
 
   let internalValue = $state(value);
   $effect(() => {
-    internalValue = props.value ?? props.min ?? 0;
+    internalValue = componentProps.value ?? componentProps.min ?? 0;
   });
 
   const progress = $derived(((internalValue - min) / (max - min || 1)) * 100);

@@ -1,7 +1,7 @@
 export type ViewMode = 'node' | 'split' | 'full';
 
 export interface LayoutCallbacks {
-  onCopyPreset?: () => Promise<void> | void;
+  onDownloadPreset?: () => void;
   onExport?: () => Promise<void> | void;
   onVideoExport?: () => Promise<void>;
   onLoadPreset?: (presetName: string) => Promise<void> | void;

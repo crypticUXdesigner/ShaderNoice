@@ -57,12 +57,14 @@ export interface ManagerContextSetupDeps {
   getOnPaste?: () => (() => void) | undefined;
   getOnDuplicateSelected?: () => (() => void) | undefined;
   getHasClipboard?: () => (() => boolean) | undefined;
+  getOnToggleFullscreen?: () => (() => void) | undefined;
   onSpacebarStateChange?: (isPressed: boolean) => void;
   isDialogVisible?: () => boolean;
   onCopySelected?: () => void;
   onPaste?: () => void;
   onDuplicateSelected?: () => void;
   hasClipboard?: () => boolean;
+  onToggleFullscreen?: () => void;
 }
 
 /** Canvas-shaped source for building ManagerContextSetupDeps (avoids circular dependency). */
@@ -102,12 +104,14 @@ export interface ManagerContextSetupDepsSource {
   getOnPaste?: () => (() => void) | undefined;
   getOnDuplicateSelected?: () => (() => void) | undefined;
   getHasClipboard?: () => (() => boolean) | undefined;
+  getOnToggleFullscreen?: () => (() => void) | undefined;
   onSpacebarStateChange?: (isPressed: boolean) => void;
   isDialogVisible?: () => boolean;
   onCopySelected?: () => void;
   onPaste?: () => void;
   onDuplicateSelected?: () => void;
   hasClipboard?: () => boolean;
+  onToggleFullscreen?: () => void;
 }
 
 export function buildManagerContextDeps(source: ManagerContextSetupDepsSource): ManagerContextSetupDeps {
@@ -144,13 +148,15 @@ export function buildManagerContextDeps(source: ManagerContextSetupDepsSource): 
     getOnPaste: source.getOnPaste ?? (() => source.onPaste),
     getOnDuplicateSelected: source.getOnDuplicateSelected ?? (() => source.onDuplicateSelected),
     getHasClipboard: source.getHasClipboard ?? (() => source.hasClipboard),
+    getOnToggleFullscreen: source.getOnToggleFullscreen ?? (() => source.onToggleFullscreen),
     onSpacebarStateChange: source.onSpacebarStateChange,
     /** Getter so keyboard handler sees current callback (set by setCallbacks after init). */
     isDialogVisible: () => source.isDialogVisible?.() ?? false,
     onCopySelected: source.onCopySelected,
     onPaste: source.onPaste,
     onDuplicateSelected: source.onDuplicateSelected,
-    hasClipboard: source.hasClipboard
+    hasClipboard: source.hasClipboard,
+    onToggleFullscreen: source.onToggleFullscreen
   };
 }
 
@@ -216,6 +222,7 @@ export function setupManagerContexts(deps: ManagerContextSetupDeps): void {
   deps.keyboardShortcutHandler.initialize({
     isInputActive: () => deps.uiElementManager.isAnyUIActive(),
     isDialogVisible: () => deps.isDialogVisible?.() ?? false,
+    onToggleFullscreen: () => deps.getOnToggleFullscreen?.()?.(),
     onDeleteSelected: () => {
       const selection = deps.selectionManager.getState();
       const onNodeDeleted = deps.getOnNodeDeleted?.() ?? deps.onNodeDeleted;

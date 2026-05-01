@@ -519,7 +519,8 @@
         canvas.requestRender();
       },
       hasClipboard: () => copyPasteManager.hasClipboard(),
-      isDialogVisible: callbacks.isDialogVisible
+      isDialogVisible: callbacks.isDialogVisible,
+      onToggleFullscreen: callbacks.onToggleFullscreen
     });
 
     function addNodeToGraph(nodeType: string, x: number, y: number): NodeInstance | null {

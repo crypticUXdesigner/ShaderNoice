@@ -153,6 +153,99 @@ describe('NodeShaderCompiler', () => {
     });
   });
 
+  describe('mixed-wave-signal input node', () => {
+    it('compiles mixed-wave-signal → color-map → final-output', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const graph: NodeGraph = {
+        id: 'graph-mws',
+        name: 'Mixed wave test',
+        version: '2.0',
+        nodes: [
+          { id: 'mws', type: 'mixed-wave-signal', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'cm', type: 'color-map', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          {
+            id: 'c1',
+            sourceNodeId: 'mws',
+            sourcePort: 'out',
+            targetNodeId: 'cm',
+            targetPort: 'in',
+          },
+          {
+            id: 'c2',
+            sourceNodeId: 'cm',
+            sourcePort: 'out',
+            targetNodeId: 'n-out',
+            targetPort: 'in',
+          },
+        ],
+      };
+
+      const result = compiler.compile(graph);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('turbulence node (function extraction must ignore // comments)', () => {
+    it('compiles new preset with uv → turbulence → orbit without spurious reserved word output', () => {
+      const presetPath = join(__dirname, '..', 'presets', 'new.json');
+      const preset = JSON.parse(readFileSync(presetPath, 'utf8')) as { graph: NodeGraph };
+      const graph: NodeGraph = structuredClone(preset.graph);
+
+      const turbId = 'node-turb-test';
+      graph.nodes.push({
+        id: turbId,
+        type: 'turbulence',
+        position: { x: 0, y: 0 },
+        parameters: {}
+      });
+
+      // Use ids from the preset under test (avoid brittleness when preset node ids change).
+      const uvNode = graph.nodes.find((n) => n.type === 'uv-coordinates');
+      const bloomSphereNode = graph.nodes.find((n) => n.type === 'bloom-sphere');
+      expect(uvNode).toBeTruthy();
+      expect(bloomSphereNode).toBeTruthy();
+      const uvId = uvNode!.id;
+      const bloomSphereId = bloomSphereNode!.id;
+      const connIdx = graph.connections.findIndex((c) => {
+        // Some graphs use targetPort, others use targetParameter; we only want the uv -> bloom-sphere input.
+        const isInput = c.targetPort === 'in';
+        return c.sourceNodeId === uvId && c.targetNodeId === bloomSphereId && isInput;
+      });
+      expect(connIdx).toBeGreaterThanOrEqual(0);
+      graph.connections.splice(connIdx, 1);
+      graph.connections.push(
+        {
+          id: 'c-uv-turb',
+          sourceNodeId: uvId,
+          sourcePort: 'out',
+          targetNodeId: turbId,
+          targetPort: 'in'
+        },
+        {
+          id: 'c-turb-bloomSphere',
+          sourceNodeId: turbId,
+          sourcePort: 'out',
+          targetNodeId: bloomSphereId,
+          targetPort: 'in'
+        }
+      );
+
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const result = compiler.compile(graph);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).not.toMatch(/\noutput\n/);
+      expect(result.shaderCode).toContain('vec2 turbulence(');
+    });
+  });
+
   describe('quad-warp parameter connection (Intensity → quadCorner0X)', () => {
     it('places Intensity (multiply) before quad-warp in execution order', () => {
       const nodeSpecsMap = buildNodeSpecsMap();
@@ -604,6 +697,52 @@ describe('NodeShaderCompiler', () => {
         body,
         'SDF function body must not contain raw $param.timeOffset placeholder when audio connection is present'
       ).not.toContain('$param.timeOffset');
+    });
+  });
+
+  describe('inflated-icosahedron shader preamble identifiers', () => {
+    function buildInflatedIcosahedronGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const icoId = 'n-ico';
+      const outputId = 'n-out';
+
+      return {
+        id: 'graph-inflated-icosahedron',
+        name: 'Inflated Icosahedron',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: icoId,
+            type: 'inflated-icosahedron',
+            position: { x: 0, y: 0 },
+            parameters: {},
+          },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: icoId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: icoId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('includes nc/pbc/pca and GDF* preamble so struct-dependent functions compile', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const graph = buildInflatedIcosahedronGraph();
+
+      const result = compiler.compile(graph);
+      expect(result.metadata.errors).toHaveLength(0);
+
+      // These are "preamble" identifiers used by initIcosahedronInflated/pModIcosahedronInflated.
+      expect(result.shaderCode).toContain('vec3 nc, pbc, pca;');
+      expect(result.shaderCode).toContain('#define GDF13');
+      expect(result.shaderCode).toContain('#define GDF18b');
+
+      // A sanity check that a function body referencing nc is present.
+      expect(result.shaderCode).toContain('nc = vec3(');
+      expect(result.shaderCode).toContain('pModIcosahedronInflated(inout vec3 p)');
     });
   });
 });

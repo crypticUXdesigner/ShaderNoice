@@ -133,25 +133,13 @@ float sdPlane(vec3 p, vec3 n, float h) {
   return dot(p, nNorm) + h;
 }
 
-// Grid pattern
+// Grid pattern (no reserved-word tokens like "lines" in comments; branch-free for GLSL ES)
 float gridPattern(vec2 p, float spacing) {
-  vec2 cell = floor(p / spacing);
   vec2 local = mod(p, spacing) / spacing;
-  
-  // Grid lines
-  float grid = 0.0;
-  float lineWidth = 0.02;
-  
-  // Vertical lines
-  if (local.x < lineWidth || local.x > 1.0 - lineWidth) {
-    grid = 1.0;
-  }
-  // Horizontal lines
-  if (local.y < lineWidth || local.y > 1.0 - lineWidth) {
-    grid = 1.0;
-  }
-  
-  return grid;
+  float lw = 0.02;
+  float vx = max(1.0 - step(lw, local.x), step(1.0 - lw, local.x));
+  float vy = max(1.0 - step(lw, local.y), step(1.0 - lw, local.y));
+  return max(vx, vy);
 }
 
 // Checkerboard pattern

@@ -2,85 +2,97 @@
   "format": "shader-composer-node-graph",
   "formatVersion": "2.0",
   "graph": {
-    "id": "graph-sdf-raymarcher-hex-audio",
+    "id": "graph-1774043200794-n6444tqh1",
     "name": "SDF Raymarcher Hex Audio",
     "version": "2.0",
     "nodes": [
       {
-        "id": "node-uv-hex-audio",
+        "id": "node-1774043200794-h5ke2knn4",
         "type": "uv-coordinates",
-        "position": { "x": -200, "y": 200 },
+        "position": {
+          "x": -200,
+          "y": 200
+        },
         "parameters": {}
       },
       {
-        "id": "node-hex-sdf-audio",
+        "id": "node-1774043200794-koif4iqii",
         "type": "repeated-hex-prism-sdf",
-        "position": { "x": 200, "y": 220 },
+        "position": {
+          "x": 175,
+          "y": 665
+        },
         "parameters": {
           "spacingX": 2.5,
           "spacingY": 2.5,
           "spacingZ": 2.5,
           "hexRadius": 0.3,
-          "halfHeight": 1.0,
-          "positionX": 0.0,
-          "positionY": 0.0,
-          "positionZ": 0.0
+          "halfHeight": 1,
+          "positionX": 0,
+          "positionY": 0,
+          "positionZ": 0
         }
       },
       {
-        "id": "node-ray-hex-audio",
+        "id": "node-1774043200794-ip9q88jut",
         "type": "generic-raymarcher",
-        "position": { "x": 800, "y": 180 },
+        "position": {
+          "x": 1392,
+          "y": 311
+        },
         "parameters": {
           "raymarchSteps": 80,
           "glowIntensity": 0.5,
-          "brightness": 1.0,
-          "cameraRoX": 0.0,
-          "cameraRoY": 0.0,
-          "cameraRoZ": 3.0
+          "brightness": 1,
+          "cameraRoX": 0,
+          "cameraRoY": 0,
+          "cameraRoZ": 3
         }
       },
       {
-        "id": "node-out-hex-audio",
+        "id": "node-1774043200794-cdmsx6aes",
         "type": "final-output",
-        "position": { "x": 1400, "y": 200 },
+        "position": {
+          "x": 2491,
+          "y": 267
+        },
         "parameters": {}
       }
     ],
     "connections": [
       {
-        "id": "conn-uv-to-ray-hex-audio",
-        "sourceNodeId": "node-uv-hex-audio",
+        "id": "conn-1774043200794-tlqsfftlr",
+        "sourceNodeId": "node-1774043200794-h5ke2knn4",
         "sourcePort": "out",
-        "targetNodeId": "node-ray-hex-audio",
+        "targetNodeId": "node-1774043200794-ip9q88jut",
         "targetPort": "in"
       },
       {
-        "id": "conn-hex-to-ray-sdf-hex-audio",
-        "sourceNodeId": "node-hex-sdf-audio",
+        "id": "conn-1774043200794-9rma4uhj6",
+        "sourceNodeId": "node-1774043200794-koif4iqii",
         "sourcePort": "out",
-        "targetNodeId": "node-ray-hex-audio",
+        "targetNodeId": "node-1774043200794-ip9q88jut",
         "targetPort": "sdf"
       },
       {
-        "id": "conn-ray-color-to-out-hex-audio",
-        "sourceNodeId": "node-ray-hex-audio",
+        "id": "conn-1774043200794-ub9vrwwjw",
+        "sourceNodeId": "node-1774043200794-ip9q88jut",
         "sourcePort": "color",
-        "targetNodeId": "node-out-hex-audio",
+        "targetNodeId": "node-1774043200794-cdmsx6aes",
         "targetPort": "in"
       },
       {
-        "id": "conn-audio-to-hexRadius",
+        "id": "conn-1774043200794-deabbaqyn",
         "sourceNodeId": "audio-signal:remap-hex-audio-remap",
         "sourcePort": "out",
-        "targetNodeId": "node-hex-sdf-audio",
+        "targetNodeId": "node-1774043200794-koif4iqii",
         "targetParameter": "hexRadius"
       }
     ],
     "viewState": {
-      "zoom": 0.6,
-      "panX": 0.0,
-      "panY": 0.0,
+      "zoom": 0.35026715345110215,
+      "panX": 159.34529207066123,
+      "panY": 243.3460804334368,
       "selectedNodeIds": []
     }
   },
@@ -98,7 +110,12 @@
         "id": "band-hex",
         "name": "Hex Band",
         "sourceFileId": "file-hex-audio",
-        "frequencyBands": [[40, 8000]],
+        "frequencyBands": [
+          [
+            40,
+            8000
+          ]
+        ],
         "smoothing": 0.75,
         "fftSize": 4096
       }
@@ -108,12 +125,20 @@
         "id": "hex-audio-remap",
         "name": "Hex Remap",
         "bandId": "band-hex",
-        "inMin": 0.0,
-        "inMax": 1.0,
+        "inMin": 0,
+        "inMax": 1,
         "outMin": 0.1,
         "outMax": 1.5
+      },
+      {
+        "id": "band-band-hex",
+        "name": "Default",
+        "bandId": "band-hex",
+        "inMin": 0,
+        "inMax": 1,
+        "outMin": 0,
+        "outMax": 1
       }
     ]
   }
 }
-

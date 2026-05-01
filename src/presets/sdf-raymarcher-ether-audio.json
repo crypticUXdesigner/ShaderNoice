@@ -2,89 +2,101 @@
   "format": "shader-composer-node-graph",
   "formatVersion": "2.0",
   "graph": {
-    "id": "graph-sdf-raymarcher-ether-audio",
+    "id": "graph-1774043181280-huk9k14vw",
     "name": "SDF Raymarcher Ether Audio",
     "version": "2.0",
     "nodes": [
       {
-        "id": "node-uv-ether-audio",
+        "id": "node-1774043181280-k2ypper0r",
         "type": "uv-coordinates",
-        "position": { "x": -200, "y": -200 },
+        "position": {
+          "x": -200,
+          "y": -200
+        },
         "parameters": {}
       },
       {
-        "id": "node-ether-audio",
+        "id": "node-1774043181280-wqqe6wb1s",
         "type": "ether-sdf",
-        "position": { "x": 200, "y": -220 },
+        "position": {
+          "x": 152,
+          "y": 102
+        },
         "parameters": {
           "rotSpeedXZ": 0.4,
           "rotSpeedXY": 0.3,
-          "scale": 2.0,
-          "timeSpeed": 1.0,
-          "timeOffset": 0.0,
+          "scale": 2,
+          "timeSpeed": 1,
+          "timeOffset": 0,
           "wobbleSpeed": 0.7,
           "sineAmp": 5.5,
           "breatheAmount": 0.5,
           "breatheSpeed": 0.7,
-          "positionX": 0.0,
-          "positionY": 0.0,
-          "positionZ": 0.0
+          "positionX": 0,
+          "positionY": 0,
+          "positionZ": 0
         }
       },
       {
-        "id": "node-ray-ether-audio",
+        "id": "node-1774043181280-qg79jblst",
         "type": "generic-raymarcher",
-        "position": { "x": 800, "y": -260 },
+        "position": {
+          "x": 1319,
+          "y": -183
+        },
         "parameters": {
           "raymarchSteps": 96,
           "glowIntensity": 0.4,
           "brightness": 1.2,
-          "cameraRoX": 0.0,
-          "cameraRoY": 0.0,
-          "cameraRoZ": 3.0
+          "cameraRoX": 0,
+          "cameraRoY": 0,
+          "cameraRoZ": 3
         }
       },
       {
-        "id": "node-out-ether-audio",
+        "id": "node-1774043181280-rsnnfhyro",
         "type": "final-output",
-        "position": { "x": 1400, "y": -240 },
+        "position": {
+          "x": 2344,
+          "y": -205
+        },
         "parameters": {}
       }
     ],
     "connections": [
       {
-        "id": "conn-uv-to-ray-ether-audio",
-        "sourceNodeId": "node-uv-ether-audio",
+        "id": "conn-1774043181280-v7t31js91",
+        "sourceNodeId": "node-1774043181280-k2ypper0r",
         "sourcePort": "out",
-        "targetNodeId": "node-ray-ether-audio",
+        "targetNodeId": "node-1774043181280-qg79jblst",
         "targetPort": "in"
       },
       {
-        "id": "conn-ether-to-ray-sdf-ether-audio",
-        "sourceNodeId": "node-ether-audio",
+        "id": "conn-1774043181280-csylun56a",
+        "sourceNodeId": "node-1774043181280-wqqe6wb1s",
         "sourcePort": "out",
-        "targetNodeId": "node-ray-ether-audio",
+        "targetNodeId": "node-1774043181280-qg79jblst",
         "targetPort": "sdf"
       },
       {
-        "id": "conn-ray-color-to-out-ether-audio",
-        "sourceNodeId": "node-ray-ether-audio",
+        "id": "conn-1774043181280-1l0p85frz",
+        "sourceNodeId": "node-1774043181280-qg79jblst",
         "sourcePort": "color",
-        "targetNodeId": "node-out-ether-audio",
+        "targetNodeId": "node-1774043181280-rsnnfhyro",
         "targetPort": "in"
       },
       {
-        "id": "conn-audio-to-ether-timeOffset",
+        "id": "conn-1774043181280-ca2w9wrb8",
         "sourceNodeId": "audio-signal:remap-ether-audio-remap",
         "sourcePort": "out",
-        "targetNodeId": "node-ether-audio",
+        "targetNodeId": "node-1774043181280-wqqe6wb1s",
         "targetParameter": "timeOffset"
       }
     ],
     "viewState": {
-      "zoom": 0.6,
-      "panX": 0.0,
-      "panY": 0.0,
+      "zoom": 0.3331005777387948,
+      "panX": 127.4902667191675,
+      "panY": 305.31968564313013,
       "selectedNodeIds": []
     }
   },
@@ -102,7 +114,12 @@
         "id": "band-ether",
         "name": "Ether Band",
         "sourceFileId": "file-ether-audio",
-        "frequencyBands": [[20, 20000]],
+        "frequencyBands": [
+          [
+            20,
+            20000
+          ]
+        ],
         "smoothing": 0.8,
         "fftSize": 4096
       }
@@ -112,12 +129,20 @@
         "id": "ether-audio-remap",
         "name": "Ether Remap",
         "bandId": "band-ether",
-        "inMin": 0.0,
-        "inMax": 1.0,
-        "outMin": -3.0,
-        "outMax": 3.0
+        "inMin": 0,
+        "inMax": 1,
+        "outMin": -3,
+        "outMax": 3
+      },
+      {
+        "id": "band-band-ether",
+        "name": "Default",
+        "bandId": "band-ether",
+        "inMin": 0,
+        "inMax": 1,
+        "outMin": 0,
+        "outMax": 1
       }
     ]
   }
 }
-

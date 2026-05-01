@@ -16,3 +16,6 @@ docs/projects/quality-review-remediation/lighthouse-report.json
 # Exclude all markdown files except README.md
 *.md
 !README.md
+
+*storybook.log
+storybook-static

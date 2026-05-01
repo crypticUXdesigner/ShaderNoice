@@ -12,6 +12,7 @@ import type { AudioSetup } from '../data-model/audioSetupTypes';
 import { getPrimaryFileId } from '../data-model/audioSetupTypes';
 import type { ShaderCompiler } from '../runtime/types';
 import { createOfflineAudioProvider } from './OfflineAudioProvider';
+import { createHighFidelityOfflineAudioProvider } from './HighFidelityOfflineAudioProvider';
 import { createExportRenderPath } from './ExportRenderPath';
 import { WebCodecsVideoExporter, isSupported } from './WebCodecsVideoExporter';
 import type { FrameAudioState } from './OfflineAudioProvider';
@@ -38,6 +39,14 @@ export interface VideoExportDialogConfig {
   height: number;
   maxDurationSeconds: number;
   useFullAudio: boolean;
+  /** Start time (seconds) relative to the primary track. */
+  startSeconds?: number;
+  /** End time (seconds) relative to the primary track. */
+  endSeconds?: number;
+  /** When true and no audio is loaded, allow export as video-only (no audio track). */
+  allowVideoOnly: boolean;
+  /** When true, use high-fidelity (slower) audio analysis to better match preview. */
+  highFidelityAudio: boolean;
   videoBitrate?: number;
   audioBitrate?: number;
   frameRate: number;
@@ -49,7 +58,7 @@ const DEFAULT_AUDIO_BITRATE = 192_000;
 const DEFAULT_VIDEO_BITRATE_MBPS = 10;
 const DEFAULT_VIDEO_BITRATE = DEFAULT_VIDEO_BITRATE_MBPS * 1_000_000;
 
-/** Config from dialog: audio optional (no buffer = video-only export). */
+/** Config from dialog: audio optional (no buffer = video-only export when allowVideoOnly is true). */
 export type VideoExportResolvedConfig = VideoExportDialogConfig & {
   primaryNodeId?: string;
   buffer?: AudioBuffer;
@@ -97,13 +106,6 @@ function showExportDialog(options: VideoExportOrchestratorOptions): Promise<Vide
       },
     });
   });
-}
-
-/** Create a silent AudioBuffer for video-only export (drives time/uniforms, no audio track in output). */
-function createSilentBuffer(durationSeconds: number, sampleRate: number = 48_000, numberOfChannels: number = 1): AudioBuffer {
-  const length = Math.max(1, Math.floor(durationSeconds * sampleRate));
-  const ctx = new OfflineAudioContext(numberOfChannels, length, sampleRate);
-  return ctx.createBuffer(numberOfChannels, length, sampleRate);
 }
 
 /**
@@ -190,12 +192,20 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
   const { width, height, maxDurationSeconds, frameRate } = config;
 
   const hasAudio = config.buffer != null;
-  const buffer: AudioBuffer = config.buffer ?? createSilentBuffer(maxDurationSeconds);
-  const primaryNodeId: string = config.primaryNodeId ?? getPrimaryFileId(audioSetup) ?? 'export-silent';
-  const sampleRate = buffer.sampleRate;
-  const numberOfChannels = hasAudio ? buffer.numberOfChannels : 0;
+  if (!hasAudio && !config.allowVideoOnly) {
+    throw new Error('No audio loaded. Load a track first, or explicitly enable "Export without audio" in the dialog.');
+  }
 
-  const maxFrames = Math.max(1, Math.floor(maxDurationSeconds * frameRate));
+  // Audio is required unless user explicitly opted into video-only export.
+  const buffer: AudioBuffer | null = config.buffer ?? null;
+  const primaryNodeId: string = config.primaryNodeId ?? getPrimaryFileId(audioSetup) ?? 'export-no-audio';
+  const sampleRate = buffer?.sampleRate ?? 48_000;
+  const numberOfChannels = hasAudio ? buffer!.numberOfChannels : 0;
+  const startSeconds = hasAudio ? Math.max(0, config.startSeconds ?? 0) : 0;
+  const endSeconds = hasAudio ? Math.max(startSeconds, config.endSeconds ?? startSeconds + maxDurationSeconds) : maxDurationSeconds;
+
+  const effectiveDurationSeconds = Math.max(0.01, endSeconds - startSeconds);
+  const maxFrames = Math.max(1, Math.floor(effectiveDurationSeconds * frameRate));
 
   if (width < 1 || width > MAX_EXPORT_WIDTH) {
     throw new Error(
@@ -234,31 +244,33 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
     cancelled = true;
   });
 
-  const offlineProvider = createOfflineAudioProvider(
-    audioSetup,
-    primaryNodeId,
-    buffer,
-    sampleRate,
-    frameRate
-  );
+  const offlineProvider = hasAudio
+    ? (config.highFidelityAudio
+        ? await createHighFidelityOfflineAudioProvider(audioSetup, primaryNodeId, buffer!, sampleRate, frameRate, startSeconds)
+        : createOfflineAudioProvider(audioSetup, primaryNodeId, buffer!, sampleRate, frameRate, startSeconds))
+    : null;
 
   const renderPath = createExportRenderPath(graph, compiler, audioSetup, {
     width,
     height,
     frameRate,
+    startTimeSeconds: startSeconds,
   });
 
+  const slicedAudioBuffer = hasAudio && buffer ? sliceAudioBuffer(buffer, startSeconds, endSeconds) : undefined;
   const exporter = WebCodecsVideoExporter.create({
     width,
     height,
     frameRate,
     sampleRate,
     numberOfChannels,
+    audioBuffer: slicedAudioBuffer,
     videoBitrate: config.videoBitrate ?? DEFAULT_VIDEO_BITRATE,
     audioBitrate: config.audioBitrate ?? DEFAULT_AUDIO_BITRATE,
   });
 
   try {
+    const yieldEvery = Math.max(1, Math.round(frameRate / 30)); // ~30 yields/sec at common FPS
     for (let frameIndex = 0; frameIndex < maxFrames; frameIndex++) {
       if (cancelled) {
         exporter.terminate();
@@ -266,13 +278,19 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
       }
       progress.setProgress(frameIndex + 1, maxFrames);
 
-      const frameState: FrameAudioState = offlineProvider.getFrameState(frameIndex);
+      const frameState: FrameAudioState = offlineProvider
+        ? offlineProvider.getFrameState(frameIndex)
+        : { channelSamples: [], uniformUpdates: [], timelineTime: frameIndex / frameRate };
       const canvas = renderPath.renderFrame(frameIndex, frameState);
       const timestampSeconds = frameIndex / frameRate;
+      // Audio is encoded as a full track up-front; per-frame channel samples are still computed
+      // for offline analysis + uniform updates.
       await exporter.addFrame(canvas, frameState.channelSamples, timestampSeconds);
 
       // Yield to UI so progress and cancel are responsive
-      await new Promise((r) => setTimeout(r, 0));
+      if (frameIndex % yieldEvery === 0) {
+        await new Promise((r) => setTimeout(r, 0));
+      }
     }
 
     if (cancelled) {
@@ -289,4 +307,21 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
     renderPath.dispose();
     throw err;
   }
+}
+
+function sliceAudioBuffer(buffer: AudioBuffer, startSeconds: number, endSeconds: number): AudioBuffer {
+  const sampleRate = buffer.sampleRate;
+  const startSample = Math.max(0, Math.min(buffer.length, Math.round(startSeconds * sampleRate)));
+  const endSample = Math.max(startSample, Math.min(buffer.length, Math.round(endSeconds * sampleRate)));
+  const length = Math.max(1, endSample - startSample);
+  const out = new AudioBuffer({
+    length,
+    numberOfChannels: buffer.numberOfChannels,
+    sampleRate,
+  });
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    const src = buffer.getChannelData(ch).subarray(startSample, endSample);
+    out.getChannelData(ch).set(src);
+  }
+  return out;
 }

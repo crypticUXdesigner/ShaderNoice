@@ -12,10 +12,10 @@ import {
   Mp4OutputFormat,
   BufferTarget,
   CanvasSource,
-  AudioBufferSource,
   QUALITY_HIGH,
   type VideoEncodingConfig,
   type AudioEncodingConfig,
+  AudioBufferSource,
 } from 'mediabunny';
 import {
   MAX_SAMPLES_PER_FRAME,
@@ -31,6 +31,11 @@ export interface VideoExportConfig {
   frameRate: number;
   sampleRate: number;
   numberOfChannels: number;
+  /**
+   * When provided, the full audio track will be encoded from this buffer in one go.
+   * This avoids long-run drift/gaps from per-frame audio chunking and is the most robust option.
+   */
+  audioBuffer?: AudioBuffer;
   videoBitrate?: number;
   audioBitrate?: number;
 }
@@ -39,7 +44,8 @@ export interface WebCodecsVideoExporterInterface {
   addFrame(
     canvas: HTMLCanvasElement | OffscreenCanvas,
     audioChannels: Float32Array[],
-    timestampSeconds: number
+    videoTimestampSeconds: number,
+    audioTimestampSeconds?: number
   ): Promise<void>;
   finalize(): Promise<Uint8Array>;
   terminate(): void;
@@ -96,9 +102,16 @@ export class WebCodecsVideoExporter implements WebCodecsVideoExporterInterface {
     const videoConfig: VideoEncodingConfig = {
       codec: 'avc',
       bitrate: videoBitrate,
-      bitrateMode: 'constant',
-      keyFrameInterval: 1,
+      // Variable bitrate generally yields better subjective quality for shader footage.
+      // (Mediabunny default is 'variable', but keep explicit to avoid regressions.)
+      bitrateMode: 'variable',
+      // Mediabunny expects seconds (not frames). A ~2s GOP is a good tradeoff for quality and seeking.
+      keyFrameInterval: 2,
       latencyMode: 'quality',
+      // Prefer software encoders when available; tends to preserve detail/contrast better than some HW paths.
+      hardwareAcceleration: 'prefer-software',
+      // Hint that content is detailed (shader footage, fine gradients).
+      contentHint: 'detail',
     };
 
     const format = new Mp4OutputFormat();
@@ -113,12 +126,18 @@ export class WebCodecsVideoExporter implements WebCodecsVideoExporterInterface {
         codec: 'aac',
         bitrate: audioBitrate,
       };
+      // Encode the full AudioBuffer in one go when available (most robust: avoids drift/gaps).
       this.audioSource = new AudioBufferSource(audioConfig);
       this.output.addAudioTrack(this.audioSource);
     }
 
     this.startPromise = this.output.start();
     await this.startPromise;
+
+    if (this.audioSource && this.config.audioBuffer) {
+      // Mediabunny appends buffers; first buffer starts at timestamp 0.
+      await this.audioSource.add(this.config.audioBuffer);
+    }
   }
 
   private get frameDurationSeconds(): number {
@@ -132,7 +151,8 @@ export class WebCodecsVideoExporter implements WebCodecsVideoExporterInterface {
   async addFrame(
     canvas: HTMLCanvasElement | OffscreenCanvas,
     audioChannels: Float32Array[],
-    timestampSeconds: number
+    videoTimestampSeconds: number,
+    _audioTimestampSeconds?: number
   ): Promise<void> {
     if (this.terminated) {
       return;
@@ -146,50 +166,23 @@ export class WebCodecsVideoExporter implements WebCodecsVideoExporterInterface {
     }
 
     const videoSource = this.videoSource!;
-    await videoSource.add(timestampSeconds, this.frameDurationSeconds);
+    await videoSource.add(videoTimestampSeconds, this.frameDurationSeconds);
 
-    if (this.audioSource && this.config.numberOfChannels > 0) {
-      const samplesPerFrame = Math.round(
-        this.config.sampleRate / this.config.frameRate
-      );
-      if (samplesPerFrame > MAX_SAMPLES_PER_FRAME) {
+    // Audio is encoded up-front from the full AudioBuffer in ensureStarted().
+    // Keep the legacy per-frame validation as a guardrail (helps catch accidental huge chunks).
+    if (this.config.numberOfChannels > 0) {
+      const length = audioChannels[0]?.length ?? 0;
+      if (length > MAX_SAMPLES_PER_FRAME) {
         throw new Error(
           formatExportLimitError({
             limitName: 'samples per frame',
             limitValue: MAX_SAMPLES_PER_FRAME,
-            actualValue: samplesPerFrame,
+            actualValue: length,
             hint: 'Use a higher frame rate or lower sample rate.',
           })
         );
       }
-      const audioBuffer = this.createAudioBufferFromChannels(
-        audioChannels,
-        samplesPerFrame
-      );
-      await this.audioSource.add(audioBuffer);
     }
-  }
-
-  private createAudioBufferFromChannels(
-    audioChannels: Float32Array[],
-    length: number
-  ): AudioBuffer {
-    const { numberOfChannels, sampleRate } = this.config;
-    const ctx = new OfflineAudioContext(
-      numberOfChannels,
-      length,
-      sampleRate
-    );
-    const buffer = ctx.createBuffer(numberOfChannels, length, sampleRate);
-    for (let c = 0; c < numberOfChannels; c++) {
-      const channelData = buffer.getChannelData(c);
-      const channel = audioChannels[c];
-      if (channel && channel.length >= length) {
-        channelData.set(channel.subarray(0, length));
-      }
-      // else leave as zeros (silent frame)
-    }
-    return buffer;
   }
 
   /**

@@ -157,6 +157,23 @@ export function getParameterEnumMappings(
     return { 0: 'Sine', 1: 'Cosine', 2: 'Square', 3: 'Triangle' };
   }
 
+  // mixed-wave-signal (per-wave shape; same labels for w0Shape / w1Shape / w2Shape)
+  if (
+    nodeId === 'mixed-wave-signal' &&
+    (paramName === 'w0Shape' || paramName === 'w1Shape' || paramName === 'w2Shape')
+  ) {
+    return {
+      0: 'Sine',
+      1: 'Cosine',
+      2: 'Square',
+      3: 'Triangle',
+      4: 'Saw up',
+      5: 'Saw down',
+      6: 'Abs sine',
+      7: 'Smooth square',
+    };
+  }
+
   // blur
   if (nodeId === 'blur' && paramName === 'blurType') {
     return { 0: 'Gaussian', 1: 'Directional', 2: 'Radial' };

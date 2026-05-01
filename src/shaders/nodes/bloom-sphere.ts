@@ -9,7 +9,7 @@ export const bloomSphereNodeSpec: NodeSpec = {
   category: 'Shapes',
   displayName: 'Bloom Sphere',
   description:
-    'Sphere with spherical-Fibonacci lattice spots that pulse in a wave, blue outer glow and reddish inner glow. Single composite effect (no temporal buffer).',
+    'Sphere with spherical-Fibonacci lattice spots that pulse in a wave, blue outer glow and reddish inner glow. Wave phase, pattern scale, lattice spin, and optional detuned sine for richer motion. Single composite effect (no temporal buffer).',
   icon: 'glow',
   inputs: [
     {
@@ -26,6 +26,22 @@ export const bloomSphereNodeSpec: NodeSpec = {
     }
   ],
   parameters: {
+    bloomCenterX: {
+      type: 'float',
+      default: 0.0,
+      min: -2.0,
+      max: 2.0,
+      step: 0.01,
+      label: 'Bloom X'
+    },
+    bloomCenterY: {
+      type: 'float',
+      default: 0.0,
+      min: -2.0,
+      max: 2.0,
+      step: 0.01,
+      label: 'Bloom Y'
+    },
     sphereRadius: {
       type: 'float',
       default: 1.0,
@@ -56,15 +72,55 @@ export const bloomSphereNodeSpec: NodeSpec = {
       default: 2.0,
       min: 0.0,
       max: 8.0,
-      step: 0.1,
+      step: 0.001,
       label: 'Wave speed',
       inputMode: 'override'
+    },
+    wavePhase: {
+      type: 'float',
+      default: 0.0,
+      min: -12.57,
+      max: 12.57,
+      step: 0.01,
+      label: 'Wave phase'
+    },
+    waveDetuneFreq: {
+      type: 'float',
+      default: 2.0,
+      min: 0.25,
+      max: 8.0,
+      step: 0.05,
+      label: 'Detune freq'
+    },
+    waveDetuneAmp: {
+      type: 'float',
+      default: 0.0,
+      min: 0.0,
+      max: 1.0,
+      step: 0.01,
+      label: 'Detune mix'
+    },
+    indexPhaseScale: {
+      type: 'float',
+      default: 0.1,
+      min: 0.0,
+      max: 1.0,
+      step: 0.005,
+      label: 'Pattern scale'
+    },
+    latticeSpinSpeed: {
+      type: 'float',
+      default: 0.0,
+      min: -4.0,
+      max: 4.0,
+      step: 0.01,
+      label: 'Spin speed'
     },
     waveAmplitude: {
       type: 'float',
       default: 0.12,
       min: 0.0,
-      max: 0.5,
+      max: 1.0,
       step: 0.01,
       label: 'Wave depth'
     },
@@ -76,53 +132,53 @@ export const bloomSphereNodeSpec: NodeSpec = {
       step: 0.01,
       label: 'Spot soft'
     },
-    outerR: {
+    outerL: {
       type: 'float',
-      default: 0.2,
+      default: 0.7391552434772553,
       min: 0.0,
       max: 1.0,
       step: 0.01,
-      label: 'Outer R'
+      label: 'Outer L'
     },
-    outerG: {
+    outerC: {
       type: 'float',
-      default: 0.4,
+      default: 0.09253691178218687,
       min: 0.0,
-      max: 1.0,
+      max: 0.4,
       step: 0.01,
-      label: 'Outer G'
+      label: 'Outer C'
     },
-    outerB: {
+    outerH: {
       type: 'float',
-      default: 0.9,
+      default: 296.59265191815484,
       min: 0.0,
-      max: 1.0,
-      step: 0.01,
-      label: 'Outer B'
+      max: 360.0,
+      step: 1.0,
+      label: 'Outer H'
     },
-    innerR: {
+    innerL: {
       type: 'float',
-      default: 0.9,
+      default: 0.7236677864677247,
       min: 0.0,
       max: 1.0,
       step: 0.01,
-      label: 'Inner R'
+      label: 'Inner L'
     },
-    innerG: {
+    innerC: {
       type: 'float',
-      default: 0.2,
+      default: 0.20734208593918924,
       min: 0.0,
-      max: 1.0,
+      max: 0.4,
       step: 0.01,
-      label: 'Inner G'
+      label: 'Inner C'
     },
-    innerB: {
+    innerH: {
       type: 'float',
-      default: 0.15,
+      default: 27.587637681632806,
       min: 0.0,
-      max: 1.0,
-      step: 0.01,
-      label: 'Inner B'
+      max: 360.0,
+      step: 1.0,
+      label: 'Inner H'
     },
     brightness: {
       type: 'float',
@@ -137,21 +193,32 @@ export const bloomSphereNodeSpec: NodeSpec = {
     {
       id: 'sphere',
       label: 'Sphere',
-      parameters: ['sphereRadius', 'brightness'],
+      parameters: ['bloomCenterX', 'bloomCenterY', 'sphereRadius', 'brightness'],
       collapsible: true,
       defaultCollapsed: false
     },
     {
       id: 'spots',
       label: 'Spots',
-      parameters: ['spotCount', 'baseSpotAngle', 'waveSpeed', 'waveAmplitude', 'spotSoftness'],
+      parameters: [
+        'spotCount',
+        'baseSpotAngle',
+        'waveSpeed',
+        'wavePhase',
+        'waveDetuneFreq',
+        'waveDetuneAmp',
+        'indexPhaseScale',
+        'latticeSpinSpeed',
+        'waveAmplitude',
+        'spotSoftness'
+      ],
       collapsible: true,
       defaultCollapsed: false
     },
     {
       id: 'colors',
       label: 'Colors',
-      parameters: ['outerR', 'outerG', 'outerB', 'innerR', 'innerG', 'innerB'],
+      parameters: ['outerL', 'outerC', 'outerH', 'innerL', 'innerC', 'innerH'],
       collapsible: true,
       defaultCollapsed: false
     }
@@ -160,30 +227,62 @@ export const bloomSphereNodeSpec: NodeSpec = {
     elements: [
       {
         type: 'grid',
-        parameters: ['sphereRadius', 'brightness'],
-        layout: { columns: 2 }
+        parameters: ['bloomCenterX', 'bloomCenterY', 'sphereRadius', 'brightness'],
+        parameterUI: { bloomCenterX: 'coords', bloomCenterY: 'coords' },
+        layout: { columns: 2, coordsSpan: 2 }
       },
       {
         type: 'grid',
         label: 'Spots',
-        parameters: ['spotCount', 'baseSpotAngle', 'waveSpeed', 'waveAmplitude', 'spotSoftness'],
+        parameters: [
+          'spotCount',
+          'baseSpotAngle',
+          'waveSpeed',
+          'wavePhase',
+          'waveDetuneFreq',
+          'waveDetuneAmp',
+          'indexPhaseScale',
+          'latticeSpinSpeed',
+          'waveAmplitude',
+          'spotSoftness'
+        ],
         layout: { columns: 3 }
       },
       {
-        type: 'grid',
-        label: 'Outer (blue)',
-        parameters: ['outerR', 'outerG', 'outerB'],
-        layout: { columns: 3 }
-      },
-      {
-        type: 'grid',
-        label: 'Inner (red)',
-        parameters: ['innerR', 'innerG', 'innerB'],
-        layout: { columns: 3 }
+        type: 'color-picker-row',
+        label: 'Outer (blue) / Inner (red)',
+        pickers: [
+          ['outerL', 'outerC', 'outerH'],
+          ['innerL', 'innerC', 'innerH']
+        ]
       }
     ]
   },
   functions: `
+vec3 bloomSphereOklchToRgb(vec3 oklch) {
+  float l = oklch.x;
+  float c = oklch.y;
+  float h = oklch.z * 3.14159265359 / 180.0;
+
+  float a = c * cos(h);
+  float b = c * sin(h);
+
+  // OKLab to linear RGB
+  float l_ = l + 0.3963377774 * a + 0.2158037573 * b;
+  float m_ = l - 0.1055613458 * a - 0.0638541728 * b;
+  float s_ = l - 0.0894841775 * a - 1.2914855480 * b;
+
+  float l3 = l_ * l_ * l_;
+  float m3 = m_ * m_ * m_;
+  float s3 = s_ * s_ * s_;
+
+  float r = +4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3;
+  float g = -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3;
+  float bl = -0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3;
+
+  return clamp(vec3(r, g, bl), 0.0, 1.0);
+}
+
 // Index to sphere direction (id2sf). i in [0, n-1], n >= 2. Constants in function scope so they are included when only function bodies are extracted.
 vec3 bloomSphereId2Sf(float i, float n) {
   const float BS_PI = ${PI};
@@ -197,9 +296,10 @@ vec3 bloomSphereId2Sf(float i, float n) {
 }
 `,
   mainCode: `
-  vec2 uv = $input.in;
+  // in: p-space like UV Coords (aspect-corrected NDC), not raw 0–1 UV
+  vec2 ndc = $input.in - vec2($param.bloomCenterX, $param.bloomCenterY);
   vec3 ro = vec3(0.0, 0.0, 3.0);
-  vec3 rd = normalize(vec3(uv * 2.0 - 1.0, -1.0));
+  vec3 rd = normalize(vec3(ndc, -1.0));
 
   float R = $param.sphereRadius;
   vec3 oc = ro;
@@ -222,16 +322,25 @@ vec3 bloomSphereId2Sf(float i, float n) {
     float waveSpeed = $param.waveSpeed;
     float soft = $param.spotSoftness;
     float T = $time * waveSpeed;
+    float wPhase = $param.wavePhase;
+    float idxScale = $param.indexPhaseScale;
+    float detuneF = $param.waveDetuneFreq;
+    float detuneA = $param.waveDetuneAmp;
+    float spinAngle = $time * $param.latticeSpinSpeed;
+    float spinC = cos(spinAngle);
+    float spinS = sin(spinAngle);
 
-    vec3 outerColor = vec3($param.outerR, $param.outerG, $param.outerB);
-    vec3 innerColor = vec3($param.innerR, $param.innerG, $param.innerB);
+    vec3 outerColor = bloomSphereOklchToRgb(vec3($param.outerL, $param.outerC, $param.outerH));
+    vec3 innerColor = bloomSphereOklchToRgb(vec3($param.innerL, $param.innerC, $param.innerH));
 
     vec3 acc = vec3(0.0);
     for (float i = 0.0; i < 256.0; i++) {
       if (i >= nSpots) break;
       vec3 spotDir = bloomSphereId2Sf(i, nSpots);
-      float phase = i * 0.1;
-      float angle = baseAngle + waveAmp * sin(T + phase);
+      spotDir = vec3(spinC * spotDir.x + spinS * spotDir.z, spotDir.y, -spinS * spotDir.x + spinC * spotDir.z);
+      float iphase = i * idxScale;
+      float wave = sin(T + iphase + wPhase) + detuneA * sin(T * detuneF + iphase + wPhase);
+      float angle = baseAngle + waveAmp * wave;
       float cosAngle = cos(angle);
       float d = dot(N, spotDir);
       float spotMask = smoothstep(cosAngle - soft, cosAngle + soft * 0.5, d);

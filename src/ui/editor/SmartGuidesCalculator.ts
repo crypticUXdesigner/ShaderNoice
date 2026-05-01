@@ -9,6 +9,12 @@ import type { NodeRenderer, NodeRenderMetrics } from './NodeRenderer';
 import type { SmartGuidesManager } from './canvas/SmartGuidesManager';
 import type { SmartGuidesResult, SmartGuide } from './canvas/SmartGuidesManager';
 
+/**
+ * When false, alignment guides and snap-to-align are skipped (drag uses raw position).
+ * Re-enable after fixing smart-guide behavior.
+ */
+export const SMART_GUIDES_ENABLED = false;
+
 export interface SmartGuidesCalculatorDeps {
   viewStateManager: { getState: () => { zoom: number } };
   smartGuidesManager: SmartGuidesManager;
@@ -35,6 +41,11 @@ export function createSmartGuidesCalculator(deps: SmartGuidesCalculatorDeps): (
     proposedX: number,
     proposedY: number
   ): SmartGuidesResult {
+    if (!SMART_GUIDES_ENABLED) {
+      const empty: SmartGuide = { vertical: [], horizontal: [] };
+      deps.setCurrentGuides(empty);
+      return { snappedX: proposedX, snappedY: proposedY, guides: empty };
+    }
     const viewState = deps.viewStateManager.getState();
     const result = deps.smartGuidesManager.calculateGuides(
       draggingNode,

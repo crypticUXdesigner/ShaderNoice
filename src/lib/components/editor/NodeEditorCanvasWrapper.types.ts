@@ -21,6 +21,7 @@ export interface NodeEditorCanvasWrapperCallbacks {
   onGraphChanged?: (graph: NodeGraph) => void;
   onConnectionRemoved?: (connectionId: string) => void;
   onNodeContextMenu?: (screenX: number, screenY: number, nodeId: string, nodeType: string) => void;
+  onToggleFullscreen?: () => void;
   onParameterChanged?: (
     nodeId: string,
     paramName: string,

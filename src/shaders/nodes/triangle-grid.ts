@@ -78,7 +78,7 @@ export const triangleGridNodeSpec: NodeSpec = {
     }
   ],
   functions: `
-// Equilateral triangle grid: three families of lines at 0°, 60°, 120°
+// Equilateral triangle grid: three edge directions at 0, 60, 120 degrees
 // Returns distance to nearest edge and optional cell id for fill
 void triangleGrid(vec2 p, float spacing, out float distToEdge, out float cellId) {
   const float sqrt3 = 1.7320508;

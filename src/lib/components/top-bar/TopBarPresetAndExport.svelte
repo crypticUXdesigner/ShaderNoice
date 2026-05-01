@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Top bar left section: panel toggle, preset selector, copy preset, image/video export.
+   * Top bar left section: panel toggle, preset selector, download preset JSON, image/video export.
    */
   import { Button, ButtonGroup, IconSvg } from '../ui';
 
@@ -12,7 +12,7 @@
     presetLoading?: boolean;
     onPanelToggle?: () => void;
     onPresetClick?: (e: MouseEvent) => void;
-    onCopyPreset?: () => void | Promise<void>;
+    onDownloadPreset?: () => void;
     onExport?: () => void | Promise<void>;
     onVideoExport?: () => void | Promise<void>;
   }
@@ -24,7 +24,7 @@
     presetLoading = false,
     onPanelToggle,
     onPresetClick,
-    onCopyPreset,
+    onDownloadPreset,
     onExport,
     onVideoExport,
   }: Props = $props();
@@ -41,8 +41,8 @@
       <IconSvg name="folder-open" variant="filled" />
       <span class="top-bar-preset-button-label">{presetLoading ? 'Loading…' : presetLabel}</span>
     </Button>
-    <Button variant="ghost" size="sm" mode="icon-only" title="Copy Preset" onclick={onCopyPreset}>
-      <IconSvg name="copy" variant="line" />
+    <Button variant="ghost" size="sm" mode="icon-only" title="Download graph as JSON" onclick={onDownloadPreset}>
+      <IconSvg name="download-simple" variant="line" />
     </Button>
     <Button variant="ghost" size="sm" mode="icon-only" title="Save Image" onclick={onExport}>
       <IconSvg name="image-square" variant="line" />

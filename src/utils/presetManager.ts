@@ -11,6 +11,8 @@ import type { AudioSetup } from '../data-model/audioSetupTypes';
 import { serializeGraph, deserializeGraph } from '../data-model/serialization';
 import type { NodeSpecification } from '../data-model/validation';
 import { migrateNoiseNodes } from '../data-model/noiseNodesMigration';
+import { migrateBloomSphereColors } from '../data-model/bloomSphereColorsMigration';
+import { migrateDriveHomeLightsSkyGradient } from '../data-model/driveHomeLightsSkyGradientMigration';
 
 /**
  * Preset metadata (filename without extension)
@@ -107,7 +109,9 @@ export async function loadPreset(
       return emptyResult([`Invalid preset format: ${presetName}`]);
     }
 
-    const migratedGraph = migrateNoiseNodes(graph);
+    const migratedGraph = migrateDriveHomeLightsSkyGradient(
+      migrateBloomSphereColors(migrateNoiseNodes(graph))
+    );
     const audioSetup = isValidAudioSetup(data.audioSetup)
       ? (data.audioSetup as AudioSetup)
       : { files: [], bands: [], remappers: [] };
@@ -164,7 +168,9 @@ export async function loadPresetFromJson(
     if (!result.graph) {
       return emptyResult(result.errors, result.warnings);
     }
-    const migrated = migrateNoiseNodes(result.graph);
+    const migrated = migrateDriveHomeLightsSkyGradient(
+      migrateBloomSphereColors(migrateNoiseNodes(result.graph))
+    );
     const audioSetup: AudioSetup | undefined = result.audioSetup ?? undefined;
     return {
       graph: migrated,
@@ -179,48 +185,33 @@ export async function loadPresetFromJson(
   }
 }
 
+function presetJsonDownloadFilename(graph: NodeGraph): string {
+  const raw = graph.name.trim().slice(0, 80) || 'graph';
+  const safe = raw
+    .replace(/[<>:"/\\|?*\x00-\x1f]/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  return `${safe || 'graph'}.json`;
+}
+
 /**
- * Copy current graph and audio setup to clipboard as JSON
- * @param graph - The graph to copy
- * @param audioSetup - Panel audio configuration (files, bands, remappers, primarySource, playlistState)
- * @returns Promise that resolves when copy is complete
+ * Download current graph and audio setup as a JSON file (same payload as former clipboard export).
  */
-export async function copyGraphToClipboard(
-  graph: NodeGraph,
-  audioSetup?: AudioSetup | null
-): Promise<void> {
+export function downloadGraphAsJsonFile(graph: NodeGraph, audioSetup?: AudioSetup | null): void {
   const startingTrackId =
     audioSetup?.primarySource?.type === 'playlist' ? audioSetup.primarySource.trackId : undefined;
   const json = serializeGraph(graph, true, audioSetup ?? undefined, { startingTrackId });
-  try {
-    // Check if clipboard API is available
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(json);
-    } else {
-      throw new Error('Clipboard API not available');
-    }
-  } catch (error) {
-    // Fallback for browsers that don't support clipboard API
-    const textarea = document.createElement('textarea');
-    textarea.value = json;
-    textarea.style.position = 'fixed';
-    textarea.style.opacity = '0';
-    textarea.style.left = '-9999px';
-    document.body.appendChild(textarea);
-    textarea.focus();
-    textarea.select();
-    try {
-      const success = document.execCommand('copy');
-      if (!success) {
-        throw new Error('execCommand copy failed');
-      }
-    } catch (err) {
-      document.body.removeChild(textarea);
-      throw new Error('Failed to copy to clipboard', { cause: err });
-    } finally {
-      document.body.removeChild(textarea);
-    }
-  }
+  const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = presetJsonDownloadFilename(graph);
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /**

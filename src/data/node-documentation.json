@@ -121,6 +121,81 @@
         "Feed into Noise Time input for animated noise, or into Translate for moving patterns."
       ]
     },
+    "node:mixed-wave-signal": {
+      "title": "Mixed Wave",
+      "titleType": "node",
+      "tagline": "A single float signal built from three weighted sine or cosine waves—good for organic, controllable motion without full noise.",
+      "description": "Uses shader time internally (you do not need a separate Time node). Global speed and offset scale the phase for all waves. Each wave has its own speed, phase offset, weight, and whether it uses sine or cosine (0 = sine, 1 = cosine). The three contributions are blended by weight and normalized so the mix stays in the −1 to 1 range, then mapped linearly to Out min and Out max (both between −1 and 1). Connect the output to parameters (via automation), math nodes, or Color Map for grayscale preview.",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "float",
+          "description": "Remapped signal. Typical range follows Out min / Out max; use with Multiply, Mix, or drive animated parameters.",
+          "suggestedTargets": [
+            "node:multiply",
+            "node:add",
+            "node:mix",
+            "node:color-map",
+            "node:translate",
+            "node:rotate"
+          ]
+        }
+      ],
+      "parameters": [
+        {
+          "name": "globalSpeed",
+          "description": "Multiplies time before per-wave speeds; negative plays backward."
+        },
+        {
+          "name": "globalOffset",
+          "description": "Adds a constant phase in radians to all waves (same as shifting all waves together)."
+        },
+        {
+          "name": "w0Speed, w1Speed, w2Speed",
+          "description": "Per-wave frequency relative to the global-scaled time."
+        },
+        {
+          "name": "w0Offset, w1Offset, w2Offset",
+          "description": "Phase offset in radians for each wave (detunes beating between waves)."
+        },
+        {
+          "name": "w0Weight, w1Weight, w2Weight",
+          "description": "Relative mix; the three waves are averaged with these weights so the result stays bounded."
+        },
+        {
+          "name": "w0Shape, w1Shape, w2Shape",
+          "description": "Per-wave waveform: Sine, Cosine, Square (sign of sine), Triangle (asin∘sin), Saw up/down (ramp over 2π), Abs sine, or Smooth square (softened edges). Legacy presets with w*Cosine load as Sine or Cosine."
+        },
+        {
+          "name": "outMin, outMax",
+          "description": "Final linear map: −1…1 blend maps to this interval (both ends must stay in −1…1)."
+        }
+      ],
+      "relatedItems": [
+        "type:float",
+        "node:time",
+        "node:sine",
+        "node:cosine",
+        "node:multiply"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          { "id": "a", "type": "mixed-wave-signal" },
+          { "id": "b", "type": "color-map" },
+          { "id": "c", "type": "final-output" }
+        ],
+        "connections": [
+          { "from": "a", "fromPort": "out", "to": "b", "toPort": "in" },
+          { "from": "b", "fromPort": "out", "to": "c", "toPort": "in" }
+        ]
+      },
+      "examples": [
+        "Tune Wave 2/3 speeds slightly off 1.0 to get quasi-periodic, non-repeating motion.",
+        "Set Cosine to 1 on one wave for a 90° phase shift vs sine-only waves.",
+        "Use Out min / Out max to bias motion (e.g. 0 to 0.5) before Multiply into a parameter."
+      ]
+    },
     "node:resolution": {
       "title": "Resolution",
       "titleType": "node",
@@ -488,7 +563,7 @@
       "title": "Drive Home Lights",
       "titleType": "node",
       "tagline": "Bokeh street, head, tail, and environment lights in one node",
-      "description": "Sums street lights, headlights, tail/brake lights, and environment lights as bokeh discs. Connect ro/rd from Look-at Camera and time. Parameters: time scale, lane bias. Reference: Shadertoy The Drive Home.",
+      "description": "Sums street lights, headlights, tail/brake lights, and environment lights as bokeh discs, and adds sky tint with two OKLCH colors (low and high along the ray). Ray elevation still controls how much sky you see (darker toward the horizon); the two colors only shape the tint within the lit sky. Parameters: sky low/high, sky strength, time scale, lane bias. Reference: Shadertoy The Drive Home.",
       "inputs": [
         {
           "name": "ro",
@@ -522,7 +597,7 @@
         {
           "name": "out",
           "type": "vec3",
-          "description": "Additive light color (add sky gradient in graph)",
+          "description": "Additive light color including built-in sky tint (two OKLCH stops + ray falloff) and strength",
           "suggestedTargets": [
             "node:add",
             "node:final-output",
@@ -555,7 +630,7 @@
       "examples": [
         "Connect ro/rd from Look-at Camera and Time; plug output into Final Output or add with a sky gradient.",
         "Combine with Rain Drops: use (UV − rain offset) as the screen input to the same Look-at Camera for a rainy drive.",
-        "Tune time scale and lane bias parameters to match the desired drive mood."
+        "Use sky low/high to tint the visible sky (defaults match the classic single purple); darkness near the horizon comes from ray elevation, not a separate “black” color stop. Adjust strength, time scale, and lane bias to match the drive mood."
       ]
     },
     "node:constant-float": {
@@ -836,12 +911,12 @@
       "title": "Add",
       "titleType": "node",
       "tagline": "Adds two numbers (or two vec2/vec3/vec4 values). Use it to combine values or add an offset.",
-      "description": "Add takes two inputs, a and b, and outputs their sum (a + b). If you leave the second input unconnected, the Second Value parameter is used instead. Handy for shifting a value (e.g. Time + 0.5) or combining two signals.",
+      "description": "Add takes two inputs, a and b, and outputs their sum (a + b). If you leave the second input unconnected, the B parameter is used instead. Handy for shifting a value (e.g. Time + 0.5) or combining two signals.",
       "inputs": [
         {
           "name": "a",
           "type": "float",
-          "description": "First value. Connect Time, Float, Sine, or another node’s output.",
+          "description": "A. Connect Time, Float, Sine, or another node’s output.",
           "suggestedSources": [
             "type:float",
             "node:constant-float",
@@ -853,7 +928,7 @@
         {
           "name": "b",
           "type": "float",
-          "description": "Second value. If unconnected, the Second Value parameter is used.",
+          "description": "B. If unconnected, the B parameter is used.",
           "suggestedSources": [
             "type:float",
             "node:constant-float",
@@ -879,7 +954,7 @@
       ],
       "parameters": [
         {
-          "name": "Second Value",
+          "name": "B",
           "description": "Used for input b when nothing is connected. Set to 0.5 to shift the result by half; use with Time to offset animation phase."
         }
       ],
@@ -905,7 +980,7 @@
         "type:float"
       ],
       "examples": [
-        "Connect Time to a and a constant to b (or Second Value) to shift animation in time.",
+        "Connect Time to a and a constant to b (or B) to shift animation in time.",
         "Add two Sine waves or two Noise outputs for combined patterns.",
         "Use with Translate: add a vec2 offset to UV for shifting the whole pattern."
       ]
@@ -987,12 +1062,12 @@
       "title": "Multiply",
       "titleType": "node",
       "tagline": "Multiplies two numbers. Use it to scale a value (e.g. slow down or speed up time) or combine signals.",
-      "description": "Multiply takes two inputs, a and b, and outputs a × b. If b is unconnected, the Multiplier parameter is used. Common use: connect Time to a and a small Float to b to slow down an animation, or connect Sine to a and a Float to b to change wave strength.",
+      "description": "Multiply takes two inputs, a and b, and outputs a × b. If b is unconnected, the B parameter is used. Common use: connect Time to a and a small Float to b to slow down an animation, or connect Sine to a and a Float to b to change wave strength.",
       "inputs": [
         {
           "name": "a",
           "type": "float",
-          "description": "First value. Often Time, Sine, or a pattern node’s output.",
+          "description": "A. Often Time, Sine, or a pattern node’s output.",
           "suggestedSources": [
             "type:float",
             "node:constant-float",
@@ -1005,7 +1080,7 @@
         {
           "name": "b",
           "type": "float",
-          "description": "Second value (multiplier). If unconnected, the Multiplier parameter is used.",
+          "description": "B. If unconnected, the B parameter is used.",
           "suggestedSources": [
             "type:float",
             "node:constant-float",
@@ -1031,7 +1106,7 @@
       ],
       "parameters": [
         {
-          "name": "Multiplier",
+          "name": "B",
           "description": "Used for input b when nothing is connected. Set to 0.5 to halve the value (e.g. slow down time); set to 2 to double (e.g. brighter or faster)."
         }
       ],
@@ -1057,7 +1132,7 @@
         "type:float"
       ],
       "examples": [
-        "Connect Time to a and a small constant to b (or Multiplier) to slow down animation.",
+        "Connect Time to a and a small constant to b (or B) to slow down animation.",
         "Multiply Sine by a float to change wave strength before Color Map.",
         "Scale a Noise or Distance value before feeding into Smoothstep or Color Map."
       ]
@@ -1548,7 +1623,7 @@
         {
           "name": "a",
           "type": "float",
-          "description": "The first value to compare",
+          "description": "A — value to compare",
           "suggestedSources": [
             "type:float",
             "node:constant-float",
@@ -1560,7 +1635,7 @@
         {
           "name": "b",
           "type": "float",
-          "description": "The second value to compare",
+          "description": "B — value to compare",
           "suggestedSources": [
             "type:float",
             "node:constant-float",
@@ -1617,7 +1692,7 @@
         {
           "name": "a",
           "type": "float",
-          "description": "The first value to compare",
+          "description": "A — value to compare",
           "suggestedSources": [
             "type:float",
             "node:constant-float",
@@ -1629,7 +1704,7 @@
         {
           "name": "b",
           "type": "float",
-          "description": "The second value to compare",
+          "description": "B — value to compare",
           "suggestedSources": [
             "type:float",
             "node:constant-float",
@@ -5509,7 +5584,7 @@
       "title": "Bloom Sphere",
       "titleType": "node",
       "tagline": "Sphere with evenly distributed soft spots that pulse in a wave, blue outer glow and reddish inner glow",
-      "description": "Renders a sphere covered in soft spots placed on a spherical Fibonacci lattice, with a time-based wave that modulates spot size. Uses analytic ray-sphere intersection and soft projected masks. Outer glow uses the blue color; inner (facing) areas use the red color. Connect UV to in; output is vec4 for final output or blending. Spot count, wave speed, and colors are adjustable. No temporal buffer; single-pass spatial effect.",
+      "description": "Renders a sphere covered in soft spots placed on a spherical Fibonacci lattice, with a time-based wave that modulates spot size. Uses analytic ray-sphere intersection and soft projected masks. Outer glow uses the blue color; inner (facing) areas use the red color. Bloom X/Y shift the sphere in screen space (NDC offset from center). Animation: wave phase (time offset), pattern scale (phase spacing along lattice index), lattice spin around vertical axis, optional second sine (detune frequency + mix) for richer motion. Connect UV to in; output is vec4 for final output or blending. Spot count, wave speed, and colors are adjustable. No temporal buffer; single-pass spatial effect.",
       "inputs": [
         {
           "name": "in",
@@ -5556,7 +5631,8 @@
       ],
       "examples": [
         "Connect UV to in; output goes to Final Output or Mix with a background (e.g. Sky Dome) for a full scene.",
-        "Adjust spot count and wave speed for denser or calmer pulse; use outer/inner glow colors for different moods.",
+        "Adjust spot count and wave speed for denser or calmer pulse; use wave phase to sync in time, pattern scale for banded vs scrambled shimmer, spin speed to rotate the lattice, and detune for a second temporal frequency.",
+        "Use Bloom X/Y to move the sphere on the canvas without changing UV upstream.",
         "Layer with other vec4 nodes (e.g. Blend Mode or Mix) for composite visuals without temporal buffer."
       ],
       "advanced": "Uses the same spherical Fibonacci lattice as the Spherical Fibonacci node for spot placement; analytic ray-sphere intersection keeps it single-pass. For modular reuse of the lattice elsewhere, use Spherical Fibonacci + Bloom Sphere."

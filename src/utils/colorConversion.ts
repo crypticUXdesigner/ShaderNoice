@@ -155,23 +155,16 @@ function linearRgbToOklchInternal(
   b: number,
   clampChroma: boolean
 ): OKLCH {
-  // Linear sRGB to XYZ (D65)
+  // Linear sRGB to OKLab (Bjorn Ottosson), inverse of oklchToLinearRgb path.
   const rl = Math.max(0, Math.min(1, r));
   const gl = Math.max(0, Math.min(1, g));
   const bl = Math.max(0, Math.min(1, b));
-  const x = 0.4124564 * rl + 0.3575761 * gl + 0.1804375 * bl;
-  const y = 0.2126729 * rl + 0.7151522 * gl + 0.0721750 * bl;
-  const z = 0.0193339 * rl + 0.1191920 * gl + 0.9503041 * bl;
-  // XYZ to OKLab
-  const x_ = Math.cbrt(x);
-  const y_ = Math.cbrt(y);
-  const z_ = Math.cbrt(z);
-  const l_ = 0.8189330101 * x_ + 0.3618667424 * y_ - 0.1288597137 * z_;
-  const m_ = 0.0329845436 * x_ + 0.9293118715 * y_ + 0.0361456387 * z_;
-  const s_ = 0.0480767532 * x_ + 0.2643662691 * y_ + 0.6338517070 * z_;
-  const L = 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_;
-  const a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_;
-  const b_ = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_;
+  const l = Math.cbrt(0.4122214708 * rl + 0.5363325363 * gl + 0.0514459929 * bl);
+  const m = Math.cbrt(0.2119034982 * rl + 0.6806995451 * gl + 0.1073969566 * bl);
+  const s = Math.cbrt(0.0883024619 * rl + 0.2817188376 * gl + 0.6299787005 * bl);
+  const L = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
+  const a = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+  const b_ = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
   // Lab to LCH
   const C = Math.sqrt(a * a + b_ * b_);
   let H = (Math.atan2(b_, a) * 180) / Math.PI;

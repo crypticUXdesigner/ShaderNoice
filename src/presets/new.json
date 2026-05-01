@@ -2,138 +2,111 @@
   "format": "shader-composer-node-graph",
   "formatVersion": "2.0",
   "graph": {
-    "id": "graph-1771360393533-qweoj2xz2",
+    "id": "graph-1774046857199-3wzpgfj7i",
     "name": "New",
     "version": "2.0",
     "nodes": [
       {
-        "id": "node-1771360393533-gii59o9g0",
-        "type": "uv-coordinates",
-        "position": {
-          "x": -1189,
-          "y": -421
-        },
-        "parameters": {}
-      },
-      {
-        "id": "node-1771360393533-wu36vn51h",
+        "id": "node-1774046857199-ma9b97y9s",
         "type": "final-output",
         "position": {
-          "x": 2172,
-          "y": -395
+          "x": 5127,
+          "y": 269
         },
         "parameters": {}
       },
       {
-        "id": "node-1771360393533-3u7kqw6ky",
-        "type": "fisheye",
+        "id": "node-1774046857199-zw5emlcj2",
+        "type": "bloom-sphere",
         "position": {
-          "x": -649,
-          "y": -431
+          "x": 3425,
+          "y": 188
         },
         "parameters": {
-          "fisheyeCenterX": 0,
-          "fisheyeCenterY": 0,
-          "fisheyeStrength": -0.32999999999999996,
-          "fisheyeAspect": 1
+          "sphereRadius": 2.66,
+          "spotCount": 55,
+          "baseSpotAngle": 0.05,
+          "waveSpeed": 0.401,
+          "waveAmplitude": 0.37,
+          "spotSoftness": 0.02,
+          "outerL": 0.7391552434772553,
+          "outerC": 0.09253691178218687,
+          "outerH": 296.59265191815484,
+          "innerL": 0.7236677864677247,
+          "innerC": 0.20734208593918924,
+          "innerH": 27.587637681632806,
+          "brightness": 1
         }
       },
       {
-        "id": "node-1771360393533-xxmy5fpct",
-        "type": "reaction-diffusion",
+        "id": "node-1774046857199-z1e8p50xf",
+        "type": "uv-coordinates",
         "position": {
-          "x": 285,
-          "y": -431
+          "x": 2691,
+          "y": 198
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774046857199-joua1wtbx",
+        "type": "mixed-wave-signal",
+        "position": {
+          "x": 2544,
+          "y": 978
         },
         "parameters": {
-          "feedRate": 0.1,
-          "killRate": 0.1,
-          "diffusionA": 0.1,
-          "diffusionB": 1,
-          "scale": 93,
-          "steps": 3,
-          "timeSpeed": 0.43,
-          "timeOffset": 0,
-          "intensity": 1.01
+          "globalSpeed": 0.46000000000000085,
+          "globalOffset": 0,
+          "w0Speed": 12.730000000000004,
+          "w0Offset": 13.300000000000011,
+          "w0Weight": 0.09,
+          "w0Shape": 0,
+          "w1Speed": 20,
+          "w1Offset": 27.5,
+          "w1Weight": 0.04,
+          "w1Shape": 1,
+          "w2Speed": 1.31,
+          "w2Offset": 4.03,
+          "w2Weight": 1,
+          "w2Shape": 3,
+          "outMin": 0.15999999999999992,
+          "outMax": 0.43999999999999995
         }
       }
     ],
     "connections": [
       {
-        "id": "conn-1771360393533-2u099amcl",
-        "sourceNodeId": "node-1771360393533-gii59o9g0",
+        "id": "conn-1774046857199-56mvbjxug",
+        "sourceNodeId": "node-1774046857199-z1e8p50xf",
         "sourcePort": "out",
-        "targetNodeId": "node-1771360393533-3u7kqw6ky",
+        "targetNodeId": "node-1774046857199-zw5emlcj2",
         "targetPort": "in"
       },
       {
-        "id": "conn-1771360393533-uwyiymkiw",
-        "sourceNodeId": "node-1771360393533-3u7kqw6ky",
+        "id": "conn-1774046857199-vmnx69zhi",
+        "sourceNodeId": "node-1774046857199-zw5emlcj2",
         "sourcePort": "out",
-        "targetNodeId": "node-1771360393533-xxmy5fpct",
+        "targetNodeId": "node-1774046857199-ma9b97y9s",
         "targetPort": "in"
       },
       {
-        "id": "conn-1771360393533-e2h05aqyo",
-        "sourceNodeId": "node-1771360393533-xxmy5fpct",
+        "id": "conn-1774046937096-0aw59532n",
+        "sourceNodeId": "node-1774046857199-joua1wtbx",
         "sourcePort": "out",
-        "targetNodeId": "node-1771360393533-wu36vn51h",
-        "targetPort": "in"
+        "targetNodeId": "node-1774046857199-zw5emlcj2",
+        "targetParameter": "waveAmplitude"
       }
     ],
     "viewState": {
-      "zoom": 1,
-      "panX": 666.4565944177,
-      "panY": 109.68936545415016,
+      "zoom": 0.3652042438346327,
+      "panX": -716.2735828252951,
+      "panY": -158.6029272458411,
       "selectedNodeIds": []
     },
     "automation": {
       "bpm": 120,
       "durationSeconds": 30,
-      "lanes": [
-        {
-          "id": "19d467aa-e6bd-4960-b68d-32bc222ebdb8",
-          "nodeId": "node-1771360393533-3u7kqw6ky",
-          "paramName": "fisheyeStrength",
-          "regions": [
-            {
-              "id": "179198f0-727e-4934-b20d-663e6c8d783e",
-              "startTime": 2.5,
-              "duration": 8,
-              "loop": false,
-              "curve": {
-                "keyframes": [
-                  {
-                    "time": 0,
-                    "value": 0.335
-                  },
-                  {
-                    "time": 0.125,
-                    "value": 0.9217343201508393
-                  },
-                  {
-                    "time": 0.3125,
-                    "value": 0.335
-                  },
-                  {
-                    "time": 0.5,
-                    "value": 0.9386262120427312
-                  },
-                  {
-                    "time": 0.625,
-                    "value": 0.335
-                  },
-                  {
-                    "time": 1,
-                    "value": 0.335
-                  }
-                ],
-                "interpolation": "bezier"
-              }
-            }
-          ]
-        }
-      ]
+      "lanes": []
     }
   },
   "audioSetup": {

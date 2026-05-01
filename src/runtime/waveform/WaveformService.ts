@@ -9,7 +9,7 @@ import type { PrimarySource } from '../../data-model/audioSetupTypes';
 import type { WaveformData } from './types';
 import { AudiographClient, SCRUBBER_RESOLUTION } from './AudiographClient';
 import { computeWaveformFromBuffer, DEFAULT_WAVEFORM_LENGTH } from './bufferWaveform';
-import { getTrackDurationSeconds } from '../tracksData';
+import { getTrackDurationSeconds, getTrackMp3Url, getTracksData } from '../tracksData';
 
 /** Normalize playlist trackId to API resource name (e.g. tracks/123). */
 function toAudiographResourceName(trackId: string): string {
@@ -51,10 +51,69 @@ export class WaveformService {
   private deps: WaveformServiceDeps;
   private audiographClient: AudiographClient;
   private lastPrimaryId: string | undefined = undefined;
+  private trackWaveformCache = new Map<string, WaveformData>();
+  private trackWaveformInFlight = new Map<string, Promise<WaveformData>>();
+  private decodeCtx: OfflineAudioContext | null = null;
 
   constructor(deps: WaveformServiceDeps, audiographClient?: AudiographClient) {
     this.deps = deps;
     this.audiographClient = audiographClient ?? new AudiographClient();
+  }
+
+  /**
+   * Stable key identifying the current primary audio source.
+   * Intended for UI layers to subscribe to primary changes without knowing internals.
+   */
+  getPrimaryWaveformKey(): string {
+    const primary = this.deps.getPrimarySource();
+    const primaryId = this.deps.getPrimaryFileId();
+    if (!primary || !primaryId) return '';
+    return `${primary.type}:${primaryId}`;
+  }
+
+  private getDecodeContext(): OfflineAudioContext {
+    // OfflineAudioContext can decode without a user gesture and is safe for background work.
+    if (this.decodeCtx) return this.decodeCtx;
+    this.decodeCtx = new OfflineAudioContext(1, 1, 44100);
+    return this.decodeCtx;
+  }
+
+  private async getWaveformFromTrackMp3(trackId: string): Promise<WaveformData> {
+    const cached = this.trackWaveformCache.get(trackId);
+    if (cached) return cached;
+    const inFlight = this.trackWaveformInFlight.get(trackId);
+    if (inFlight) return inFlight;
+
+    const promise = (async () => {
+      try {
+        const data = await getTracksData();
+        const mp3Url = getTrackMp3Url(data, toAudiographResourceName(trackId));
+        if (!mp3Url) return EMPTY_WAVEFORM;
+
+        const res = await fetch(mp3Url);
+        if (!res.ok) return EMPTY_WAVEFORM;
+        const arrayBuffer = await res.arrayBuffer();
+
+        const ctx = this.getDecodeContext();
+        const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
+        const { values, durationSeconds } = computeWaveformFromBuffer(audioBuffer, DEFAULT_WAVEFORM_LENGTH);
+
+        const waveform: WaveformData = {
+          values,
+          valuesRight: values.slice(),
+          durationSeconds,
+          source: 'buffer',
+        };
+        this.trackWaveformCache.set(trackId, waveform);
+        return waveform;
+      } catch {
+        return EMPTY_WAVEFORM;
+      }
+    })();
+
+    this.trackWaveformInFlight.set(trackId, promise);
+    promise.finally(() => this.trackWaveformInFlight.delete(trackId));
+    return promise;
   }
 
   /**
@@ -112,7 +171,9 @@ export class WaveformService {
       return { values, durationSeconds, source: 'buffer' };
     }
 
-    return EMPTY_WAVEFORM;
+    // Last resort for playlist: fetch MP3 and derive waveform client-side (avoids relying on Audiograph RPC).
+    // This is cached per track id to prevent repeated decoding work.
+    return await this.getWaveformFromTrackMp3(primary.trackId);
   }
 
   /**

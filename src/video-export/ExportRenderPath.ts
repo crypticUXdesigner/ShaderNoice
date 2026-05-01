@@ -21,6 +21,8 @@ export interface ExportRenderPathConfig {
   height: number;
   /** Frame rate (e.g. 30); time = frameIndex / frameRate */
   frameRate: number;
+  /** Start time offset (seconds) applied to uTime; video timestamps still start at 0. */
+  startTimeSeconds?: number;
 }
 
 export interface ExportRenderPathResult {
@@ -75,6 +77,7 @@ function createExportRenderPathImpl(
   config: ExportRenderPathConfig
 ): ExportRenderPathResult {
   const { width, height, frameRate } = config;
+  const startTimeSeconds = config.startTimeSeconds ?? 0;
 
   const canvas =
     typeof OffscreenCanvas !== 'undefined'
@@ -113,7 +116,7 @@ function createExportRenderPathImpl(
       throw new Error('ExportRenderPath already disposed');
     }
 
-    const time = frameIndex / frameRate;
+    const time = startTimeSeconds + frameIndex / frameRate;
     shaderInstance.setTime(time);
     shaderInstance.setTimelineTime(frameState.timelineTime);
     shaderInstance.setParameters(frameState.uniformUpdates);

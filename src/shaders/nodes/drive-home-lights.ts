@@ -10,7 +10,7 @@ export const driveHomeLightsNodeSpec: NodeSpec = {
   category: 'Shapes',
   displayName: 'Drive Home Lights',
   description:
-    'Bokeh-style night drive lights: street lights, headlights, tail/brake lights, and environment lights in one node. Connect ro/rd from Look-at Camera and time. Reference: Shadertoy The Drive Home.',
+    'Bokeh-style night drive lights: street lights, headlights, tail/brake lights, and environment lights in one node, plus a two-color OKLCH sky tint along the ray. Darkness toward the horizon follows ray elevation (like the original); the two colors only shape the gradient within the lit sky. Connect ro/rd from Look-at Camera and time. Reference: Shadertoy The Drive Home.',
   icon: 'car',
   inputs: [
     { name: 'ro', type: 'vec3', label: 'Ray origin' },
@@ -24,6 +24,62 @@ export const driveHomeLightsNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'vec3', label: 'Color' }],
   parameters: {
+    skyGradientLowL: {
+      type: 'float',
+      default: 0.8310620950454196,
+      min: 0.0,
+      max: 1.0,
+      step: 0.01,
+      label: 'Sky low L'
+    },
+    skyGradientLowC: {
+      type: 'float',
+      default: 0.09644388819426743,
+      min: 0.0,
+      max: 0.4,
+      step: 0.005,
+      label: 'Sky low C'
+    },
+    skyGradientLowH: {
+      type: 'float',
+      default: 335.51536530351405,
+      min: 0.0,
+      max: 360.0,
+      step: 1.0,
+      label: 'Sky low H'
+    },
+    skyGradientHighL: {
+      type: 'float',
+      default: 0.8310620950454196,
+      min: 0.0,
+      max: 1.0,
+      step: 0.01,
+      label: 'Sky high L'
+    },
+    skyGradientHighC: {
+      type: 'float',
+      default: 0.09644388819426743,
+      min: 0.0,
+      max: 0.4,
+      step: 0.005,
+      label: 'Sky high C'
+    },
+    skyGradientHighH: {
+      type: 'float',
+      default: 335.51536530351405,
+      min: 0.0,
+      max: 360.0,
+      step: 1.0,
+      label: 'Sky high H'
+    },
+    skyStrength: {
+      type: 'float',
+      default: 1.0,
+      min: 0.0,
+      max: 2.0,
+      step: 0.05,
+      label: 'Sky strength'
+    },
     timeScale: {
       type: 'float',
       default: 0.03,
@@ -44,13 +100,54 @@ export const driveHomeLightsNodeSpec: NodeSpec = {
   parameterLayout: {
     elements: [
       {
+        type: 'color-picker-row',
+        label: 'Sky tint (low / high along ray)',
+        pickers: [
+          ['skyGradientLowL', 'skyGradientLowC', 'skyGradientLowH'],
+          ['skyGradientHighL', 'skyGradientHighC', 'skyGradientHighH']
+        ]
+      },
+      {
         type: 'grid',
-        parameters: ['timeScale', 'laneBias'],
-        layout: { columns: 2 }
+        parameters: ['skyGradientLowL', 'skyGradientLowC', 'skyGradientLowH'],
+        layout: { columns: 3 }
+      },
+      {
+        type: 'grid',
+        parameters: ['skyGradientHighL', 'skyGradientHighC', 'skyGradientHighH'],
+        layout: { columns: 3 }
+      },
+      {
+        type: 'grid',
+        parameters: ['skyStrength', 'timeScale', 'laneBias'],
+        layout: { columns: 3 }
       }
     ]
   },
   functions: `
+vec3 dhlOklchToRgb(vec3 oklch) {
+  float l = oklch.x;
+  float c = oklch.y;
+  float h = oklch.z * 3.14159265359 / 180.0;
+
+  float a = c * cos(h);
+  float b = c * sin(h);
+
+  float l_ = l + 0.3963377774 * a + 0.2158037573 * b;
+  float m_ = l - 0.1055613458 * a - 0.0638541728 * b;
+  float s_ = l - 0.0894841775 * a - 1.2914855480 * b;
+
+  float l3 = l_ * l_ * l_;
+  float m3 = m_ * m_ * m_;
+  float s3 = s_ * s_ * s_;
+
+  float r = +4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3;
+  float g = -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3;
+  float bl = -0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3;
+
+  return clamp(vec3(r, g, bl), 0.0, 1.0);
+}
+
 // Colors inlined (compiler only emits function bodies; top-level const would be dropped)
 float dhl_N(float t) {
   return fract(sin(t * 10234.324) * 123423.23512);
@@ -171,7 +268,11 @@ vec3 dhl_EnvironmentLights(vec3 ro, vec3 rd, float i, float t) {
   }
   col += dhl_TailLights(ro, rd, 0.0, t, $param.laneBias);
   col += dhl_TailLights(ro, rd, 0.5, t, $param.laneBias);
-  col += clamp(rd.y, 0.0, 1.0) * vec3(0.6, 0.5, 0.9);
+  float skyT = clamp(rd.y, 0.0, 1.0);
+  vec3 skyLowRgb = dhlOklchToRgb(vec3($param.skyGradientLowL, $param.skyGradientLowC, $param.skyGradientLowH));
+  vec3 skyHighRgb = dhlOklchToRgb(vec3($param.skyGradientHighL, $param.skyGradientHighC, $param.skyGradientHighH));
+  vec3 skyTint = mix(skyLowRgb, skyHighRgb, skyT);
+  col += skyT * skyTint * $param.skyStrength;
   $output.out = col;
 `
 };

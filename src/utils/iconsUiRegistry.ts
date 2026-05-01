@@ -39,6 +39,7 @@ export type IconName =
   | 'arrows-maximize'
   | 'arrows-minimize'
   | 'copy'
+  | 'download-simple'
   | 'photo'
   | 'image-square'
   | 'video'
@@ -106,6 +107,7 @@ export const iconNameMap: Record<IconName, string> = {
   'arrows-maximize': 'arrows-out',
   'arrows-minimize': 'arrows-in',
   'copy': 'copy',
+  'download-simple': 'download-simple',
   'photo': 'image',
   'image-square': 'image-square',
   'video': 'video',

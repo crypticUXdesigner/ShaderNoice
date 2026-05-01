@@ -12,6 +12,14 @@
   max-height: var(--menu-max-height);
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
 
   .menu-item {
     width: 100%;

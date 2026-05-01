@@ -42,13 +42,21 @@ export function getCategoryDefaultIcon(category: string): NodeIconIdentifier | s
 
 /**
  * True when the node is an input node with a single output whose label is the same or very similar
- * to the node's display name (e.g. "Resolution" / "Resolution", "UV Coords" / "UV").
+ * to the node's display name (e.g. "Resolution" / "Resolution", "UV Coords" / "UV"), or when the
+ * output is constant Vec3/Vec4's generic `out` (no misleading semantic chip like "Color").
  * Only applied to category Inputs so nodes like Noise (Patterns) always show their output label.
  * Used to hide redundant output labels on input-style nodes in the node header and help UI.
  */
 export function isRedundantOutputLabel(spec: NodeSpec, port: PortSpec): boolean {
   if (spec.category !== 'Inputs') return false;
   if (!spec.outputs?.length || spec.outputs.length !== 1) return false;
+  // Constant vec3/vec4: single generic `out` — no single semantic name (not "color" only).
+  if (
+    (spec.id === 'constant-vec3' || spec.id === 'constant-vec4') &&
+    port.name === 'out'
+  ) {
+    return true;
+  }
   const nodeName = (spec.displayName ?? '').trim().toLowerCase();
   const portLabel = (port.label ?? port.name).trim().toLowerCase();
   if (!nodeName || !portLabel) return false;

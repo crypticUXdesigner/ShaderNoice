@@ -13,6 +13,7 @@ import type { AudioSetup } from './audioSetupTypes';
 import { validateGraph } from './validation';
 import type { NodeSpecification } from './validation';
 import { migrateBandRemapToRemappers } from './audioBandRemapMigration';
+import { migrateMixedWaveSignalShapes } from './mixedWaveSignalShapeMigration';
 
 const CURRENT_FORMAT_VERSION = '2.0' as const;
 
@@ -43,6 +44,10 @@ type MigrationStep = (ctx: MigrationContext) => MigrationContext;
 
 const MIGRATIONS_BY_VERSION: Record<string, MigrationStep[]> = {
   [CURRENT_FORMAT_VERSION]: [
+    (ctx: MigrationContext): MigrationContext => ({
+      ...ctx,
+      graph: migrateMixedWaveSignalShapes(ctx.graph),
+    }),
     (ctx: MigrationContext): MigrationContext => {
       const audio = ctx.audioSetup;
       if (!audio || audio.bands.length === 0) return ctx;

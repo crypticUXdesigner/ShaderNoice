@@ -11,7 +11,7 @@ export const sineNodeSpec: NodeSpec = {
   description: 'Sine function',
   icon: 'trig-wave',
   inputs: [{ name: 'in', type: 'float', label: 'Angle' }],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = sin($input.in);`
 };
@@ -23,7 +23,7 @@ export const cosineNodeSpec: NodeSpec = {
   description: 'Cosine function',
   icon: 'math-cos',
   inputs: [{ name: 'in', type: 'float', label: 'Angle' }],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = cos($input.in);`
 };
@@ -35,7 +35,7 @@ export const tangentNodeSpec: NodeSpec = {
   description: 'Tangent function',
   icon: 'math-tg',
   inputs: [{ name: 'in', type: 'float', label: 'Angle' }],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = tan($input.in);`
 };
@@ -47,7 +47,7 @@ export const arcSineNodeSpec: NodeSpec = {
   description: 'Arc sine (inverse sine)',
   icon: 'math-function-y',
   inputs: [{ name: 'in', type: 'float', label: 'Angle' }],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = asin($input.in);`
 };
@@ -59,7 +59,7 @@ export const arcCosineNodeSpec: NodeSpec = {
   description: 'Arc cosine (inverse cosine)',
   icon: 'math-function-y',
   inputs: [{ name: 'in', type: 'float', label: 'Angle' }],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = acos($input.in);`
 };
@@ -71,7 +71,7 @@ export const arcTangentNodeSpec: NodeSpec = {
   description: 'Arc tangent (inverse tangent)',
   icon: 'math-function-y',
   inputs: [{ name: 'in', type: 'float', label: 'Angle' }],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = atan($input.in);`
 };
@@ -86,7 +86,7 @@ export const arcTangent2NodeSpec: NodeSpec = {
     { name: 'y', type: 'float', label: 'Y' },
     { name: 'x', type: 'float', fallbackParameter: 'x', label: 'X' }
   ],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
     x: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'X Component' }
   },
@@ -100,7 +100,7 @@ export const exponentialNodeSpec: NodeSpec = {
   description: 'e raised to the power of input',
   icon: 'math-xy',
   inputs: [{ name: 'in', type: 'float', label: 'Value' }],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = exp($input.in);`
 };
@@ -112,7 +112,7 @@ export const naturalLogarithmNodeSpec: NodeSpec = {
   description: 'Natural logarithm (base e)',
   icon: 'math-function',
   inputs: [{ name: 'in', type: 'float', label: 'Value' }],
-  outputs: [{ name: 'out', type: 'float', label: 'Result' }],
+  outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {},
   mainCode: `$output.out = log($input.in);`
 };

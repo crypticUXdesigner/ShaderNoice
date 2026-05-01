@@ -135,26 +135,26 @@
     return () => clearInterval(interval);
   });
 
-  /** Fetch full waveform when service or timeline duration (primary) changes. */
+  /** Fetch full waveform when service or primary audio changes. */
   $effect(() => {
     const svc = waveformService;
-    void (timelineStateSnapshot?.duration ?? getDuration());
-    if (!svc) {
+    const primaryWaveformKey = svc?.getPrimaryWaveformKey() ?? null;
+    if (!svc || !primaryWaveformKey) {
       fullWaveformData = null;
       return;
     }
+    let cancelled = false;
     void svc.getWaveformForPrimary().then((data) => {
-      const duration =
-        data.durationSeconds > 0 ? data.durationSeconds : getDuration();
+      if (cancelled) return;
+      const duration = data.durationSeconds > 0 ? data.durationSeconds : getDuration();
       fullWaveformData =
         data.values.length > 0 && duration > 0
-          ? {
-              values: data.values,
-              valuesRight: data.valuesRight,
-              durationSeconds: duration,
-            }
+          ? { values: data.values, valuesRight: data.valuesRight, durationSeconds: duration }
           : null;
     });
+    return () => {
+      cancelled = true;
+    };
   });
 
   /** Draw waveform slice in ruler canvas when data or view (zoom/pan) changes. */

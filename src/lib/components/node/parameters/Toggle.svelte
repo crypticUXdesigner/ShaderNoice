@@ -8,9 +8,11 @@
     disabled?: boolean;
     class?: string;
     onChange?: (value: number) => void;
+    /** Element id of visible label text; when set, names the switch via aria-labelledby instead of On/Off. */
+    labelledBy?: string;
   }
 
-  let { value, disabled = false, class: className = '', onChange }: Props = $props();
+  let { value, disabled = false, class: className = '', onChange, labelledBy }: Props = $props();
 
   const isOn = $derived(value === 1);
 
@@ -29,7 +31,8 @@
   disabled={disabled}
   role="switch"
   aria-checked={isOn}
-  aria-label={isOn ? 'On' : 'Off'}
+  aria-labelledby={labelledBy}
+  aria-label={labelledBy ? undefined : isOn ? 'On' : 'Off'}
 >
   <span class="slider"></span>
 </button>

@@ -1,0 +1,613 @@
+{
+  "format": "shader-composer-node-graph",
+  "formatVersion": "2.0",
+  "graph": {
+    "id": "graph-1774041780868-3nso3wh4o",
+    "name": "New",
+    "version": "2.0",
+    "nodes": [
+      {
+        "id": "node-1774041780868-d36upm3mf",
+        "type": "uv-coordinates",
+        "position": {
+          "x": -4646,
+          "y": 261
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774041780868-nrhxzdtjw",
+        "type": "mask-composite-vec3",
+        "position": {
+          "x": 2142,
+          "y": 57
+        },
+        "parameters": {
+          "mask": 1
+        }
+      },
+      {
+        "id": "node-1774041780868-hhzy90skb",
+        "type": "final-output",
+        "position": {
+          "x": 3207,
+          "y": 89
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774041780868-3vgbsc145",
+        "type": "dots",
+        "position": {
+          "x": -524,
+          "y": -1526
+        },
+        "parameters": {
+          "dotsSpacing": 0.35000000000000003,
+          "dotsSize": 0.076,
+          "dotsFalloff": 0.5,
+          "dotsIntensity": 2
+        },
+        "parameterInputModes": {
+          "dotsIntensity": "multiply",
+          "dotsSize": "multiply",
+          "dotsSpacing": "multiply"
+        }
+      },
+      {
+        "id": "node-1774041780868-4au512cxb",
+        "type": "hexagonal-grid",
+        "position": {
+          "x": -1103,
+          "y": 1661
+        },
+        "parameters": {
+          "hexSize": 0.33,
+          "hexGap": 0.32,
+          "hexCellRotation": 0,
+          "hexSizeVariation": 1,
+          "hexSizeVariationSteps": 16,
+          "hexVariationAnimationSpeed": 0,
+          "hexRotation": 0,
+          "hexIntensity": 0.6,
+          "hexIntensityVariation": 2,
+          "hexSoftness": 0.0001,
+          "hexEdgeThickness": 0.19,
+          "hexEdgeIntensity": 0.67,
+          "hexRimWidth": 0.56,
+          "hexRimIntensity": 0.9500000000000001,
+          "hexSeed": 1267,
+          "hexPulseSpeed": 2.54,
+          "hexPulseDepth": 1.84,
+          "hexPulseVariationImpact": 0.47000000000000003,
+          "hexWaveDirection": 65,
+          "hexWaveFrequency": 2.4,
+          "hexWaveSpeed": 2.79,
+          "hexWaveDepth": 1.2,
+          "hexWaveVariationImpact": 0.62
+        }
+      },
+      {
+        "id": "node-1774041780868-luveiwno6",
+        "type": "oklch-color-map-bezier",
+        "position": {
+          "x": -68,
+          "y": 1658
+        },
+        "parameters": {
+          "stops": 10,
+          "startColorL": 0.45582984926719844,
+          "startColorC": 0.04744580591988629,
+          "startColorH": 283.1315653240594,
+          "endColorL": 0.8554548864507415,
+          "endColorC": 0.12791142014816925,
+          "endColorH": 158.02818308092742,
+          "lCurveX1": 0,
+          "lCurveY1": 0,
+          "lCurveX2": 1,
+          "lCurveY2": 1,
+          "cCurveX1": 0,
+          "cCurveY1": 0,
+          "cCurveX2": 1,
+          "cCurveY2": 1,
+          "hCurveX1": 0,
+          "hCurveY1": 0,
+          "hCurveX2": 1,
+          "hCurveY2": 1,
+          "reverseHue": 1
+        }
+      },
+      {
+        "id": "node-1774041780868-uedb557fd",
+        "type": "oklch-color-map-bezier",
+        "position": {
+          "x": 566,
+          "y": -1885
+        },
+        "parameters": {
+          "stops": 49,
+          "startColorL": 0.3430038357658246,
+          "startColorC": 0.006958090190399934,
+          "startColorH": 86.82837325286599,
+          "endColorL": 0.9716319129537379,
+          "endColorC": 0.10585344287821949,
+          "endColorH": 108.81617767748342,
+          "lCurveX1": 0.009692118894749918,
+          "lCurveY1": 0.33082519518870024,
+          "lCurveX2": 1,
+          "lCurveY2": 0.7736466756090761,
+          "cCurveX1": 0,
+          "cCurveY1": 0.3154822684079246,
+          "cCurveX2": 0.9485559052609146,
+          "cCurveY2": 0.7167452581367133,
+          "hCurveX1": 0.368295643573259,
+          "hCurveY1": 0.0329215300924639,
+          "hCurveX2": 0.6787790377185801,
+          "hCurveY2": 1,
+          "reverseHue": 0
+        }
+      },
+      {
+        "id": "node-1774041780868-k7wzwe6ny",
+        "type": "time",
+        "position": {
+          "x": -3640,
+          "y": -1879
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774041780868-o8yx88bhx",
+        "type": "sine",
+        "position": {
+          "x": -2566,
+          "y": -1620
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774041780868-2z1a8zlg2",
+        "type": "add",
+        "position": {
+          "x": -2074,
+          "y": -1620
+        },
+        "parameters": {
+          "b": 2
+        }
+      },
+      {
+        "id": "node-1774041780868-81n6lcfm4",
+        "type": "multiply",
+        "position": {
+          "x": -1607,
+          "y": -1620
+        },
+        "parameters": {
+          "b": 0.3000000000000682
+        }
+      },
+      {
+        "id": "node-1774041780868-2qrizc0hg",
+        "type": "multiply",
+        "position": {
+          "x": -3050,
+          "y": -1646
+        },
+        "parameters": {
+          "b": 2
+        }
+      },
+      {
+        "id": "node-1774041780868-kbknvntp0",
+        "type": "sine",
+        "position": {
+          "x": -2566,
+          "y": -2160
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774041780868-mfgt1np0c",
+        "type": "add",
+        "position": {
+          "x": -2107,
+          "y": -2160
+        },
+        "parameters": {
+          "b": 2
+        }
+      },
+      {
+        "id": "node-1774041780868-vu9objpns",
+        "type": "multiply",
+        "position": {
+          "x": -1618,
+          "y": -2160
+        },
+        "parameters": {
+          "b": 0.5
+        }
+      },
+      {
+        "id": "node-1774041780868-wf8zhbhjd",
+        "type": "multiply",
+        "position": {
+          "x": -3041,
+          "y": -2160
+        },
+        "parameters": {
+          "b": 1
+        }
+      },
+      {
+        "id": "node-1774041780868-rs1bl9v0w",
+        "type": "polar-coordinates",
+        "position": {
+          "x": -2074,
+          "y": -887
+        },
+        "parameters": {
+          "polarCenterX": -0.8999999999999999,
+          "polarCenterY": -1.2999999999999998,
+          "polarScale": 2.7800000000000002,
+          "polarRadiusScale": 1,
+          "polarRotation": 0.5700000000000003,
+          "polarEnabled": 1
+        }
+      },
+      {
+        "id": "node-1774041780868-7guj905p7",
+        "type": "turbulence",
+        "position": {
+          "x": -2853,
+          "y": -892
+        },
+        "parameters": {
+          "turbulenceScale": 1.1300000000000001,
+          "turbulenceStrength": 0.06,
+          "turbulenceIterations": 3,
+          "turbulenceTimeSpeed": 1,
+          "turbulenceTimeOffset": 0
+        }
+      },
+      {
+        "id": "node-1774041780868-2zgiffrb5",
+        "type": "metaballs",
+        "position": {
+          "x": -32,
+          "y": 106
+        },
+        "parameters": {
+          "blobCount": 6,
+          "blobRadius": 0.6100000000000001,
+          "threshold": 6.1000000000000005,
+          "orbitRadius": 0.5,
+          "centerX": 0,
+          "centerY": 0,
+          "centerZ": 2,
+          "timeSpeed": 0.6000000000000001,
+          "timeOffset": 0,
+          "raymarchSteps": 128,
+          "glowIntensity": 0
+        },
+        "parameterInputModes": {
+          "blobRadius": "override"
+        }
+      },
+      {
+        "id": "node-1774041780868-ui0olti64",
+        "type": "multiply",
+        "position": {
+          "x": -748,
+          "y": -479
+        },
+        "parameters": {
+          "b": 0.20000000000004547
+        }
+      },
+      {
+        "id": "node-1774041780868-k9owg2lna",
+        "type": "add",
+        "position": {
+          "x": -287,
+          "y": -479
+        },
+        "parameters": {
+          "b": 0.20000000000004547
+        }
+      },
+      {
+        "id": "node-1774041927007-m97cn73ko",
+        "type": "vector-field",
+        "position": {
+          "x": -1050,
+          "y": 106
+        },
+        "parameters": {
+          "vectorFieldFrequencyX": 0,
+          "vectorFieldFrequencyY": 20,
+          "vectorFieldFrequencyZ": 20,
+          "vectorFieldAmplitude": 5,
+          "vectorFieldRadialStrength": 20,
+          "vectorFieldHarmonicAmplitude": 3,
+          "vectorFieldComplexity": 15,
+          "vectorFieldDistanceContribution": 0.2,
+          "vectorFieldSpeed": 0.3,
+          "animationSpeed": 0.3
+        }
+      },
+      {
+        "id": "node-1774042145270-nofftsy44",
+        "type": "vortex",
+        "position": {
+          "x": -2074,
+          "y": 106
+        },
+        "parameters": {
+          "vortexCenterX": 0.30000000000000027,
+          "vortexCenterY": 0.5,
+          "vortexStrength": 5,
+          "vortexRadius": 1.6,
+          "vortexFalloff": 2.4000000000000004,
+          "vortexTimeSpeed": 0.2
+        }
+      },
+      {
+        "id": "node-1774042604935-biz0v54ps",
+        "type": "vortex",
+        "position": {
+          "x": -3896,
+          "y": -887
+        },
+        "parameters": {
+          "vortexCenterX": 0.30000000000000027,
+          "vortexCenterY": 0.30000000000000027,
+          "vortexStrength": 5,
+          "vortexRadius": 2.3000000000000003,
+          "vortexFalloff": 3.8000000000000003,
+          "vortexTimeSpeed": 0.13
+        }
+      },
+      {
+        "id": "node-1774042822078-xkz3azoqy",
+        "type": "ripple",
+        "position": {
+          "x": -2137,
+          "y": 1661
+        },
+        "parameters": {
+          "rippleCenterX": 1.1,
+          "rippleCenterY": 1.2000000000000002,
+          "rippleMode": 0,
+          "rippleFrequency": 1.3000000000000003,
+          "rippleAmplitude": 0.115,
+          "ripplePhase": 0,
+          "rippleTimeSpeed": 0.63,
+          "rippleTimeOffset": 0
+        }
+      }
+    ],
+    "connections": [
+      {
+        "id": "conn-1774041780868-6dlz7htwv",
+        "sourceNodeId": "node-1774041780868-nrhxzdtjw",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-hhzy90skb",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774041780868-apra0zwwz",
+        "sourceNodeId": "node-1774041780868-4au512cxb",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-luveiwno6",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774041780868-lc4plk0dh",
+        "sourceNodeId": "node-1774041780868-luveiwno6",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-nrhxzdtjw",
+        "targetPort": "fg"
+      },
+      {
+        "id": "conn-1774041780868-4rjf6srfl",
+        "sourceNodeId": "node-1774041780868-3vgbsc145",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-uedb557fd",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774041780868-ii46vssk5",
+        "sourceNodeId": "node-1774041780868-uedb557fd",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-nrhxzdtjw",
+        "targetPort": "bg"
+      },
+      {
+        "id": "conn-1774041780868-i4cqxmso1",
+        "sourceNodeId": "node-1774041780868-o8yx88bhx",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-2z1a8zlg2",
+        "targetPort": "a"
+      },
+      {
+        "id": "conn-1774041780868-8n0id9ev0",
+        "sourceNodeId": "node-1774041780868-2z1a8zlg2",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-81n6lcfm4",
+        "targetPort": "a"
+      },
+      {
+        "id": "conn-1774041780868-d4zp5tnzf",
+        "sourceNodeId": "node-1774041780868-81n6lcfm4",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-3vgbsc145",
+        "targetParameter": "dotsIntensity"
+      },
+      {
+        "id": "conn-1774041780868-2stnmpl3n",
+        "sourceNodeId": "node-1774041780868-k7wzwe6ny",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-2qrizc0hg",
+        "targetPort": "a"
+      },
+      {
+        "id": "conn-1774041780868-grrrllx6r",
+        "sourceNodeId": "node-1774041780868-2qrizc0hg",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-o8yx88bhx",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774041780868-4ia9dcylk",
+        "sourceNodeId": "node-1774041780868-kbknvntp0",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-mfgt1np0c",
+        "targetPort": "a"
+      },
+      {
+        "id": "conn-1774041780868-lgc97qoeu",
+        "sourceNodeId": "node-1774041780868-mfgt1np0c",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-vu9objpns",
+        "targetPort": "a"
+      },
+      {
+        "id": "conn-1774041780868-rs5yirgk9",
+        "sourceNodeId": "node-1774041780868-wf8zhbhjd",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-kbknvntp0",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774041780868-urus56p5p",
+        "sourceNodeId": "node-1774041780868-k7wzwe6ny",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-wf8zhbhjd",
+        "targetPort": "a"
+      },
+      {
+        "id": "conn-1774041780868-6nh49jx44",
+        "sourceNodeId": "node-1774041780868-vu9objpns",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-3vgbsc145",
+        "targetParameter": "dotsSize"
+      },
+      {
+        "id": "conn-1774041780868-23zvown55",
+        "sourceNodeId": "node-1774041780868-rs1bl9v0w",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-3vgbsc145",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774041780868-j8ll2cmpr",
+        "sourceNodeId": "node-1774041780868-7guj905p7",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-rs1bl9v0w",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774041780868-bjcm7wglk",
+        "sourceNodeId": "node-1774041780868-2zgiffrb5",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-nrhxzdtjw",
+        "targetPort": "mask"
+      },
+      {
+        "id": "conn-1774041780868-ywnqa5azg",
+        "sourceNodeId": "node-1774041780868-ui0olti64",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-k9owg2lna",
+        "targetPort": "a"
+      },
+      {
+        "id": "conn-1774041780868-fmfrsbqkr",
+        "sourceNodeId": "node-1774041780868-k9owg2lna",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-2zgiffrb5",
+        "targetParameter": "blobRadius"
+      },
+      {
+        "id": "conn-1774041780868-zwaj3k6kt",
+        "sourceNodeId": "node-1774041780868-vu9objpns",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-ui0olti64",
+        "targetPort": "a"
+      },
+      {
+        "id": "conn-1774042166247-gn4omrrpe",
+        "sourceNodeId": "node-1774041780868-d36upm3mf",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774042145270-nofftsy44",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774042168785-3p011v7a7",
+        "sourceNodeId": "node-1774041927007-m97cn73ko",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-2zgiffrb5",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774042171213-glz9g413x",
+        "sourceNodeId": "node-1774042145270-nofftsy44",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041927007-m97cn73ko",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774042607069-r3mwfqycr",
+        "sourceNodeId": "node-1774041780868-d36upm3mf",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774042604935-biz0v54ps",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774042609335-8vykfivye",
+        "sourceNodeId": "node-1774042604935-biz0v54ps",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-7guj905p7",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774042824890-hovhecof3",
+        "sourceNodeId": "node-1774041780868-d36upm3mf",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774042822078-xkz3azoqy",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774042827252-dlo8egod9",
+        "sourceNodeId": "node-1774042822078-xkz3azoqy",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774041780868-4au512cxb",
+        "targetPort": "in"
+      }
+    ],
+    "viewState": {
+      "zoom": 0.1,
+      "panX": 697.601071585499,
+      "panY": 579.7842715923591,
+      "selectedNodeIds": []
+    },
+    "automation": {
+      "bpm": 120,
+      "durationSeconds": 30,
+      "lanes": []
+    }
+  },
+  "audioSetup": {
+    "files": [
+      {
+        "id": "file-new-billie",
+        "name": "seb - music xcx",
+        "filePath": "seb - music xcx.mp3",
+        "autoPlay": true
+      }
+    ],
+    "bands": [],
+    "remappers": []
+  }
+}

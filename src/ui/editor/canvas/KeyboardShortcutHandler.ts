@@ -7,6 +7,7 @@ export interface KeyboardShortcutContext {
   isInputActive: () => boolean;
   isDialogVisible: () => boolean;
   onDeleteSelected: () => void;
+  onToggleFullscreen?: () => void;
   onSpacebarStateChange?: (isPressed: boolean) => void;
   setCursor?: (cursor: string) => void;
   isPanning?: () => boolean;
@@ -97,6 +98,14 @@ export class KeyboardShortcutHandler {
 
     // Don't handle Delete/Backspace/Copy/Paste/Duplicate when user is typing in an input field or overlay UI is active
     if (isInput || this.context.isInputActive()) {
+      return;
+    }
+
+    // Fullscreen toggle
+    if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'f' || e.key === 'F')) {
+      this.context.onToggleFullscreen?.();
+      e.preventDefault();
+      e.stopPropagation();
       return;
     }
 

@@ -1,0 +1,495 @@
+{
+  "format": "shader-composer-node-graph",
+  "formatVersion": "2.0",
+  "graph": {
+    "id": "graph-1774040400063-gahlc8emv",
+    "name": "New",
+    "version": "2.0",
+    "nodes": [
+      {
+        "id": "node-1774040400063-dncvhf69m",
+        "type": "uv-coordinates",
+        "position": {
+          "x": -2964,
+          "y": 60
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774040400063-au5ns1kxf",
+        "type": "orbit-camera",
+        "position": {
+          "x": -1544,
+          "y": 87
+        },
+        "parameters": {
+          "orbitRadius": 3.2,
+          "orbitSpeed": 0.65,
+          "targetX": 1.1000000000000005,
+          "targetY": -0.1999999999999993,
+          "targetZ": -5,
+          "inclination": 0.4800000000000002,
+          "fovScale": 1.25
+        }
+      },
+      {
+        "id": "node-1774040400063-wfmgyc5qn",
+        "type": "constant-vec3",
+        "position": {
+          "x": -469,
+          "y": 371
+        },
+        "parameters": {
+          "x": 0,
+          "y": 0.2,
+          "z": -3.2
+        }
+      },
+      {
+        "id": "node-1774040400063-o99o3f0d2",
+        "type": "bokeh-point",
+        "position": {
+          "x": 175,
+          "y": 84
+        },
+        "parameters": {
+          "size": 4.133,
+          "blur": 0.6900000000000001,
+          "highQuality": 0
+        }
+      },
+      {
+        "id": "node-1774040400063-rfmv1szmm",
+        "type": "mask-composite-vec3",
+        "position": {
+          "x": 2142,
+          "y": 57
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774040400063-j6t4aco1m",
+        "type": "final-output",
+        "position": {
+          "x": 3207,
+          "y": 89
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774040400063-est6wq714",
+        "type": "dots",
+        "position": {
+          "x": -524,
+          "y": -1526
+        },
+        "parameters": {
+          "dotsSpacing": 0.44,
+          "dotsSize": 0.076,
+          "dotsFalloff": 0.5,
+          "dotsIntensity": 2
+        },
+        "parameterInputModes": {
+          "dotsIntensity": "multiply",
+          "dotsSize": "multiply",
+          "dotsSpacing": "multiply"
+        }
+      },
+      {
+        "id": "node-1774040400063-sck7nzh72",
+        "type": "hexagonal-grid",
+        "position": {
+          "x": -1484,
+          "y": 1661
+        },
+        "parameters": {
+          "hexSize": 0.33,
+          "hexGap": 0,
+          "hexCellRotation": 0,
+          "hexSizeVariation": 1,
+          "hexSizeVariationSteps": 16,
+          "hexVariationAnimationSpeed": 0,
+          "hexRotation": 0,
+          "hexIntensity": 0.6,
+          "hexIntensityVariation": 2,
+          "hexSoftness": 0.0001,
+          "hexEdgeThickness": 0.19,
+          "hexEdgeIntensity": 0.67,
+          "hexRimWidth": 0.56,
+          "hexRimIntensity": 0.9500000000000001,
+          "hexSeed": 1267,
+          "hexPulseSpeed": 2.54,
+          "hexPulseDepth": 1.84,
+          "hexPulseVariationImpact": 0.47000000000000003,
+          "hexWaveDirection": 65,
+          "hexWaveFrequency": 2.4,
+          "hexWaveSpeed": 2.79,
+          "hexWaveDepth": 1.2,
+          "hexWaveVariationImpact": 0.62
+        }
+      },
+      {
+        "id": "node-1774040400063-56gjp80uh",
+        "type": "oklch-color-map-bezier",
+        "position": {
+          "x": -264,
+          "y": 1658
+        },
+        "parameters": {
+          "stops": 10,
+          "startColorL": 0.45582984926719844,
+          "startColorC": 0.04744580591988629,
+          "startColorH": 283.1315653240594,
+          "endColorL": 0.8554548864507415,
+          "endColorC": 0.12791142014816925,
+          "endColorH": 158.02818308092742,
+          "lCurveX1": 0,
+          "lCurveY1": 0,
+          "lCurveX2": 1,
+          "lCurveY2": 1,
+          "cCurveX1": 0,
+          "cCurveY1": 0,
+          "cCurveX2": 1,
+          "cCurveY2": 1,
+          "hCurveX1": 0,
+          "hCurveY1": 0,
+          "hCurveX2": 1,
+          "hCurveY2": 1,
+          "reverseHue": 0
+        }
+      },
+      {
+        "id": "node-1774040400063-3li75g6p9",
+        "type": "oklch-color-map-bezier",
+        "position": {
+          "x": 566,
+          "y": -1885
+        },
+        "parameters": {
+          "stops": 10,
+          "startColorL": 0.386289233857325,
+          "startColorC": 0.007245707030720271,
+          "startColorH": 263.84805469351807,
+          "endColorL": 0.8718129380670889,
+          "endColorC": 0.2133121029636074,
+          "endColorH": 146.02186230145728,
+          "lCurveX1": 0,
+          "lCurveY1": 0.006728165023140109,
+          "lCurveX2": 1,
+          "lCurveY2": 1,
+          "cCurveX1": 0,
+          "cCurveY1": 0,
+          "cCurveX2": 1,
+          "cCurveY2": 1,
+          "hCurveX1": 0,
+          "hCurveY1": 0,
+          "hCurveX2": 1,
+          "hCurveY2": 1,
+          "reverseHue": 1
+        }
+      },
+      {
+        "id": "node-1774040400063-1zfjlxvur",
+        "type": "time",
+        "position": {
+          "x": -3448,
+          "y": -1879
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774040400063-mk4cxvqfm",
+        "type": "sine",
+        "position": {
+          "x": -2291,
+          "y": -1620
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774040400063-usjkfeyka",
+        "type": "add",
+        "position": {
+          "x": -1773,
+          "y": -1596
+        },
+        "parameters": {
+          "b": 2
+        }
+      },
+      {
+        "id": "node-1774040400063-xz6o6mqck",
+        "type": "multiply",
+        "position": {
+          "x": -1272,
+          "y": -1596
+        },
+        "parameters": {
+          "b": 0.20000000000004547
+        }
+      },
+      {
+        "id": "node-1774040400063-84trynwiu",
+        "type": "multiply",
+        "position": {
+          "x": -2784,
+          "y": -1614
+        },
+        "parameters": {
+          "b": 5
+        }
+      },
+      {
+        "id": "node-1774040400063-i52pv5j8g",
+        "type": "sine",
+        "position": {
+          "x": -2288,
+          "y": -2152
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1774040400063-ubg4w0w4f",
+        "type": "add",
+        "position": {
+          "x": -1763,
+          "y": -2160
+        },
+        "parameters": {
+          "b": 2
+        }
+      },
+      {
+        "id": "node-1774040400063-epl5wduo1",
+        "type": "multiply",
+        "position": {
+          "x": -1286,
+          "y": -2144
+        },
+        "parameters": {
+          "b": 0.5
+        }
+      },
+      {
+        "id": "node-1774040400063-cjvmh6kab",
+        "type": "multiply",
+        "position": {
+          "x": -2772,
+          "y": -2146
+        },
+        "parameters": {
+          "b": 1
+        }
+      },
+      {
+        "id": "node-1774040400063-nsav81htq",
+        "type": "polar-coordinates",
+        "position": {
+          "x": -2074,
+          "y": -1053
+        },
+        "parameters": {
+          "polarCenterX": 0,
+          "polarCenterY": -0.19999999999999996,
+          "polarScale": 2.7800000000000002,
+          "polarRadiusScale": 1,
+          "polarRotation": 0.5700000000000003,
+          "polarEnabled": 1
+        }
+      }
+    ],
+    "connections": [
+      {
+        "id": "conn-1774040400063-ofop32o4q",
+        "sourceNodeId": "node-1774040400063-dncvhf69m",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-au5ns1kxf",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774040400063-l73ip9zqm",
+        "sourceNodeId": "node-1774040400063-au5ns1kxf",
+        "sourcePort": "ro",
+        "targetNodeId": "node-1774040400063-o99o3f0d2",
+        "targetPort": "ro"
+      },
+      {
+        "id": "conn-1774040400063-2lzwxffcq",
+        "sourceNodeId": "node-1774040400063-au5ns1kxf",
+        "sourcePort": "rd",
+        "targetNodeId": "node-1774040400063-o99o3f0d2",
+        "targetPort": "rd"
+      },
+      {
+        "id": "conn-1774040400063-3kllax631",
+        "sourceNodeId": "node-1774040400063-wfmgyc5qn",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-o99o3f0d2",
+        "targetPort": "point"
+      },
+      {
+        "id": "conn-1774040400063-sithdt2d8",
+        "sourceNodeId": "node-1774040400063-o99o3f0d2",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-rfmv1szmm",
+        "targetPort": "mask"
+      },
+      {
+        "id": "conn-1774040400063-8ptgs1bcg",
+        "sourceNodeId": "node-1774040400063-rfmv1szmm",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-j6t4aco1m",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774040400063-ma164be4i",
+        "sourceNodeId": "node-1774040400063-dncvhf69m",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-sck7nzh72",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774040400063-60pgeq7gi",
+        "sourceNodeId": "node-1774040400063-sck7nzh72",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-56gjp80uh",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774040400063-ndgytqnd2",
+        "sourceNodeId": "node-1774040400063-56gjp80uh",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-rfmv1szmm",
+        "targetPort": "fg"
+      },
+      {
+        "id": "conn-1774040400063-pcgriuroi",
+        "sourceNodeId": "node-1774040400063-est6wq714",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-3li75g6p9",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774040400063-ovyujgxor",
+        "sourceNodeId": "node-1774040400063-3li75g6p9",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-rfmv1szmm",
+        "targetPort": "bg"
+      },
+      {
+        "id": "conn-1774040400063-u1c5r5h2q",
+        "sourceNodeId": "node-1774040400063-mk4cxvqfm",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-usjkfeyka",
+        "targetPort": "a"
+      },
+      {
+        "id": "conn-1774040400063-cc35e0hd9",
+        "sourceNodeId": "node-1774040400063-usjkfeyka",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-xz6o6mqck",
+        "targetPort": "a"
+      },
+      {
+        "id": "conn-1774040400063-utud6k5ap",
+        "sourceNodeId": "node-1774040400063-xz6o6mqck",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-est6wq714",
+        "targetParameter": "dotsIntensity"
+      },
+      {
+        "id": "conn-1774040400063-uqbu064q2",
+        "sourceNodeId": "node-1774040400063-1zfjlxvur",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-84trynwiu",
+        "targetPort": "a"
+      },
+      {
+        "id": "conn-1774040400063-3rymt9npq",
+        "sourceNodeId": "node-1774040400063-84trynwiu",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-mk4cxvqfm",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774040400063-rz01usmze",
+        "sourceNodeId": "node-1774040400063-i52pv5j8g",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-ubg4w0w4f",
+        "targetPort": "a"
+      },
+      {
+        "id": "conn-1774040400063-rftti604c",
+        "sourceNodeId": "node-1774040400063-ubg4w0w4f",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-epl5wduo1",
+        "targetPort": "a"
+      },
+      {
+        "id": "conn-1774040400063-flh7twml5",
+        "sourceNodeId": "node-1774040400063-cjvmh6kab",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-i52pv5j8g",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774040400063-z4hbox1wx",
+        "sourceNodeId": "node-1774040400063-1zfjlxvur",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-cjvmh6kab",
+        "targetPort": "a"
+      },
+      {
+        "id": "conn-1774040400063-wgvtj4obf",
+        "sourceNodeId": "node-1774040400063-epl5wduo1",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-est6wq714",
+        "targetParameter": "dotsSize"
+      },
+      {
+        "id": "conn-1774040400063-urzedqcxa",
+        "sourceNodeId": "node-1774040400063-epl5wduo1",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-est6wq714",
+        "targetParameter": "dotsSpacing"
+      },
+      {
+        "id": "conn-1774040400063-x4gu22aft",
+        "sourceNodeId": "node-1774040400063-nsav81htq",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-est6wq714",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1774040400063-7a9l4ush1",
+        "sourceNodeId": "node-1774040400063-dncvhf69m",
+        "sourcePort": "out",
+        "targetNodeId": "node-1774040400063-nsav81htq",
+        "targetPort": "in"
+      }
+    ],
+    "viewState": {
+      "zoom": 0.33829158924433084,
+      "panX": 182.1179063939975,
+      "panY": 122.29782376173767,
+      "selectedNodeIds": []
+    },
+    "automation": {
+      "bpm": 120,
+      "durationSeconds": 30,
+      "lanes": []
+    }
+  },
+  "audioSetup": {
+    "files": [
+      {
+        "id": "file-new-billie",
+        "name": "seb - music xcx",
+        "filePath": "seb - music xcx.mp3",
+        "autoPlay": true
+      }
+    ],
+    "bands": [],
+    "remappers": []
+  }
+}

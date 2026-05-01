@@ -14,7 +14,10 @@ import type { AudioSetup } from '../data-model/audioSetupTypes';
 // --- Types (API for 02B / 03) ---
 
 export interface FrameAudioState {
-  /** One Float32Array per channel; each length = samples per frame at sampleRate/frameRate */
+  /**
+   * One Float32Array per channel for this frame's audio chunk.
+   * Length can vary by ±1 sample depending on sampleRate/frameRate rounding.
+   */
   channelSamples: Float32Array[];
   /** Uniform updates: { nodeId, paramName, value } — apply via setAudioUniform / setParameters */
   uniformUpdates: Array<{ nodeId: string; paramName: string; value: number }>;
@@ -34,7 +37,17 @@ export interface AnalyzerConfig {
   frequencyBands: Array<{ minHz: number; maxHz: number }>;
   /** Per-band smoothing (0–1). Length matches band count. */
   smoothing: number[];
-  fftSize: number;
+  /**
+   * FFT size used to compute the underlying spectrum (matches the live AnalyserNode's fftSize).
+   * Live uses 4096 in AudioManager.loadAudioFile().
+   */
+  spectrumFftSize: number;
+  /**
+   * FFT size used for Hz→bin mapping (matches what live code currently uses when extracting bands).
+   * Note: live stores this per band (often 2048) even though the underlying AnalyserNode is 4096.
+   * To match preview, export mirrors this behavior.
+   */
+  mappingFftSize: number;
   bandRemap: Array<{ inMin: number; inMax: number; outMin: number; outMax: number }>;
 }
 
@@ -43,6 +56,8 @@ export interface OfflineAudioProviderConfig {
   frameRate: number;
   /** Primary file id (from audioSetup.files[0]) */
   primaryFileId: string;
+  /** Start time offset (seconds) for export (seek); uniforms and FFT sample at absolute time. */
+  startTimeSeconds?: number;
   /** Band configs from audioSetup (filtered by primary file) */
   analyzerConfigs: AnalyzerConfig[];
   /** Remapper configs from audioSetup */
@@ -110,28 +125,38 @@ function fftInPlace(buffer: Float32Array, fftSize: number): void {
 }
 
 /**
- * Apply Hann window to real samples in workBuffer (in-place).
+ * Apply Blackman window to real samples in workBuffer (in-place).
  * workBuffer layout: [re0, im0, re1, im1, ...]; only re values are used for windowing.
+ *
+ * WebAudio AnalyserNode uses a Blackman window internally; using it offline improves
+ * audio-reactive visual fidelity between preview and export.
  */
-function applyHannWindow(workBuffer: Float32Array, fftSize: number): void {
+function applyBlackmanWindow(workBuffer: Float32Array, fftSize: number): void {
   if (fftSize <= 1) return;
   const nMinus1 = fftSize - 1;
+  const a0 = 0.42;
+  const a1 = 0.5;
+  const a2 = 0.08;
   for (let i = 0; i < fftSize; i++) {
-    const hann = 0.5 * (1 - Math.cos((TWO_PI * i) / nMinus1));
-    workBuffer[i * 2] *= hann;
+    const phase = (TWO_PI * i) / nMinus1;
+    const w = a0 - a1 * Math.cos(phase) + a2 * Math.cos(2 * phase);
+    workBuffer[i * 2] *= w;
   }
 }
 
 // AnalyserNode defaults: getByteFrequencyData returns dB mapped to 0–255 with this range
 const ANALYSER_MIN_DB = -100;
 const ANALYSER_MAX_DB = -30;
+// Live playback uses AnalyserNode.smoothingTimeConstant = 0.8 (see AudioManager.loadAudioFile()).
+// We approximate that internal smoothing stage offline so band values more closely match preview.
+const ANALYSER_SMOOTHING_TIME_CONSTANT = 0.8;
 
 /**
  * Compute frequency spectrum (0–255) from buffer at time t.
- * Uses a window of fftSize samples centered at sample index t * sampleRate.
- * Applies Hann window and outputs decibel-scaled bytes to match AnalyserNode.getByteFrequencyData(),
+ * Uses a window of fftSize samples ending at sample index t * sampleRate (closer to AnalyserNode's internal buffer).
+ * Applies Blackman window and outputs decibel-scaled bytes to match AnalyserNode.getByteFrequencyData(),
  * so export audio reactivity matches live (same 0–255 range and log scale).
- * Mono: uses channel 0. Multi-channel: uses channel 0.
+ * Mono: uses channel 0. Multi-channel: averages channels (approximates WebAudio mixdown).
  */
 function computeMagnitudeSpectrum(
   buffer: AudioBuffer,
@@ -141,31 +166,45 @@ function computeMagnitudeSpectrum(
   workBuffer: Float32Array
 ): Uint8Array {
   const frequencyBinCount = fftSize / 2;
-  const centerSample = timeSeconds * sampleRate;
-  const startSample = Math.max(0, Math.floor(centerSample - fftSize / 2));
-  const channelData = buffer.getChannelData(0);
+  const endSampleExclusive = Math.max(0, Math.floor(timeSeconds * sampleRate));
+  const startSample = Math.max(0, endSampleExclusive - fftSize);
+  const numberOfChannels = buffer.numberOfChannels;
 
   // Fill interleaved buffer: real = sample, im = 0; pad with zero if out of range
   for (let i = 0; i < fftSize; i++) {
     const srcIndex = startSample + i;
-    workBuffer[i * 2] = srcIndex >= 0 && srcIndex < channelData.length ? channelData[srcIndex] : 0;
+    if (srcIndex < 0) {
+      workBuffer[i * 2] = 0;
+    } else if (srcIndex >= buffer.length) {
+      workBuffer[i * 2] = 0;
+    } else if (numberOfChannels === 1) {
+      workBuffer[i * 2] = buffer.getChannelData(0)[srcIndex] ?? 0;
+    } else {
+      let sum = 0;
+      for (let ch = 0; ch < numberOfChannels; ch++) {
+        sum += buffer.getChannelData(ch)[srcIndex] ?? 0;
+      }
+      workBuffer[i * 2] = sum / numberOfChannels;
+    }
     workBuffer[i * 2 + 1] = 0;
   }
 
-  // Hann window for spectral leakage; AnalyserNode uses Blackman but dB scaling matters more for reactivity
-  applyHannWindow(workBuffer, fftSize);
+  // Blackman window to better match WebAudio AnalyserNode
+  applyBlackmanWindow(workBuffer, fftSize);
 
   fftInPlace(workBuffer, fftSize);
 
   // Match AnalyserNode: magnitude → dB → byte 0–255 (same formula as getByteFrequencyData).
-  // Normalize magnitude by fftSize, convert to dB, then map ANALYSER_MIN_DB..ANALYSER_MAX_DB → 0..255.
+  // Normalize magnitude similar to WebAudio AnalyserNode. Empirically, using a single-sided scaling factor
+  // (≈ 2/fftSize) yields much closer band magnitudes to live preview, improving export parity for
+  // audio-driven shader motion.
   const out = new Uint8Array(frequencyBinCount);
   const dbRange = ANALYSER_MAX_DB - ANALYSER_MIN_DB;
   const minMagnitude = 1e-10; // avoid log(0) = -Infinity
   for (let k = 0; k < frequencyBinCount; k++) {
     const re = workBuffer[k * 2];
     const im = workBuffer[k * 2 + 1];
-    const magnitude = Math.sqrt(re * re + im * im) / fftSize;
+    const magnitude = (2 * Math.sqrt(re * re + im * im)) / fftSize;
     const db = 20 * Math.log10(Math.max(minMagnitude, magnitude));
     const clampedDb = Math.max(ANALYSER_MIN_DB, Math.min(ANALYSER_MAX_DB, db));
     const byte = Math.round(255 * (clampedDb - ANALYSER_MIN_DB) / dbRange);
@@ -205,12 +244,15 @@ function extractFrequencyBandsOffline(
 export class OfflineAudioProvider {
   private readonly buffer: AudioBuffer;
   private readonly config: OfflineAudioProviderConfig;
-  /** Per-band smoothed band values (first stage, stateful across frames) */
+  /** Per-band smoothed values approximating AnalyserNode smoothingTimeConstant (first stage). */
+  private readonly analyserSmoothedBandValues: Map<string, number[]> = new Map();
+  /** Per-band smoothed values matching the app's per-band smoothing (second stage). */
   private readonly smoothedBandValues: Map<string, number[]> = new Map();
-  /** Per-band double-smoothed band values (second stage, matches live AnalyserNode + app smoothing) */
-  private readonly doubleSmoothedBandValues: Map<string, number[]> = new Map();
   /** FFT work buffer (reuse to avoid allocations) */
   private readonly fftWorkBuffer: Float32Array;
+  /** Reused per-frame channel sample buffers (audio mux input). Sized to max samples per frame. */
+  private readonly frameChannelSamples: Float32Array[];
+  private readonly maxSamplesPerFrame: number;
 
   constructor(
     buffer: AudioBuffer,
@@ -218,8 +260,14 @@ export class OfflineAudioProvider {
   ) {
     this.buffer = buffer;
     this.config = config;
-    const maxFftSize = Math.max(4096, ...this.config.analyzerConfigs.map((a) => a.fftSize));
+    const maxFftSize = Math.max(4096, ...this.config.analyzerConfigs.map((a) => a.spectrumFftSize));
     this.fftWorkBuffer = new Float32Array(maxFftSize * 2);
+    // Use ceil so we can represent frames where rounding yields +1 sample.
+    this.maxSamplesPerFrame = Math.ceil(config.sampleRate / config.frameRate);
+    this.frameChannelSamples = Array.from(
+      { length: buffer.numberOfChannels },
+      () => new Float32Array(this.maxSamplesPerFrame)
+    );
   }
 
   /**
@@ -231,22 +279,30 @@ export class OfflineAudioProvider {
     const { buffer, config } = this;
     const sampleRate = config.sampleRate;
     const frameRate = config.frameRate;
-    const t = frameIndex / frameRate;
-    const samplesPerFrame = sampleRate / frameRate;
-    const startSample = Math.floor(t * sampleRate);
-    const targetLength = Math.round(samplesPerFrame);
+    const startTimeSeconds = config.startTimeSeconds ?? 0;
+    const startSampleOffset = Math.round(startTimeSeconds * sampleRate);
+    // Compute exact integer sample bounds for this frame so audio stays sample-accurate
+    // across the whole export (prevents drift from per-frame rounding).
+    const startSample = startSampleOffset + Math.round(frameIndex * sampleRate / frameRate);
+    const endSample = startSampleOffset + Math.round((frameIndex + 1) * sampleRate / frameRate);
+    // Use sample-accurate time to keep uniforms and analysis aligned with muxed audio.
+    const t = startSample / sampleRate;
+    const targetLength = Math.max(0, Math.min(this.maxSamplesPerFrame, endSample - startSample));
 
-    const channelSamples: Float32Array[] = [];
-    const numberOfChannels = buffer.numberOfChannels;
+    const numberOfChannels = this.frameChannelSamples.length;
     for (let ch = 0; ch < numberOfChannels; ch++) {
       const channelData = buffer.getChannelData(ch);
-      const frame = new Float32Array(targetLength);
+      const out = this.frameChannelSamples[ch];
       for (let i = 0; i < targetLength; i++) {
         const srcIndex = startSample + i;
-        frame[i] = srcIndex >= 0 && srcIndex < channelData.length ? channelData[srcIndex] : 0;
+        out[i] = srcIndex >= 0 && srcIndex < channelData.length ? channelData[srcIndex] : 0;
       }
-      channelSamples.push(frame);
+      // Ensure any leftover samples from previous frames don't leak into this frame.
+      for (let i = targetLength; i < out.length; i++) out[i] = 0;
     }
+
+    // Return per-frame views at the correct length (no extra padding).
+    const channelSamples = this.frameChannelSamples.map((c) => c.subarray(0, targetLength));
 
     const uniformUpdates: UniformUpdate[] = [];
 
@@ -257,58 +313,64 @@ export class OfflineAudioProvider {
       { nodeId: config.primaryFileId, paramName: 'isPlaying', value: 1 }
     );
 
-    // Band FFT and extraction (one FFT per band). Two smoothing stages to match live.
+    // Band FFT and extraction (one FFT per band).
+    // Live has two stages: AnalyserNode internal smoothing (smoothingTimeConstant) + app per-band smoothing.
+    // We approximate both stages here for closer preview/export parity.
     for (const analyzer of config.analyzerConfigs) {
-      const { fftSize, frequencyBands, smoothing, bandRemap } = analyzer;
-      const workBuf = fftSize <= this.fftWorkBuffer.length / 2 ? this.fftWorkBuffer : new Float32Array(fftSize * 2);
+      const { spectrumFftSize, mappingFftSize, frequencyBands, smoothing, bandRemap } = analyzer;
+      const workBuf =
+        spectrumFftSize <= this.fftWorkBuffer.length / 2
+          ? this.fftWorkBuffer
+          : new Float32Array(spectrumFftSize * 2);
       const frequencyData = computeMagnitudeSpectrum(
         buffer,
         t,
         sampleRate,
-        fftSize,
+        spectrumFftSize,
         workBuf
       );
       const bandValues = extractFrequencyBandsOffline(
         frequencyData,
         frequencyBands,
         sampleRate,
-        fftSize
+        mappingFftSize
       );
 
-      let smoothed = this.smoothedBandValues.get(analyzer.nodeId);
-      if (!smoothed || smoothed.length !== bandValues.length) {
-        smoothed = bandValues.slice();
-        this.smoothedBandValues.set(analyzer.nodeId, smoothed);
+      // Stage 1: approximate AnalyserNode smoothingTimeConstant on the extracted band values.
+      let analyserSmoothed = this.analyserSmoothedBandValues.get(analyzer.nodeId);
+      if (!analyserSmoothed || analyserSmoothed.length !== bandValues.length) {
+        analyserSmoothed = bandValues.slice();
+        this.analyserSmoothedBandValues.set(analyzer.nodeId, analyserSmoothed);
       }
       for (let i = 0; i < bandValues.length; i++) {
-        const s = smoothing[i] ?? 0.8;
-        smoothed[i] = s * bandValues[i] + (1 - s) * smoothed[i];
+        const s = ANALYSER_SMOOTHING_TIME_CONSTANT;
+        analyserSmoothed[i] = s * bandValues[i] + (1 - s) * (analyserSmoothed[i] ?? 0);
       }
 
-      // Second smoothing stage to match live (AnalyserNode has internal smoothing + app smoothing)
-      let doubleSmoothed = this.doubleSmoothedBandValues.get(analyzer.nodeId);
-      if (!doubleSmoothed || doubleSmoothed.length !== smoothed.length) {
-        doubleSmoothed = smoothed.slice();
-        this.doubleSmoothedBandValues.set(analyzer.nodeId, doubleSmoothed);
+      // Stage 2: app per-band smoothing (matches FrequencyAnalyzer smoothing array).
+      let smoothed = this.smoothedBandValues.get(analyzer.nodeId);
+      if (!smoothed || smoothed.length !== analyserSmoothed.length) {
+        smoothed = analyserSmoothed.slice();
+        this.smoothedBandValues.set(analyzer.nodeId, smoothed);
       }
+      for (let i = 0; i < analyserSmoothed.length; i++) {
+        const s = smoothing[i] ?? 0.8;
+        smoothed[i] = s * (analyserSmoothed[i] ?? 0) + (1 - s) * (smoothed[i] ?? 0);
+      }
+
+      // Push band / band0, band1, ... (smoothed) to match live FrequencyAnalyzer naming
+      const bandParamName = (i: number) => (smoothed.length === 1 ? 'band' : `band${i}`);
       for (let i = 0; i < smoothed.length; i++) {
-        const s = smoothing[i] ?? 0.8;
-        doubleSmoothed[i] = s * smoothed[i] + (1 - s) * (doubleSmoothed[i] ?? 0);
-      }
-
-      // Push band / band0, band1, ... (double-smoothed) to match live FrequencyAnalyzer naming
-      const bandParamName = (i: number) => (doubleSmoothed.length === 1 ? 'band' : `band${i}`);
-      for (let i = 0; i < doubleSmoothed.length; i++) {
         uniformUpdates.push({
           nodeId: analyzer.nodeId,
           paramName: bandParamName(i),
-          value: doubleSmoothed[i] ?? 0,
+          value: smoothed[i] ?? 0,
         });
       }
 
       const remapParamName = (i: number) => (bandRemap.length === 1 ? 'remap' : `remap${i}`);
       for (let i = 0; i < bandRemap.length; i++) {
-        const bandValue = doubleSmoothed[i] ?? 0;
+        const bandValue = smoothed[i] ?? 0;
         const { inMin, inMax, outMin, outMax } = bandRemap[i];
         const range = inMax - inMin;
         const normalized = range !== 0 ? (bandValue - inMin) / range : 0;
@@ -325,7 +387,7 @@ export class OfflineAudioProvider {
     // Remapper outputs (remap-{id}.out): each remapper takes its band's raw value and remaps
     const bandRawValues = new Map<string, number>();
     for (const analyzer of config.analyzerConfigs) {
-      const raw = this.doubleSmoothedBandValues.get(analyzer.nodeId)?.[0] ?? 0;
+      const raw = this.smoothedBandValues.get(analyzer.nodeId)?.[0] ?? 0;
       bandRawValues.set(analyzer.nodeId, raw);
     }
     for (const remap of config.remapperConfigs) {
@@ -358,7 +420,8 @@ export function createOfflineAudioProvider(
   primaryFileId: string,
   buffer: AudioBuffer,
   sampleRate: number,
-  frameRate: number
+  frameRate: number,
+  startTimeSeconds: number = 0
 ): OfflineAudioProvider {
   const bandsForPrimary = audioSetup.bands.filter((b) => b.sourceFileId === primaryFileId);
 
@@ -369,7 +432,10 @@ export function createOfflineAudioProvider(
       : [{ minHz: 20, maxHz: 20000 }];
 
     const smoothing = band.smoothing ?? 0.8;
-    const fftSize = band.fftSize ?? 4096;
+    // Underlying spectrum FFT size matches live AnalyserNode.
+    const spectrumFftSize = 4096;
+    // Hz→bin mapping FFT size mirrors live per-band config (often 2048).
+    const mappingFftSize = band.fftSize ?? 2048;
 
     const bandRemap: Array<{ inMin: number; inMax: number; outMin: number; outMax: number }> = [
       {
@@ -384,7 +450,8 @@ export function createOfflineAudioProvider(
       nodeId: band.id,
       frequencyBands,
       smoothing: [smoothing],
-      fftSize,
+      spectrumFftSize,
+      mappingFftSize,
       bandRemap,
     };
   });
@@ -404,6 +471,7 @@ export function createOfflineAudioProvider(
     sampleRate,
     frameRate,
     primaryFileId,
+    startTimeSeconds,
     analyzerConfigs,
     remapperConfigs,
   });
