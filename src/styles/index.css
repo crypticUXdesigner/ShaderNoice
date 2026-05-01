@@ -11,6 +11,7 @@
 
 /* Import component styles (param-cell styles are scoped in ParamCell.svelte) */
 @import './layer.css';
+@import './components/scrollbar.css';
 @import './components/menu.css';
 @import './components/node-categories.css';
 @import './reduced-motion.css';

@@ -10,11 +10,11 @@ alwaysApply: false
 
 1. **Nesting**: Nested blocks (`.parent { .child { } }`), not flat chained selectors at top level. Short names when nested (e.g. `.section` inside `.bottom-bar`).
 2. **Tokens, not hardcodes**: Colors, spacing, sizes from `scales.css` or component tokens. New tokens only if reusable (2+ uses, JS-consumed, or semantic); one-offs hardcoded with a comment.
-3. **Token files**: Node editor → `tokens-node-editor.css`. DOM UI → `tokens-dom.css`. Base → `scales.css`.
+3. **Token files**: Node editor → `tokens-node-editor.css`. DOM UI → `tokens.css`. Base → `scales.css`.
 4. **Disabled**: `--opacity-disabled`; never `opacity: 0.5` for disabled UI.
 5. **Cursor**: No `cursor: pointer`; use `cursor: default` for clickable; `ew-resize`, `grab`, etc. when appropriate.
 
-**File roles:** `scales.css`, `tokens-dom.css`, `tokens-node-editor.css`, `reset.css`, `layout/*.css`, `components/*.css`; Svelte `<style>` for component-owned styles.
+**File roles:** `scales.css`, `tokens.css`, `tokens-node-editor.css`, `reset.css`, `layout/*.css`, `components/*.css`; Svelte `<style>` for component-owned styles.
 
 ## Class naming
 

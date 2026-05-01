@@ -29,8 +29,7 @@
     isVideoExportSupported?: boolean;
     /** When true, preset button shows loading state and is disabled. */
     presetLoading?: boolean;
-    onZoomClick?: () => void;
-    onZoomDblClick?: () => void;
+    onZoomChange?: (zoom: number) => void;
     onHelpClick?: () => void;
     onShortcutsClick?: () => void;
   }
@@ -53,8 +52,7 @@
     onVideoExport,
     isVideoExportSupported = true,
     presetLoading = false,
-    onZoomClick,
-    onZoomDblClick,
+    onZoomChange,
     onHelpClick,
     onShortcutsClick,
   }: Props = $props();
@@ -93,8 +91,7 @@
       {fps}
       {fpsColor}
       {helpEnabled}
-      {onZoomClick}
-      {onZoomDblClick}
+      {onZoomChange}
       {onHelpClick}
       {onShortcutsClick}
     />

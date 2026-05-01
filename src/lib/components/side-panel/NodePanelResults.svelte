@@ -22,7 +22,7 @@
     count: number;
   }
 
-  interface Props {
+  export type Props = {
     resultsEl?: HTMLDivElement;
     groupedSpecs?: Group[];
     expandedCategories?: Set<string>;
@@ -32,7 +32,10 @@
     onToggleCategoryExpand?: (category: string) => void;
     onDragStart?: (e: DragEvent, nodeType: string) => void;
     onDragEnd?: (e: DragEvent) => void;
-  }
+    /** Optional "click to add" handler (e.g. add at canvas center). */
+    addNode?: (nodeType: string) => void;
+    [key: string]: unknown;
+  };
 
   let {
     resultsEl = $bindable<HTMLDivElement | undefined>(undefined),
@@ -44,6 +47,7 @@
     onToggleCategoryExpand,
     onDragStart,
     onDragEnd,
+    addNode,
   }: Props = $props();
 
   function isDividerStartCategory(category: string): boolean {
@@ -91,6 +95,7 @@
                 displayMode={displayMode}
                 onDragStart={onDragStart}
                 onDragEnd={onDragEnd}
+                addNode={addNode}
               />
             {/each}
           {/snippet}

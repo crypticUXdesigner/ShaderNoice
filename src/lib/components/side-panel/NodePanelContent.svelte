@@ -270,7 +270,7 @@
     onToggleCategoryExpand={toggleCategoryExpand}
     onDragStart={onDragStart}
     onDragEnd={() => {}}
-    onAddNode={onAddNodeAtCenter}
+    addNode={onAddNodeAtCenter}
   />
 </div>
 

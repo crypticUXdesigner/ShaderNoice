@@ -4,7 +4,7 @@
    * Button shows current track displayName or "Select track"; click opens menu with
    * search, track list (tracks-data.json), and Upload. Select track or upload sets primary.
    */
-  import { Button, DropdownMenu, Input, MenuItem, IconSvg } from '../ui';
+  import { Button, MenuItem, ModalDialog, SearchInput } from '../ui';
   import { getTracksData, getPlaylistOrder } from '../../../runtime/tracksData';
   import type { TracksDataMap } from '../../../runtime/tracksData';
   import { onMount } from 'svelte';
@@ -39,12 +39,9 @@
   let tracksLoadError = $state<string | null>(null);
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-  /** Center of viewport when menu opened (for dropdown positioning) */
-  let menuCenterX = $state(0);
-  let menuCenterY = $state(0);
   /** -1 = search focused, 0..n = list option index */
   let listActiveIndex = $state(-1);
-  let headerEl = $state<HTMLDivElement | null>(null);
+  let searchTopbarEl = $state<HTMLDivElement | null>(null);
   let listEl = $state<HTMLDivElement | null>(null);
   const listOptionId = (i: number) => `track-option-${i}`;
 
@@ -105,19 +102,22 @@
     loadTracks();
   });
 
-  function onMenuOpenChange(open: boolean): void {
-    menuOpen = open;
-    if (open) {
-      loadTracks();
-      searchQuery = '';
-      searchDebounced = '';
-      menuCenterX = Math.round(window.innerWidth / 2);
-      menuCenterY = Math.round(window.innerHeight / 2);
-      listActiveIndex = -1;
-      tick().then(() => {
-        headerEl?.querySelector<HTMLInputElement>('input')?.focus();
-      });
-    }
+  function openDialog(): void {
+    menuOpen = true;
+    loadTracks();
+    searchQuery = '';
+    searchDebounced = '';
+    listActiveIndex = -1;
+    tick().then(() => {
+      searchTopbarEl?.querySelector<HTMLInputElement>('input')?.focus();
+    });
+  }
+
+  function closeDialog(): void {
+    menuOpen = false;
+    searchQuery = '';
+    searchDebounced = '';
+    listActiveIndex = -1;
   }
 
   function scrollActiveOptionIntoView(): void {
@@ -135,12 +135,12 @@
 
   function focusSearch(): void {
     listActiveIndex = -1;
-    headerEl?.querySelector<HTMLInputElement>('input')?.focus();
+    searchTopbarEl?.querySelector<HTMLInputElement>('input')?.focus();
   }
 
   function handleMenuKeydown(e: KeyboardEvent): void {
     const target = e.target as HTMLElement;
-    const inSearch = headerEl?.contains(target) ?? false;
+    const inSearch = searchTopbarEl?.contains(target) ?? false;
     const inList = listEl?.contains(target) ?? false;
     const inFooter = target.closest?.('.track-selector-footer') ?? false;
 
@@ -150,6 +150,7 @@
         focusList(0);
       } else if (inList && filteredTracks.length > 0) {
         e.preventDefault();
+        listEl?.focus();
         if (listActiveIndex < filteredTracks.length - 1) {
           listActiveIndex++;
           scrollActiveOptionIntoView();
@@ -160,6 +161,7 @@
     if (e.key === 'ArrowUp') {
       if (inList) {
         e.preventDefault();
+        listEl?.focus();
         if (listActiveIndex <= 0) {
           focusSearch();
         } else {
@@ -178,9 +180,7 @@
     }
   }
 
-  function onSearchInput(e: Event): void {
-    const value = (e.currentTarget as HTMLInputElement).value;
-    searchQuery = value;
+  function onSearchValue(value: string): void {
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
       searchDebounced = value;
@@ -188,9 +188,18 @@
     }, 150);
   }
 
+  function clearSearch(): void {
+    searchQuery = '';
+    searchDebounced = '';
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+  }
+
   function handleSelectTrack(trackId: string): void {
     onSelectTrack(trackId);
-    menuOpen = false;
+    closeDialog();
   }
 
   function handleUploadClick(): void {
@@ -204,13 +213,25 @@
     if (file && nodeId) {
       await onAudioFileSelected?.(nodeId, file);
       if (fileInputEl) fileInputEl.value = '';
-      menuOpen = false;
+      closeDialog();
     }
   }
 </script>
 
-{#snippet searchIcon()}
-  <IconSvg name="search" variant="line" />
+{#snippet searchTopbarSnippet()}
+  <div class="search" role="presentation" bind:this={searchTopbarEl} onkeydown={handleMenuKeydown}>
+    <SearchInput
+      variant="primary"
+      size="sm"
+      placeholder="Search tracks…"
+      bind:value={searchQuery}
+      onInput={(value: string) => {
+        if (value.trim() === '') clearSearch();
+        else onSearchValue(value);
+      }}
+      ariaLabel="Search tracks"
+    />
+  </div>
 {/snippet}
 
 <div class="track-selector">
@@ -221,63 +242,23 @@
       layout="label-only"
       class="button"
       title="Select track or upload audio"
-      onclick={() => onMenuOpenChange(!menuOpen)}
+      onclick={() => (menuOpen ? closeDialog() : openDialog())}
     >
       <span class="label">{buttonLabel}</span>
     </Button>
   </div>
 
-  <DropdownMenu
+  <ModalDialog
     open={menuOpen}
-    anchor={null}
-    x={menuCenterX}
-    y={menuCenterY}
-    openAbove={false}
-    align="center"
-    alignY="center"
-    onClose={() => onMenuOpenChange(false)}
-    class="track-selector-menu"
+    onClose={closeDialog}
+    variant="list"
+    title="Select Track"
+    class="track-selector-dialog"
+    bodyClass="track-selector-dialog-body"
+    bodyScroll="content"
+    bodyTopbar={searchTopbarSnippet}
   >
-    {#snippet children()}
-      <div class="header" role="presentation" bind:this={headerEl} onkeydown={handleMenuKeydown}>
-        <Input
-          value={searchQuery}
-          placeholder="Search tracks…"
-          oninput={onSearchInput}
-          leading={searchIcon}
-        />
-      </div>
-      <div
-        class="list"
-        role="listbox"
-        tabindex="-1"
-        aria-activedescendant={activeId}
-        bind:this={listEl}
-        onkeydown={handleMenuKeydown}
-      >
-        {#if tracksLoadError}
-          <div class="error">{tracksLoadError}</div>
-        {:else if tracks.length === 0 && !tracksLoadError}
-          <div class="loading">Loading…</div>
-        {:else if filteredTracks.length === 0}
-          <div class="no-results">No matching tracks</div>
-        {:else}
-          {#each filteredTracks as track, i (track.id)}
-            <div
-              id={listOptionId(i)}
-              role="option"
-              aria-selected={listActiveIndex === i}
-              class="list-option"
-            >
-              <MenuItem
-                label={track.displayName}
-                selected={listActiveIndex === i}
-                onclick={() => handleSelectTrack(track.id)}
-              />
-            </div>
-          {/each}
-        {/if}
-      </div>
+    {#snippet footer()}
       <div class="footer track-selector-footer" role="presentation" onkeydown={handleMenuKeydown}>
         <Button
           variant="ghost"
@@ -285,12 +266,49 @@
           layout="label-only"
           class="upload-button"
           onclick={handleUploadClick}
+          type="button"
         >
           Upload…
         </Button>
+        <Button variant="primary" size="sm" onclick={closeDialog} type="button">
+          Done
+        </Button>
       </div>
     {/snippet}
-  </DropdownMenu>
+
+    <div
+      class="list"
+      role="listbox"
+      tabindex="-1"
+      aria-activedescendant={activeId}
+      bind:this={listEl}
+      onkeydown={handleMenuKeydown}
+    >
+      {#if tracksLoadError}
+        <div class="error">{tracksLoadError}</div>
+      {:else if tracks.length === 0 && !tracksLoadError}
+        <div class="loading">Loading…</div>
+      {:else if filteredTracks.length === 0}
+        <div class="no-results">No matching tracks</div>
+      {:else}
+        {#each filteredTracks as track, i (track.id)}
+          <div
+            id={listOptionId(i)}
+            role="option"
+            aria-selected={listActiveIndex === i}
+            class="list-option"
+          >
+            <MenuItem
+              label={track.displayName}
+              selected={listActiveIndex === i}
+              class="track-menu-item"
+              onclick={() => handleSelectTrack(track.id)}
+            />
+          </div>
+        {/each}
+      {/if}
+    </div>
+  </ModalDialog>
 
   <input
     bind:this={fileInputEl}
@@ -303,7 +321,7 @@
 </div>
 
 <style>
-  /* Only button/label live in this tree; menu content is portaled and styled in DropdownMenu */
+  /* Button/label live in this tree; dialog is portaled by Modal/ModalDialog */
   .track-selector {
     position: relative;
     min-width: 0; /* allow shrink in flex layout */
@@ -328,5 +346,80 @@
     }
   }
 
+  :global(.track-selector-dialog-body) {
+    padding: 0;
+    gap: var(--pd-lg);
+  }
+
+  :global(.track-selector-dialog-body .modal-dialog-topbar) {
+    padding: var(--pd-md) var(--pd-lg);
+  }
+
+  :global(.track-selector-dialog-body .modal-dialog-scroll) {
+    padding: var(--pd-lg);
+  }
+
+  .search {
+    width: 100%;
+  }
+
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--pd-2xs);
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .list-option {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .list-option :global(.menu-item) {
+    width: 100%;
+  }
+
+  /* Track list items: align with DocsPanelItem styling */
+  .list-option :global(.menu-item.track-menu-item) {
+    padding: var(--pd-sm);
+    border-radius: calc(var(--radius-lg) + var(--pd-sm));
+    background: var(--ghost-bg);
+    color: var(--print-highlight);
+    font-size: var(--text-sm);
+    transition: background 0.15s, transform 0.15s, color 0.15s;
+  }
+
+  .list-option :global(.menu-item.track-menu-item:hover:not(.is-disabled)) {
+    transform: translateX(var(--pd-2xs));
+    background: var(--ghost-bg-hover);
+    color: var(--print-light);
+  }
+
+  .list-option :global(.menu-item.track-menu-item.is-selected:not(.is-disabled)) {
+    background: var(--ghost-bg-active);
+    color: var(--color-blue-110);
+  }
+
+  .list-option :global(.menu-item.track-menu-item .content .name) {
+    margin-bottom: 0;
+    font-weight: 400;
+  }
+
+  .error,
+  .loading,
+  .no-results {
+    padding: var(--pd-md);
+    font-size: var(--text-sm);
+    color: var(--text-muted, var(--color-gray-100));
+  }
+
+  .footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--pd-md);
+    width: 100%;
+  }
 
 </style>

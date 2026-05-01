@@ -22,14 +22,17 @@
 
   type DisplayMode = 'list' | 'grid';
 
-  interface Props {
+  export type Props = {
     spec: NodeSpec;
     displayMode?: DisplayMode;
     onDragStart?: (e: DragEvent, nodeType: string) => void;
     onDragEnd?: (e: DragEvent) => void;
-  }
+    /** Optional "click to add" handler (e.g. add at canvas center). */
+    addNode?: (nodeType: string) => void;
+    [key: string]: unknown;
+  };
 
-  let { spec, displayMode = 'grid', onDragStart, onDragEnd }: Props = $props();
+  let { spec, displayMode = 'grid', onDragStart, onDragEnd, addNode }: Props = $props();
 
   const categorySlug = $derived(getCategorySlug(spec.category));
   const isShiny = $derived(isShinyNode(spec.id, spec.category));
@@ -83,6 +86,18 @@
     }
     onDragEnd?.(e);
   }
+
+  function handleActivate() {
+    addNode?.(spec.id);
+  }
+
+  function handleKeyDown(e: KeyboardEvent) {
+    // Make the item keyboard-activatable (Enter/Space). Keep it simple: delegate to onAddNode.
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleActivate();
+    }
+  }
 </script>
 
 <div
@@ -97,6 +112,8 @@
   draggable="true"
   ondragstart={handleDragStart}
   ondragend={handleDragEnd}
+  onclick={handleActivate}
+  onkeydown={handleKeyDown}
 >
   <div class="icon-box" data-category={categorySlug}>
     <NodeIconSvg identifier={getNodeIcon(spec)} />
@@ -143,18 +160,19 @@
     align-items: center;
     justify-content: flex-start;
     gap: var(--pd-md);
-    padding: var(--pd-sm);
-    border: 1px solid transparent;
+    padding: var(--pd-sm) var(--pd-md) var(--pd-sm) var(--pd-sm);
     border-radius: calc(var(--radius-lg) + var(--pd-sm));
-    background: var(--color-gray-30);
+    background: var(--ghost-bg);
     cursor: grab;
-    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+    transition: background 0.15s, transform 0.15s, color 0.15s;
+    color: var(--print-highlight) !important;
+    overflow: hidden;
   }
 
   .node-panel-item[data-display-mode="list"]:hover {
-    border-color: rgba(255, 255, 255, 0.12);
     transform: translateX(var(--pd-2xs));
-    background: var(--color-gray-40);
+    background: var(--ghost-bg-hover);
+    color: var(--print-light) !important;
   }
 
   .node-panel-item[data-display-mode="list"].is-dragging {
@@ -179,7 +197,7 @@
     margin-bottom: 0;
     font-size: var(--text-sm);
     font-weight: 600;
-    color: var(--node-header-print-default);
+    color: currentColor !important;
   }
 
   .node-panel-item[data-display-mode="list"] .types-row {
@@ -358,7 +376,7 @@
   .node-panel-item[data-display-mode="list"] .icon-box :global(svg) {
     width: 100%;
     height: 100%;
-    color: var(--node-header-print-default);
+    color: var(--node-icon-box-color-default, var(--color-gray-120));
   }
 
   .node-panel-item[data-display-mode="grid"] .icon-box {
@@ -411,26 +429,26 @@
   .node-panel-item[data-display-mode="grid"] .icon-box[data-category="effects"] { box-shadow: 0 0 9px 1px rgba(0, 0, 0, 0.15); }
 
   /* Category: icon color */
-  .node-panel-item[data-category="inputs"] .icon-box :global(svg) { color: var(--node-header-print-inputs); }
-  .node-panel-item.system-input[data-category="inputs"] .icon-box :global(svg) { color: var(--node-header-print-inputs-system); }
-  .node-panel-item[data-category="patterns"] .icon-box :global(svg) { color: var(--node-header-print-patterns); }
-  .node-panel-item.structured[data-category="patterns"] .icon-box :global(svg) { color: var(--node-header-print-patterns-structured); }
-  .node-panel-item[data-category="shapes"] .icon-box :global(svg) { color: var(--node-header-print-shapes); }
-  .node-panel-item.derived[data-category="shapes"] .icon-box :global(svg) { color: var(--node-header-print-shapes-derived); }
-  .node-panel-item[data-category="math"] .icon-box :global(svg) { color: var(--node-header-print-math); }
-  .node-panel-item.functions[data-category="math"] .icon-box :global(svg) { color: var(--node-header-print-math-functions); }
-  .node-panel-item.advanced[data-category="math"] .icon-box :global(svg) { color: var(--node-header-print-math-advanced); }
-  .node-panel-item[data-category="utilities"] .icon-box :global(svg) { color: var(--node-header-print-utilities); }
-  .node-panel-item[data-category="distort"] .icon-box :global(svg) { color: var(--node-header-print-distort); }
-  .node-panel-item.warp[data-category="distort"] .icon-box :global(svg) { color: var(--node-header-print-distort-warp); }
-  .node-panel-item[data-category="blend"] .icon-box :global(svg) { color: var(--node-header-print-blend); }
-  .node-panel-item[data-category="mask"] .icon-box :global(svg) { color: var(--node-header-print-mask); }
-  .node-panel-item[data-category="effects"] .icon-box :global(svg) { color: var(--node-header-print-effects); }
-  .node-panel-item.stylize[data-category="effects"] .icon-box :global(svg) { color: var(--node-header-print-effects-stylize); }
-  .node-panel-item[data-category="output"] .icon-box :global(svg) { color: var(--node-header-print-output); }
-  .node-panel-item[data-category="audio"] .icon-box :global(svg) { color: var(--node-header-print-audio); }
-  .node-panel-item[data-category="sdf"] .icon-box :global(svg) { color: var(--node-header-print-sdf); }
-  .node-panel-item.sdf-2d[data-category="sdf"] .icon-box :global(svg) { color: var(--node-header-print-sdf-2d); }
+  .node-panel-item[data-category="inputs"] .icon-box :global(svg) { color: var(--node-icon-box-color-inputs); }
+  .node-panel-item.system-input[data-category="inputs"] .icon-box :global(svg) { color: var(--node-icon-box-color-inputs-system); }
+  .node-panel-item[data-category="patterns"] .icon-box :global(svg) { color: var(--node-icon-box-color-patterns); }
+  .node-panel-item.structured[data-category="patterns"] .icon-box :global(svg) { color: var(--node-icon-box-color-patterns-structured); }
+  .node-panel-item[data-category="shapes"] .icon-box :global(svg) { color: var(--node-icon-box-color-shapes); }
+  .node-panel-item.derived[data-category="shapes"] .icon-box :global(svg) { color: var(--node-icon-box-color-shapes-derived); }
+  .node-panel-item[data-category="math"] .icon-box :global(svg) { color: var(--node-icon-box-color-math); }
+  .node-panel-item.functions[data-category="math"] .icon-box :global(svg) { color: var(--node-icon-box-color-math-functions); }
+  .node-panel-item.advanced[data-category="math"] .icon-box :global(svg) { color: var(--node-icon-box-color-math-advanced); }
+  .node-panel-item[data-category="utilities"] .icon-box :global(svg) { color: var(--node-icon-box-color-utilities); }
+  .node-panel-item[data-category="distort"] .icon-box :global(svg) { color: var(--node-icon-box-color-distort); }
+  .node-panel-item.warp[data-category="distort"] .icon-box :global(svg) { color: var(--node-icon-box-color-distort-warp); }
+  .node-panel-item[data-category="blend"] .icon-box :global(svg) { color: var(--node-icon-box-color-blend); }
+  .node-panel-item[data-category="mask"] .icon-box :global(svg) { color: var(--node-icon-box-color-mask); }
+  .node-panel-item[data-category="effects"] .icon-box :global(svg) { color: var(--node-icon-box-color-effects); }
+  .node-panel-item.stylize[data-category="effects"] .icon-box :global(svg) { color: var(--node-icon-box-color-effects-stylize); }
+  .node-panel-item[data-category="output"] .icon-box :global(svg) { color: var(--node-icon-box-color-output); }
+  .node-panel-item[data-category="audio"] .icon-box :global(svg) { color: var(--node-icon-box-color-audio); }
+  .node-panel-item[data-category="sdf"] .icon-box :global(svg) { color: var(--node-icon-box-color-sdf); }
+  .node-panel-item.sdf-2d[data-category="sdf"] .icon-box :global(svg) { color: var(--node-icon-box-color-sdf-2d); }
   .node-panel-item[data-display-mode="grid"][data-category="inputs"] .icon-box :global(svg) { color: var(--node-icon-box-color-inputs); }
   .node-panel-item[data-display-mode="grid"].system-input[data-category="inputs"] .icon-box :global(svg) { color: var(--node-icon-box-color-inputs-system); }
   .node-panel-item[data-display-mode="grid"][data-category="patterns"] .icon-box :global(svg) { color: var(--node-icon-box-color-patterns); }

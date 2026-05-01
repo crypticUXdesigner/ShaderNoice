@@ -16,7 +16,7 @@
 
 <div class="setup-example">
   <div class="label">Setup example</div>
-  <div class="quick-graph">
+  <div class="quick-graph scrollbar-styled">
     <MiniGraph {graph} {nodeSpecs} />
   </div>
 </div>

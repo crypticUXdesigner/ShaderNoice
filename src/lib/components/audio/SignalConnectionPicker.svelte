@@ -4,7 +4,8 @@
    * Dropdown/list for "connect to signal" flow: graph outputs + named audio signals.
    * User selects one; connection is created (graph → param or virtual node → param).
    */
-  import { Popover, Button, Input, IconSvg, MenuItem } from '../ui';
+  import { Popover, Button, MenuItem } from '../ui';
+  import { SearchInput } from '../ui/input';
   import type { NodeGraph } from '../../../data-model/types';
   import type { NodeSpec } from '../../../types/nodeSpec';
   import type { NamedSignal } from '../../../utils/virtualNodes';
@@ -193,11 +194,6 @@
     }
   }
 
-  function clearSearch() {
-    searchQuery = '';
-    getSearchInput()?.focus();
-  }
-
   $effect(() => {
     if (open) {
       searchQuery = '';
@@ -207,24 +203,6 @@
     }
   });
 </script>
-
-{#snippet searchIcon()}
-  <IconSvg name="search" variant="line" />
-{/snippet}
-
-{#snippet clearButton()}
-  <Button
-    variant="ghost"
-    size="sm"
-    mode="icon-only"
-    title="Clear search"
-    class="input-clear {searchQuery.trim() === '' ? 'is-hidden' : ''}"
-    onclick={clearSearch}
-    type="button"
-  >
-    <IconSvg name="circle-x" variant="filled" />
-  </Button>
-{/snippet}
 
 <Popover
   open={open}
@@ -238,16 +216,13 @@
   <div class="content" role="menu" tabindex="-1" onkeydown={handleKeydown}>
     <div class="pinned-top">
       <div class="search-row" bind:this={searchRowRef}>
-        <Input
+        <SearchInput
           variant="primary"
           size="md"
-          type="text"
-          value={searchQuery}
           placeholder="Search..."
-          oninput={(e) => { searchQuery = (e.currentTarget as HTMLInputElement).value; }}
           class="menu-input"
-          leading={searchIcon}
-          trailing={clearButton}
+          ariaLabel="Search signals"
+          bind:value={searchQuery}
         />
       </div>
     </div>

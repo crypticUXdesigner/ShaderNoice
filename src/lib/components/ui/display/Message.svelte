@@ -61,6 +61,8 @@
     class: className = ''
   }: Props = $props();
 
+  const showIcon = $derived(!hideIcon && variant !== 'info');
+
   let wasVisible = $state(false);
   let deferredVisible = $state(false);
 
@@ -99,7 +101,7 @@
       <span class="message-heading">{@render heading()}</span>
     {/if}
     <span class="message-content">
-      {#if !hideIcon}
+      {#if showIcon}
         <span class="icon">
           <IconSvg
             name={variant === 'success' ? 'circle-check' : variant === 'error' ? 'circle-x' : 'help-circle'}
@@ -116,14 +118,18 @@
       class="message {className || ''}"
       class:is-success={variant === 'success'}
       class:is-error={variant === 'error'}
+      class:is-info={variant === 'info'}
       class:no-icon={hideIcon}
       in:flipIn={{ duration: TOAST_DURATION }}
       out:flipOut={{ duration: TOAST_DURATION }}
     >
     <span class="message-content">
-      {#if !hideIcon}
+      {#if showIcon}
         <span class="icon">
-          <IconSvg name={variant === 'success' ? 'circle-check' : 'circle-x'} variant="filled" />
+          <IconSvg
+            name={variant === 'success' ? 'circle-check' : variant === 'error' ? 'circle-x' : 'help-circle'}
+            variant="filled"
+          />
         </span>
       {/if}
       {@render children?.()}
@@ -206,6 +212,12 @@
         color: var(--layout-message-error-color);
         pointer-events: auto;
         text-align: left;
+      }
+
+      &.is-info {
+        border: 1px solid var(--layout-message-info-border);
+        background: var(--layout-message-info-bg);
+        color: var(--layout-message-color);
       }
     }
   }

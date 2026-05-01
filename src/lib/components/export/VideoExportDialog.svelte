@@ -1,17 +1,30 @@
 <script lang="ts">
-  import { Modal, Button, Input, RangeSlider, Tag, IconSvg } from '../ui';
+  import { Button, Input, Message, ModalDialog, RangeSlider, Tag } from '../ui';
   import Toggle from '../node/parameters/Toggle.svelte';
+  import { type Readable } from 'svelte/store';
 
   const DEFAULT_FRAME_RATE = 120;
   const DEFAULT_WIDTH = 1920;
   const DEFAULT_HEIGHT = 1080;
   const DEFAULT_DURATION = 10;
-  const DEFAULT_VIDEO_BITRATE_MBPS = 10;
+  const DEFAULT_VIDEO_BITRATE_MBPS = 50;
   const DEFAULT_TIME_RANGE_STEP_SECONDS = 0.01;
+  const DEFAULT_KEYFRAME_INTERVAL_SECONDS = 2;
+  const KEYFRAME_INTERVAL_SECONDS_MIN = 0.5;
+  const KEYFRAME_INTERVAL_SECONDS_MAX = 10;
 
-  type ResolutionPreset = '1920x1080' | '1080x1920' | 'custom';
+  type ResolutionPreset =
+    | '3840x2160'
+    | '2560x1440'
+    | '1920x1080'
+    | '1280x720'
+    | '1920x1920'
+    | '1080x1080'
+    | '1080x1920'
+    | '720x1280'
+    | 'custom';
 
-  const VIDEO_BITRATE_PRESET_MBPS = [5, 10, 25, 50] as const;
+  const VIDEO_BITRATE_PRESET_MBPS = [50, 25, 10, 5] as const;
   type BitratePreset = (typeof VIDEO_BITRATE_PRESET_MBPS)[number] | 'custom';
 
   function mbpsToInitialBitratePreset(mbps: number): BitratePreset {
@@ -31,10 +44,14 @@
     /** End time (seconds) relative to the primary track. */
     endSeconds?: number;
     allowVideoOnly: boolean;
-    highFidelityAudio: boolean;
     videoBitrate?: number;
     audioBitrate?: number;
     frameRate: number;
+    videoBitrateMode?: 'vbr' | 'cbr';
+    keyFrameIntervalSeconds?: number;
+    hardwareAcceleration?: 'no-preference' | 'prefer-software' | 'prefer-hardware';
+    latencyMode?: 'quality' | 'realtime';
+    contentHint?: 'detail' | 'motion' | 'text' | 'none';
   }
 
   /** When no audio: primaryNodeId, buffer, audioDurationSeconds are omitted. */
@@ -44,11 +61,16 @@
     audioDurationSeconds?: number;
   };
 
+  type Step = 'config' | 'progress';
+  type ProgressValue = { current: number; total: number };
+
   interface Props {
     visible?: boolean;
     onClose?: () => void;
     onConfirm?: (config: VideoExportConfirmPayload) => void;
     getPrimaryAudio?: () => { nodeId: string; buffer: AudioBuffer } | null;
+    progress?: Readable<ProgressValue>;
+    onCancelExport?: () => void;
   }
 
   let {
@@ -56,7 +78,11 @@
     onClose,
     onConfirm,
     getPrimaryAudio = () => null,
+    progress,
+    onCancelExport,
   }: Props = $props();
+
+  let step = $state<Step>('config');
 
   let resolutionPreset = $state<ResolutionPreset>('1920x1080');
   let customWidth = $state(DEFAULT_WIDTH);
@@ -64,9 +90,13 @@
   let duration = $state(DEFAULT_DURATION);
   let useFullAudio = $state(false);
   let allowVideoOnly = $state(false);
-  let highFidelityAudio = $state(false);
   let bitrateMbps = $state(DEFAULT_VIDEO_BITRATE_MBPS);
   let bitratePreset = $state<BitratePreset>(mbpsToInitialBitratePreset(DEFAULT_VIDEO_BITRATE_MBPS));
+  let videoBitrateMode = $state<'vbr' | 'cbr'>('vbr');
+  let keyFrameIntervalSeconds = $state(DEFAULT_KEYFRAME_INTERVAL_SECONDS);
+  let hardwareAcceleration = $state<'no-preference' | 'prefer-software' | 'prefer-hardware'>('prefer-software');
+  let latencyMode = $state<'quality' | 'realtime'>('quality');
+  let contentHint = $state<'detail' | 'motion' | 'text' | 'none'>('detail');
   let fps = $state(DEFAULT_FRAME_RATE);
   let errorMessage = $state('');
 
@@ -75,6 +105,47 @@
 
   let rangeStartSeconds = $state(0);
   let rangeEndSeconds = $state(DEFAULT_DURATION);
+
+  let progressValue = $state<ProgressValue>({ current: 0, total: 0 });
+
+  function formatCountdown(totalSeconds: number): string {
+    if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '—';
+    const s = Math.max(0, Math.round(totalSeconds));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return h > 0
+      ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+      : `${m}:${String(sec).padStart(2, '0')}`;
+  }
+
+  type SpeedState = {
+    startMs: number | null;
+    lastMs: number | null;
+    lastFrame: number;
+    emaFps: number | null;
+  };
+
+  // Keep this non-reactive to avoid effect feedback loops.
+  let speed: SpeedState = { startMs: null, lastMs: null, lastFrame: 0, emaFps: null };
+  let remainingSeconds = $state<number | null>(null);
+  let remainingText = $derived(remainingSeconds == null ? '~:~~' : formatCountdown(remainingSeconds));
+
+  let cancelClicked = $state(false);
+
+  const progressPercent = $derived.by(() => {
+    const { current, total } = progressValue;
+    if (!Number.isFinite(current) || !Number.isFinite(total) || total <= 0) return 0;
+    return Math.max(0, Math.min(1, current / total));
+  });
+
+  const dialogTitle = $derived(step === 'config' ? 'Export video' : 'Exporting video…');
+  const dialogClass = $derived(
+    step === 'config'
+      ? 'video-export-dialog video-export-dialog--config'
+      : 'video-export-dialog video-export-dialog--progress',
+  );
+  const dialogBodyClass = $derived(step === 'config' ? 'export-panel' : 'export-progress-panel');
 
   $effect(() => {
     if (!primary) return;
@@ -93,6 +164,10 @@
     }
   });
 
+  function clampNumber(value: number, min: number, max: number) {
+    return Math.max(min, Math.min(max, value));
+  }
+
   function tryConfirm() {
     errorMessage = '';
     const primaryNow = getPrimaryAudio();
@@ -109,6 +184,11 @@
           ? 1080
           : 1920;
     const videoBitrate = Math.max(1_000_000, Math.min(100_000_000, Math.round((bitrateMbps || DEFAULT_VIDEO_BITRATE_MBPS) * 1_000_000)));
+    const clampedKeyFrameIntervalSeconds = clampNumber(
+      keyFrameIntervalSeconds || DEFAULT_KEYFRAME_INTERVAL_SECONDS,
+      KEYFRAME_INTERVAL_SECONDS_MIN,
+      KEYFRAME_INTERVAL_SECONDS_MAX,
+    );
 
     if (primaryNow) {
       const { nodeId: primaryNodeId, buffer } = primaryNow;
@@ -127,10 +207,14 @@
         startSeconds: useFullAudio ? 0 : clampedStart,
         endSeconds: useFullAudio ? buffer.duration : clampedEnd,
         allowVideoOnly: false,
-        highFidelityAudio,
         videoBitrate,
+        videoBitrateMode,
         audioBitrate: 192_000,
         frameRate: fps,
+        keyFrameIntervalSeconds: clampedKeyFrameIntervalSeconds,
+        hardwareAcceleration,
+        latencyMode,
+        contentHint,
         primaryNodeId,
         buffer,
         audioDurationSeconds: buffer.duration,
@@ -147,23 +231,48 @@
         maxDurationSeconds: maxDuration,
         useFullAudio: false,
         allowVideoOnly: true,
-        highFidelityAudio: false,
         videoBitrate,
+        videoBitrateMode,
         audioBitrate: 192_000,
         frameRate: fps,
+        keyFrameIntervalSeconds: clampedKeyFrameIntervalSeconds,
+        hardwareAcceleration,
+        latencyMode,
+        contentHint,
       });
     }
-    onClose?.();
+    cancelClicked = false;
+    progressValue = { current: 0, total: 0 };
+    speed = { startMs: null, lastMs: null, lastFrame: 0, emaFps: null };
+    remainingSeconds = null;
+    step = 'progress';
   }
 
   function setResolutionPreset(preset: ResolutionPreset) {
     resolutionPreset = preset;
-    if (preset === '1920x1080') {
-      customWidth = 1920;
-      customHeight = 1080;
-    } else if (preset === '1080x1920') {
-      customWidth = 1080;
-      customHeight = 1920;
+    const [w, h] =
+      preset === '3840x2160'
+        ? [3840, 2160]
+        : preset === '2560x1440'
+          ? [2560, 1440]
+          : preset === '1920x1080'
+            ? [1920, 1080]
+            : preset === '1280x720'
+              ? [1280, 720]
+              : preset === '1920x1920'
+                ? [1920, 1920]
+                : preset === '1080x1080'
+                  ? [1080, 1080]
+                  : preset === '1080x1920'
+                    ? [1080, 1920]
+                    : preset === '720x1280'
+                      ? [720, 1280]
+                      : [customWidth, customHeight];
+
+    // Only snap inputs for presets; keep existing custom values when switching to 'custom'
+    if (preset !== 'custom') {
+      customWidth = w;
+      customHeight = h;
     }
   }
 
@@ -184,307 +293,483 @@
     rangeStartSeconds = low;
     rangeEndSeconds = high;
   }
+
+  function handleCancelExport() {
+    if (cancelClicked) return;
+    cancelClicked = true;
+    onCancelExport?.();
+  }
+
+  $effect(() => {
+    if (step !== 'progress') {
+      progressValue = { current: 0, total: 0 };
+      speed = { startMs: null, lastMs: null, lastFrame: 0, emaFps: null };
+      remainingSeconds = null;
+      cancelClicked = false;
+      return;
+    }
+
+    if (!progress) return;
+    const unsub = progress.subscribe((v) => {
+      const now = performance.now();
+      if (speed.startMs == null) {
+        speed = { startMs: now, lastMs: now, lastFrame: v.current, emaFps: null };
+      } else if (v.current > speed.lastFrame && speed.lastMs != null) {
+        const dt = (now - speed.lastMs) / 1000;
+        const df = v.current - speed.lastFrame;
+        if (dt > 0 && df > 0) {
+          const instFps = df / dt;
+          const alpha = 0.25;
+          const nextEma = speed.emaFps == null ? instFps : speed.emaFps * (1 - alpha) + instFps * alpha;
+          speed = { ...speed, lastMs: now, lastFrame: v.current, emaFps: nextEma };
+        } else {
+          speed = { ...speed, lastMs: now, lastFrame: v.current };
+        }
+      } else {
+        speed = { ...speed, lastMs: now, lastFrame: v.current };
+      }
+
+      progressValue = v;
+    });
+    return unsub;
+  });
+
+  $effect(() => {
+    if (step !== 'progress') return;
+
+    const interval = window.setInterval(() => {
+      const { current, total } = progressValue;
+      const fpsNow = speed.emaFps;
+      if (total > 0 && fpsNow != null && fpsNow > 0.001 && current >= 0 && current <= total) {
+        remainingSeconds = (total - current) / fpsNow;
+      } else {
+        remainingSeconds = null;
+      }
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  });
 </script>
 
 <!--
   Layout: header + footer on modal `.frame` surface; single full-width `frame-elevated` card in `.main` (AudioSignalPicker pattern).
 -->
-<Modal open={visible} onClose={onClose} class="video-export-dialog">
-  <div class="export-shell">
-    <header class="panel-header">
-      <div class="header-left">
-        <h2 id="video-export-dialog-title" class="dialog-title">Export video</h2>
+{#snippet progressFooter()}
+  <div class="video-export-progress-footer">
+    <Button variant="warning" size="md" disabled={cancelClicked} onclick={handleCancelExport}>
+      {cancelClicked ? 'Cancelling…' : 'Cancel export'}
+    </Button>
+  </div>
+{/snippet}
+
+<ModalDialog
+  open={visible}
+  onClose={step === 'config' ? onClose : undefined}
+  showHeaderClose={step === 'config'}
+  class={dialogClass}
+  title={dialogTitle}
+  titleId="video-export-dialog-title"
+  secondaryLabel={step === 'config' ? 'Later' : undefined}
+  secondaryVariant="ghost"
+  onSecondary={step === 'config' ? onClose : undefined}
+  primaryLabel={step === 'config' ? 'Export Video' : undefined}
+  primaryVariant="warning"
+  onPrimary={step === 'config' ? tryConfirm : undefined}
+  bodyClass={dialogBodyClass}
+  footer={step === 'progress' ? progressFooter : undefined}
+>
+  {#if step === 'config'}
+    {#if errorMessage}
+      <div class="error" role="alert">{errorMessage}</div>
+    {/if}
+
+    {#if primary && primary.buffer.duration > 0}
+      <div class="duration-range">
+        <div class="time-range-row">
+          <div class="time-range-label">Start</div>
+          <div class="time-range-value">{rangeStartSeconds.toFixed(2)}s</div>
+          <div class="time-range-spacer"></div>
+          <div class="time-range-label">End</div>
+          <div class="time-range-value">{rangeEndSeconds.toFixed(2)}s</div>
+        </div>
+        <RangeSlider
+          min={0}
+          max={primary.buffer.duration}
+          step={DEFAULT_TIME_RANGE_STEP_SECONDS}
+          lowValue={rangeStartSeconds}
+          highValue={rangeEndSeconds}
+          disabled={useFullAudio}
+          class="time-range-slider"
+          onChange={({ low, high }) => handleExportRangeChange(low, high)}
+        />
+        <div class="time-range-row secondary">
+          <div class="time-range-label">Window</div>
+          <div class="time-range-value">{Math.max(0, rangeEndSeconds - rangeStartSeconds).toFixed(2)}s</div>
+          <div class="time-range-spacer"></div>
+          <div class="time-range-label">Track</div>
+          <div class="time-range-value">{primary.buffer.duration.toFixed(2)}s</div>
+        </div>
       </div>
-      <div class="header-right">
-        <Button
-          variant="ghost"
-          size="sm"
-          mode="both"
-          iconPosition="trailing"
-          class="close-btn"
-          onclick={() => onClose?.()}
-          aria-label="Close dialog"
-        >
-          Close
-          <IconSvg name="x" variant="line" />
-        </Button>
+    {:else}
+      <Input
+        type="number"
+        value={String(duration)}
+        oninput={(e: Event) =>
+          (duration = parseFloat((e.target as HTMLInputElement).value) || DEFAULT_DURATION)}
+        placeholder={durationPlaceholder}
+        min={0.1}
+        step={0.1}
+        class="input-full"
+      />
+    {/if}
+
+    <div class="toggle-row-split" role="group" aria-label="Export audio options">
+      <div class="toggle-row">
+        <Toggle
+          labelledBy="video-export-label-full-audio"
+          value={useFullAudio ? 1 : 0}
+          onChange={(v) => (useFullAudio = v === 1)}
+        />
+        <span id="video-export-label-full-audio" class="toggle-label">Full export</span>
       </div>
-    </header>
+      <div class="toggle-row">
+        <Toggle
+          labelledBy="video-export-label-video-only"
+          value={allowVideoOnly ? 1 : 0}
+          onChange={(v) => (allowVideoOnly = v === 1)}
+        />
+        <span id="video-export-label-video-only" class="toggle-label">Video only</span>
+      </div>
+    </div>
 
-    <div class="main">
-      <div class="section export-panel frame-elevated">
-        {#if errorMessage}
-          <div class="error" role="alert">{errorMessage}</div>
-        {/if}
-
-        <div class="group">
-          {#if primary && primary.buffer.duration > 0}
-            <div class="duration-range">
-              <div class="time-range-row">
-                <div class="time-range-label">Start</div>
-                <div class="time-range-value">{rangeStartSeconds.toFixed(2)}s</div>
-                <div class="time-range-spacer"></div>
-                <div class="time-range-label">End</div>
-                <div class="time-range-value">{rangeEndSeconds.toFixed(2)}s</div>
-              </div>
-              <RangeSlider
-                min={0}
-                max={primary.buffer.duration}
-                step={DEFAULT_TIME_RANGE_STEP_SECONDS}
-                lowValue={rangeStartSeconds}
-                highValue={rangeEndSeconds}
-                disabled={useFullAudio}
-                class="time-range-slider"
-                onChange={({ low, high }) => handleExportRangeChange(low, high)}
-              />
-              <div class="time-range-row secondary">
-                <div class="time-range-label">Window</div>
-                <div class="time-range-value">{Math.max(0, rangeEndSeconds - rangeStartSeconds).toFixed(2)}s</div>
-                <div class="time-range-spacer"></div>
-                <div class="time-range-label">Track</div>
-                <div class="time-range-value">{primary.buffer.duration.toFixed(2)}s</div>
-              </div>
-            </div>
-          {:else}
-            <Input
-              type="number"
-              value={String(duration)}
-              oninput={(e: Event) =>
-                (duration = parseFloat((e.target as HTMLInputElement).value) || DEFAULT_DURATION)}
-              placeholder={durationPlaceholder}
-              min={0.1}
-              step={0.1}
-              class="input-full"
-            />
-          {/if}
-
-          <div class="toggle-stack">
-            <div class="toggle-row-split" role="group" aria-label="Export audio options">
-              <div class="toggle-row toggle-row--cell">
-                <Toggle
-                  labelledBy="video-export-label-full-audio"
-                  value={useFullAudio ? 1 : 0}
-                  onChange={(v) => (useFullAudio = v === 1)}
-                />
-                <span id="video-export-label-full-audio" class="toggle-label">Full export</span>
-              </div>
-              <div class="toggle-row toggle-row--cell">
-                {#if primary}
-                  <Toggle
-                    labelledBy="video-export-label-hifi"
-                    value={highFidelityAudio ? 1 : 0}
-                    onChange={(v) => (highFidelityAudio = v === 1)}
-                  />
-                  <span id="video-export-label-hifi" class="toggle-label">Better analyser quality</span>
-                {:else}
-                  <Toggle
-                    labelledBy="video-export-label-video-only"
-                    value={allowVideoOnly ? 1 : 0}
-                    onChange={(v) => (allowVideoOnly = v === 1)}
-                  />
-                  <span id="video-export-label-video-only" class="toggle-label">Video only</span>
-                {/if}
-              </div>
-            </div>
+    <div class="panel-divider" aria-hidden="true"></div>
+  {:else}
+    <div class="progress-shell" aria-live="polite">
+      <div class="progress-meta">
+        <div class="progress-frames">
+          Frame <span class="mono">{progressValue.current}</span> / <span class="mono">{progressValue.total}</span>
+        </div>
+        <div class="progress-right">
+          <div class="eta-inline">
+            <span class="eta-label">ETA</span> <span class="mono">{remainingText}s</span>
+          </div>
+          <div class="progress-percent">
+            <span class="mono">{Math.round(progressPercent * 100)}%</span>
           </div>
         </div>
+      </div>
 
-        <div class="group">
-          <div class="field-label">Resolution</div>
-          <div class="tag-container export-pills" role="group" aria-label="Resolution presets">
-            <Tag interactive selected={resolutionPreset === '1920x1080'} onclick={() => setResolutionPreset('1920x1080')}>
-              1920×1080
-            </Tag>
-            <Tag interactive selected={resolutionPreset === '1080x1920'} onclick={() => setResolutionPreset('1080x1920')}>
-              1080×1920
-            </Tag>
-            <Tag interactive selected={resolutionPreset === 'custom'} onclick={() => setResolutionPreset('custom')}>
-              Custom
-            </Tag>
-          </div>
+      <div
+        class="progress-bar"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(progressPercent * 100)}
+      >
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" style={`--progress-fill:${progressPercent * 100}%`}></div>
+        </div>
+      </div>
+    </div>
+    {#snippet importantHeading()}Keep this tab focused{/snippet}
+    <Message inline variant="info" heading={importantHeading} class="focus-message" hideIcon={true}>
+      Keep this browser tab in focus. If you switch tabs or minimize the window, export can become very slow and audio may go out of sync.
+    </Message>
+    {/if}
 
-          {#if resolutionPreset === 'custom'}
-            <div class="custom-resolution">
-              <Input
-                type="number"
-                value={String(customWidth)}
-                oninput={(e: Event) => (customWidth = parseInt((e.target as HTMLInputElement).value, 10) || DEFAULT_WIDTH)}
-                placeholder="Width"
-                aria-label="Width"
-                min={1}
-                max={4096}
-              />
-              <Input
-                type="number"
-                value={String(customHeight)}
-                oninput={(e: Event) =>
-                  (customHeight = parseInt((e.target as HTMLInputElement).value, 10) || DEFAULT_HEIGHT)}
-                placeholder="Height"
-                aria-label="Height"
-                min={1}
-                max={4096}
-              />
-            </div>
-          {/if}
+  {#if step === 'config'}
+  <div class="settingRow">
+      <div class="settingLabel" id="video-export-content-hint-label">Quality</div>
+      <div class="settingControls">
+        <div class="tag-container export-pills" role="group" aria-labelledby="video-export-content-hint-label">
+          <Tag interactive selected={contentHint === 'detail'} onclick={() => (contentHint = 'detail')}>
+            Detail
+          </Tag>
+          <Tag interactive selected={contentHint === 'motion'} onclick={() => (contentHint = 'motion')}>
+            Motion
+          </Tag>
+          <Tag interactive selected={contentHint === 'text'} onclick={() => (contentHint = 'text')}>
+            Text
+          </Tag>
+          <Tag interactive selected={contentHint === 'none'} onclick={() => (contentHint = 'none')}>
+            Auto
+          </Tag>
+        </div>
+      </div>
+  </div>
 
-          <div class="field-label">Frame rate</div>
-          <div class="tag-container export-pills" role="group" aria-label="Frame rate presets">
-            <Tag interactive selected={fps === 120} onclick={() => setFps(120)}>120</Tag>
-            <Tag interactive selected={fps === 60} onclick={() => setFps(60)}>60</Tag>
-            <Tag interactive selected={fps === 30} onclick={() => setFps(30)}>30</Tag>
-          </div>
+    <div class="settingRow">
+      <div class="settingLabel" id="video-export-resolution-label">
+        Resolution
+        <div class="resolution-hint" aria-live="polite">{customWidth}×{customHeight}</div>
+      </div>
+      <div class="settingControls">
+        <div class="tag-container export-pills" role="group" aria-labelledby="video-export-resolution-label">
+          <Tag
+            interactive
+            selected={resolutionPreset === '3840x2160'}
+            onclick={() => setResolutionPreset('3840x2160')}
+          >
+            4K
+          </Tag>
+          <Tag
+            interactive
+            selected={resolutionPreset === '2560x1440'}
+            onclick={() => setResolutionPreset('2560x1440')}
+          >
+            1440p
+          </Tag>
+          <Tag
+            interactive
+            selected={resolutionPreset === '1920x1080'}
+            onclick={() => setResolutionPreset('1920x1080')}
+          >
+            1080p
+          </Tag>
+          <Tag interactive selected={resolutionPreset === '1280x720'} onclick={() => setResolutionPreset('1280x720')}>
+            720p
+          </Tag>
+          <Tag
+            interactive
+            selected={resolutionPreset === '1920x1920'}
+            onclick={() => setResolutionPreset('1920x1920')}
+          >
+            Square HD
+          </Tag>
+          <Tag
+            interactive
+            selected={resolutionPreset === '1080x1080'}
+            onclick={() => setResolutionPreset('1080x1080')}
+          >
+            Square
+          </Tag>
+          <Tag
+            interactive
+            selected={resolutionPreset === '1080x1920'}
+            onclick={() => setResolutionPreset('1080x1920')}
+          >
+            Vertical HD
+          </Tag>
+          <Tag interactive selected={resolutionPreset === '720x1280'} onclick={() => setResolutionPreset('720x1280')}>
+            Vertical
+          </Tag>
+          <Tag interactive selected={resolutionPreset === 'custom'} onclick={() => setResolutionPreset('custom')}>
+            Custom
+          </Tag>
+        </div>
 
-          <div class="field-label">Video bitrate (Mbps)</div>
-          <div class="tag-container export-pills" role="group" aria-label="Video bitrate presets">
-            {#each VIDEO_BITRATE_PRESET_MBPS as mbps}
-              <Tag interactive selected={bitratePreset === mbps} onclick={() => setBitratePreset(mbps)}>
-                {mbps}
-              </Tag>
-            {/each}
-            <Tag interactive selected={bitratePreset === 'custom'} onclick={() => setBitratePreset('custom')}>
-              Custom
-            </Tag>
-          </div>
-          {#if bitratePreset === 'custom'}
+        {#if resolutionPreset === 'custom'}
+          <div class="custom-resolution" role="group" aria-label="Custom resolution">
             <Input
+              size="sm"
               type="number"
-              value={String(bitrateMbps)}
+              value={String(customWidth)}
               oninput={(e: Event) =>
-                (bitrateMbps = parseFloat((e.target as HTMLInputElement).value) || DEFAULT_VIDEO_BITRATE_MBPS)}
-              placeholder={String(DEFAULT_VIDEO_BITRATE_MBPS)}
+                (customWidth = parseInt((e.target as HTMLInputElement).value, 10) || DEFAULT_WIDTH)}
+              placeholder="Width"
+              aria-label="Width"
               min={1}
-              max={100}
-              aria-label="Custom video bitrate"
-              class="input-full"
+              max={4096}
             />
-          {/if}
+            <Input
+              size="sm"
+              type="number"
+              value={String(customHeight)}
+              oninput={(e: Event) =>
+                (customHeight = parseInt((e.target as HTMLInputElement).value, 10) || DEFAULT_HEIGHT)}
+              placeholder="Height"
+              aria-label="Height"
+              min={1}
+              max={4096}
+            />
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    <div class="settingRow">
+      <div class="settingLabel" id="video-export-fps-label">Frames</div>
+      <div class="settingControls">
+        <div class="tag-container export-pills" role="group" aria-labelledby="video-export-fps-label">
+          <Tag interactive selected={fps === 120} onclick={() => setFps(120)}>120 fps</Tag>
+          <Tag interactive selected={fps === 60} onclick={() => setFps(60)}>60 fps</Tag>
+          <Tag interactive selected={fps === 50} onclick={() => setFps(50)}>50 fps</Tag>
+          <Tag interactive selected={fps === 30} onclick={() => setFps(30)}>30 fps</Tag>
+          <Tag interactive selected={fps === 25} onclick={() => setFps(25)}>25 fps</Tag>
+          <Tag interactive selected={fps === 24} onclick={() => setFps(24)}>24 fps</Tag>
         </div>
       </div>
     </div>
 
-    <footer class="footer">
-      <div class="actions">
-        <Button variant="ghost" size="md" onclick={onClose}>Close</Button>
-        <Button variant="warning" size="md" onclick={tryConfirm}>Export Video</Button>
+    <div class="settingRow">
+      <div class="settingLabel" id="video-export-video-bitrate-label">Bitrate</div>
+      <div class="settingControls">
+        <div class="tag-container export-pills" role="group" aria-labelledby="video-export-video-bitrate-label">
+          {#each VIDEO_BITRATE_PRESET_MBPS as mbps (mbps)}
+            <Tag interactive selected={bitratePreset === mbps} onclick={() => setBitratePreset(mbps)}>
+              {mbps} Mbps
+            </Tag>
+          {/each}
+          <Tag interactive selected={bitratePreset === 'custom'} onclick={() => setBitratePreset('custom')}>
+            Custom
+          </Tag>
+        </div>
+        {#if bitratePreset === 'custom'}
+          <Input
+            size="sm"
+            type="number"
+            value={String(bitrateMbps)}
+            oninput={(e: Event) =>
+              (bitrateMbps = parseFloat((e.target as HTMLInputElement).value) || DEFAULT_VIDEO_BITRATE_MBPS)}
+            placeholder={String(DEFAULT_VIDEO_BITRATE_MBPS)}
+            min={1}
+            max={100}
+            aria-label="Custom video bitrate"
+            class="input-narrow"
+          />
+        {/if}
       </div>
-    </footer>
-  </div>
-</Modal>
+    </div>
+
+    <div class="settingRow">
+      <div class="settingLabel" id="video-export-video-bitrate-mode-label">Mode</div>
+      <div class="settingControls">
+        <div class="tag-container export-pills" role="group" aria-labelledby="video-export-video-bitrate-mode-label">
+          <Tag interactive selected={videoBitrateMode === 'vbr'} onclick={() => (videoBitrateMode = 'vbr')}>
+            VBR
+          </Tag>
+          <Tag interactive selected={videoBitrateMode === 'cbr'} onclick={() => (videoBitrateMode = 'cbr')}>
+            CBR
+          </Tag>
+        </div>
+      </div>
+    </div>
+
+    <div class="settingRow">
+      <div class="settingLabel" id="video-export-hardware-acceleration-label">Acceleration</div>
+      <div class="settingControls">
+        <div class="tag-container export-pills" role="group" aria-labelledby="video-export-hardware-acceleration-label">
+          <Tag
+            interactive
+            selected={hardwareAcceleration === 'prefer-software'}
+            onclick={() => (hardwareAcceleration = 'prefer-software')}
+          >
+            Software
+          </Tag>
+          <Tag
+            interactive
+            selected={hardwareAcceleration === 'prefer-hardware'}
+            onclick={() => (hardwareAcceleration = 'prefer-hardware')}
+          >
+            Hardware
+          </Tag>
+          <Tag
+            interactive
+            selected={hardwareAcceleration === 'no-preference'}
+            onclick={() => (hardwareAcceleration = 'no-preference')}
+          >
+            Auto
+          </Tag>
+        </div>
+      </div>
+    </div>
+
+    <div class="settingRow">
+      <div class="settingLabel" id="video-export-latency-mode-label">Priority</div>
+      <div class="settingControls">
+        <div class="tag-container export-pills" role="group" aria-labelledby="video-export-latency-mode-label">
+          <Tag interactive selected={latencyMode === 'quality'} onclick={() => (latencyMode = 'quality')}>
+            Quality
+          </Tag>
+          <Tag interactive selected={latencyMode === 'realtime'} onclick={() => (latencyMode = 'realtime')}>
+            Speed
+          </Tag>
+        </div>
+      </div>
+    </div>
+
+    <div class="settingRow">
+      <div class="settingLabel" id="video-export-keyframe-interval-label">Keyframe</div>
+      <div class="settingControls">
+        <Input
+          size="sm"
+          type="number"
+          value={String(keyFrameIntervalSeconds)}
+          oninput={(e: Event) =>
+            (keyFrameIntervalSeconds = clampNumber(
+              parseFloat((e.target as HTMLInputElement).value) || DEFAULT_KEYFRAME_INTERVAL_SECONDS,
+              KEYFRAME_INTERVAL_SECONDS_MIN,
+              KEYFRAME_INTERVAL_SECONDS_MAX,
+            ))}
+          min={KEYFRAME_INTERVAL_SECONDS_MIN}
+          max={KEYFRAME_INTERVAL_SECONDS_MAX}
+          step={0.1}
+          aria-labelledby="video-export-keyframe-interval-label"
+          class="input-narrow"
+        />
+      </div>
+    </div>
+  {/if}
+</ModalDialog>
 
 <style>
   /* Modal content - :global required for Modal portal */
   /* Shell: panel header → scroll main (one elevated card, full width) → footer on frame bg. */
   :global(.video-export-dialog.content.frame) {
-    width: min(480px, 94vw);
-    min-width: min(360px, 94vw);
+    /* `ModalDialog` owns base layout + padding reset. */
 
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-    /* Overrides global `.frame` padding: shell controls inset (FloatingPanel-like chrome). */
-    padding: 0;
-
-    .export-shell {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      min-height: 0;
-      gap: 0;
-    }
-
-    /* FloatingPanel-compatible header (.content > header). No drag-indicator in modal chrome. */
-    .panel-header {
-      position: relative;
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--pd-md);
-      padding: var(--pd-xs) var(--pd-xs) var(--pd-xs) var(--pd-md);
-      margin-bottom: var(--pd-md);
-      min-height: var(--size-sm);
-      /* Same surface as modal `.frame` (--frame-bg); no inner elevated strip */
-      background: transparent;
-    }
-
-    .header-left {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      align-items: center;
-    }
-
-    .header-right {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-    }
-
-    .dialog-title {
-      margin: 0;
-      flex: 1;
-      min-width: 0;
-      font-size: var(--text-sm);
-      font-weight: 500;
-      line-height: 1.2;
-      color: var(--print-light);
-      letter-spacing: 0;
-    }
-
-    :global(.close-btn.button) {
-      border-radius: calc(var(--radius-md) - var(--pd-xs));
-    }
-
-    /* Scroll the elevated panel only; full horizontal bleed (matches compact: one card edge-to-edge). */
-    .main {
-      display: flex;
-      flex-direction: column;
-      flex: 1;
-      min-height: 0;
-      overflow: auto;
-      padding: 0;
-    }
-
-    /*
-     * Single `frame-elevated` card: all corners rounded, full width of dialog content.
-     * Matches AudioSignalPickerCompact `.section.frame-elevated` sitting under panel chrome.
-     */
-    .export-panel.section.frame-elevated {
-      display: flex;
-      flex-direction: column;
-      gap: var(--pd-xl);
-      width: 100%;
+    /* ModalDialog body tweaks specific to export */
+    :global(.modal-dialog-body.export-panel) {
       padding: var(--pd-xl) var(--pd-xl);
-      box-sizing: border-box;
-      flex-shrink: 0;
-      border-radius: var(--frame-elevated-radius);
+      gap: var(--pd-md);
     }
 
-    .group {
-      display: flex;
-      flex-direction: column;
-      gap: var(--pd-sm);
+    .settingRow {
+      display: grid;
+      grid-template-columns: minmax(0, 90px) minmax(0, 1fr);
+      align-items: start;
+      column-gap: var(--pd-lg);
+      row-gap: var(--pd-xs);
     }
 
-    .group + .group {
-      padding-top: var(--pd-xl);
+    /* Dividers between settings rows. */
+    :global(.modal-dialog-body.export-panel) > .settingRow + .settingRow {
       border-top: 1px solid var(--divider);
+      padding-top: var(--pd-md);
+      margin-top: var(--pd-md);
     }
 
-    .field-label {
-      display: block;
-      margin: var(--pd-sm) 0 var(--pd-xs);
+    .panel-divider {
+      width: 100%;
+      border-top: 1px solid var(--divider);
+      margin: var(--pd-md) 0;
+    }
+
+    .settingLabel {
       font-size: var(--text-sm);
       font-weight: 600;
       color: var(--label-color);
       letter-spacing: 0;
-      margin: var(--pd-md) 0 var(--pd-xs) 0;
+      line-height: 1.2;
+      padding-top: 2px;
+    }
 
-      &:first-child,
-      &:first-of-type {
-        margin-top: 0;
+    .settingControls {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: flex-start;
+      gap: var(--pd-md);
+      min-width: 0;
+    }
+
+    /* On narrow dialog widths, collapse back to stacked label → controls. */
+    @media (max-width: 420px) {
+      .settingRow {
+        grid-template-columns: 1fr;
+      }
+      .settingLabel {
+        padding-top: 0;
       }
     }
 
@@ -505,6 +790,7 @@
       letter-spacing: 0;
     }
 
+
     .custom-resolution {
       display: flex;
       gap: var(--pd-sm);
@@ -517,8 +803,11 @@
       min-width: 0;
     }
 
-    .toggle-stack {
-      padding-top: var(--pd-md);
+    .resolution-hint {
+      font-size: var(--text-xs);
+      color: var(--color-yellow-100);
+      font-variant-numeric: tabular-nums;
+      margin-top: var(--pd-xs);
     }
 
     .toggle-row-split {
@@ -528,6 +817,7 @@
       gap: var(--pd-xl);
       width: 100%;
       box-sizing: border-box;
+      padding-top: var(--pd-md);
     }
 
     .toggle-row {
@@ -536,9 +826,6 @@
       justify-content: flex-start;
       gap: var(--pd-sm);
       box-sizing: border-box;
-    }
-
-    .toggle-row--cell {
       min-width: 0;
     }
 
@@ -548,29 +835,22 @@
       font-weight: 500;
       color: color-mix(in srgb, var(--color-gray-130) 90%, var(--color-gray-50));
       user-select: none;
+      cursor: pointer;
     }
 
     .toggle-row :global(.toggle) {
       flex-shrink: 0;
     }
 
-    .footer {
-      flex-shrink: 0;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      padding: var(--pd-lg) var(--pd-md) var(--pd-md) var(--pd-md);
-      background: transparent;
-    }
-
-    .actions {
-      display: flex;
-      gap: var(--pd-md);
-      justify-content: flex-end;
-    }
+    /* Footer action row is provided by ModalDialog */
 
     :global(.input-full.input) {
       width: 100%;
+      box-sizing: border-box;
+    }
+
+    :global(.input-narrow.input) {
+      width: min(160px, 100%);
       box-sizing: border-box;
     }
 
@@ -579,6 +859,7 @@
       display: flex;
       flex-direction: column;
       gap: var(--pd-sm);
+      margin-bottom: var(--pd-md);
       --time-range-row-color: color-mix(in srgb, var(--color-gray-130) 88%, var(--color-gray-50));
       --time-range-row-muted: color-mix(in srgb, var(--color-gray-120) 85%, var(--color-gray-50));
     }
@@ -621,5 +902,152 @@
       --range-editor-handle-hover-bg: var(--color-teal-110);
       --range-editor-handle-active-bg: var(--color-teal-120);
     }
+
+    /* Progress step */
+    :global(.modal-dialog-body.export-progress-panel) {
+      padding: var(--pd-lg) var(--pd-lg);
+      gap: var(--pd-md);
+    }
+
+    .video-export-progress-footer {
+      display: flex;
+      justify-content: flex-end;
+      width: 100%;
+    }
+
+    .progress-shell {
+      display: flex;
+      flex-direction: column;
+      gap: var(--pd-md);
+      min-height: 0;
+    }
+
+    .progress-meta {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) max-content;
+      align-items: baseline;
+      gap: var(--pd-md);
+      min-width: 0;
+    }
+
+    .progress-frames {
+      font-size: var(--text-sm);
+      color: var(--color-gray-90);
+      font-weight: 600;
+      min-width: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .progress-right {
+      display: grid;
+      grid-template-columns: minmax(12ch, max-content) 6ch;
+      align-items: baseline;
+      justify-items: end;
+      column-gap: var(--pd-md);
+      flex-shrink: 0;
+    }
+
+    .progress-percent {
+      font-size: var(--text-sm);
+      color: var(--color-yellow-110);
+      font-weight: 600;
+      flex-shrink: 0;
+      min-width: 6ch;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .mono {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .progress-bar {
+      width: 100%;
+    }
+
+    .progress-bar-track {
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color-gray-30) 72%, black);
+      overflow: hidden;
+      border: 1px solid color-mix(in srgb, var(--color-gray-120) 14%, transparent);
+      box-sizing: border-box;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: var(--progress-fill);
+      border-radius: 999px;
+      background: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--color-teal-100) 85%, white) 0%,
+        var(--color-teal-100) 35%,
+        color-mix(in srgb, var(--color-teal-120) 85%, black) 100%
+      );
+      position: relative;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(110deg, transparent 0%, rgba(255, 255, 255, 0.26) 45%, transparent 70%);
+      transform: translateX(-60%);
+      animation: progress-shimmer 1.8s ease-in-out infinite;
+      mix-blend-mode: overlay;
+      opacity: 0.9;
+      pointer-events: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .progress-bar-fill::after {
+        animation: none;
+        opacity: 0;
+      }
+    }
+
+    @keyframes progress-shimmer {
+      0% {
+        transform: translateX(-60%);
+      }
+      100% {
+        transform: translateX(60%);
+      }
+    }
+
+    .eta-inline {
+      font-size: var(--text-xs);
+      color: var(--color-orange-red-110);
+      white-space: nowrap;
+      min-width: 12ch;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .eta-label {
+      color: var(--print-normal);
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      font-weight: 700;
+      font-size: 10px;
+    }
+
+    :global(.message.focus-message) {
+      opacity: 0.9;
+    }
+  }
+
+  /* Smaller modal for progress step */
+  :global(.content.frame.modal-dialog.video-export-dialog--progress) {
+    width: min(420px, 94vw);
+    min-width: auto;
+    height: auto;
+  }
+  :global(.content.frame.modal-dialog .export-progress-panel) {
+    gap: var(--pd-2xl) !important;
   }
 </style>

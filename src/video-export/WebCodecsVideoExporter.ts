@@ -11,11 +11,13 @@ import {
   Output,
   Mp4OutputFormat,
   BufferTarget,
+  StreamTarget,
   CanvasSource,
   QUALITY_HIGH,
   type VideoEncodingConfig,
   type AudioEncodingConfig,
   AudioBufferSource,
+  type StreamTargetChunk,
 } from 'mediabunny';
 import {
   MAX_SAMPLES_PER_FRAME,
@@ -24,6 +26,10 @@ import {
 } from './exportLimits';
 
 // --- Config and API types ---
+
+export type VideoExportOutputTarget =
+  | { kind: 'buffer' }
+  | { kind: 'stream'; writable: WritableStream<StreamTargetChunk> };
 
 export interface VideoExportConfig {
   width: number;
@@ -37,7 +43,22 @@ export interface VideoExportConfig {
    */
   audioBuffer?: AudioBuffer;
   videoBitrate?: number;
+  /** Whether the target bitrate is treated as a strict target (CBR) or a quality-oriented target (VBR). */
+  videoBitrateMode?: 'vbr' | 'cbr';
   audioBitrate?: number;
+  /** Keyframe interval in seconds. */
+  keyFrameIntervalSeconds?: number;
+  /** Hardware acceleration preference hint. */
+  hardwareAcceleration?: 'no-preference' | 'prefer-software' | 'prefer-hardware';
+  /** Latency mode; affects quality-vs-speed tradeoffs and may affect rate control. */
+  latencyMode?: 'quality' | 'realtime';
+  /** Video content hint for encoder heuristics. Use 'none' to avoid passing a hint. */
+  contentHint?: 'detail' | 'motion' | 'text' | 'none';
+  /**
+   * Output destination. Use 'stream' to avoid in-memory buffering and allow very large exports.
+   * Default is 'buffer' for backwards compatibility.
+   */
+  outputTarget?: VideoExportOutputTarget;
 }
 
 export interface WebCodecsVideoExporterInterface {
@@ -47,7 +68,12 @@ export interface WebCodecsVideoExporterInterface {
     videoTimestampSeconds: number,
     audioTimestampSeconds?: number
   ): Promise<void>;
-  finalize(): Promise<Uint8Array>;
+  /**
+   * Finalize encoding + muxing.
+   * - When outputTarget.kind === 'buffer' (default): returns the full MP4 bytes.
+   * - When outputTarget.kind === 'stream': writes to the provided stream and returns null.
+   */
+  finalize(): Promise<Uint8Array | null>;
   terminate(): void;
 }
 
@@ -98,24 +124,32 @@ export class WebCodecsVideoExporter implements WebCodecsVideoExporterInterface {
     // override with explicit videoBitrate when provided.
     const videoBitrate = this.config.videoBitrate ?? QUALITY_HIGH;
     const audioBitrate = this.config.audioBitrate ?? 192_000;
+    const keyFrameIntervalSeconds = this.config.keyFrameIntervalSeconds ?? 2;
+    const hardwareAcceleration = this.config.hardwareAcceleration ?? 'prefer-software';
+    const videoBitrateMode: NonNullable<VideoExportConfig['videoBitrateMode']> = this.config.videoBitrateMode ?? 'vbr';
+    const mediabunnyBitrateMode = videoBitrateMode === 'cbr' ? 'constant' : 'variable';
+    const latencyMode: NonNullable<VideoExportConfig['latencyMode']> = this.config.latencyMode ?? 'quality';
+    const contentHint: NonNullable<VideoExportConfig['contentHint']> = this.config.contentHint ?? 'detail';
+    const mediabunnyContentHint = contentHint === 'none' ? undefined : contentHint;
 
     const videoConfig: VideoEncodingConfig = {
       codec: 'avc',
       bitrate: videoBitrate,
-      // Variable bitrate generally yields better subjective quality for shader footage.
-      // (Mediabunny default is 'variable', but keep explicit to avoid regressions.)
-      bitrateMode: 'variable',
+      bitrateMode: mediabunnyBitrateMode,
       // Mediabunny expects seconds (not frames). A ~2s GOP is a good tradeoff for quality and seeking.
-      keyFrameInterval: 2,
-      latencyMode: 'quality',
+      keyFrameInterval: keyFrameIntervalSeconds,
+      latencyMode,
       // Prefer software encoders when available; tends to preserve detail/contrast better than some HW paths.
-      hardwareAcceleration: 'prefer-software',
-      // Hint that content is detailed (shader footage, fine gradients).
-      contentHint: 'detail',
+      hardwareAcceleration,
+      contentHint: mediabunnyContentHint,
     };
 
     const format = new Mp4OutputFormat();
-    const target = new BufferTarget();
+    const outputTarget: VideoExportOutputTarget = this.config.outputTarget ?? { kind: 'buffer' };
+    const target =
+      outputTarget.kind === 'stream'
+        ? new StreamTarget(outputTarget.writable, { chunked: true })
+        : new BufferTarget();
     this.output = new Output({ format, target });
 
     this.videoSource = new CanvasSource(canvas, videoConfig);
@@ -188,7 +222,7 @@ export class WebCodecsVideoExporter implements WebCodecsVideoExporterInterface {
   /**
    * Flush encoders and mux to a single buffer. Call after all frames have been added.
    */
-  async finalize(): Promise<Uint8Array> {
+  async finalize(): Promise<Uint8Array | null> {
     if (this.terminated) {
       throw new Error('Exporter has been terminated; cannot finalize');
     }
@@ -205,6 +239,12 @@ export class WebCodecsVideoExporter implements WebCodecsVideoExporterInterface {
     await this.videoSource?.close();
     await this.audioSource?.close();
     await output.finalize();
+
+    const outputTarget: VideoExportOutputTarget = this.config.outputTarget ?? { kind: 'buffer' };
+    if (outputTarget.kind === 'stream') {
+      this.cleanup();
+      return null;
+    }
 
     const target = output.target as BufferTarget;
     const buffer = target.buffer;

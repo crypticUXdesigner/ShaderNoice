@@ -12,10 +12,10 @@ import type { AudioSetup } from '../data-model/audioSetupTypes';
 import { getPrimaryFileId } from '../data-model/audioSetupTypes';
 import type { ShaderCompiler } from '../runtime/types';
 import { createOfflineAudioProvider } from './OfflineAudioProvider';
-import { createHighFidelityOfflineAudioProvider } from './HighFidelityOfflineAudioProvider';
 import { createExportRenderPath } from './ExportRenderPath';
 import { WebCodecsVideoExporter, isSupported } from './WebCodecsVideoExporter';
 import type { FrameAudioState } from './OfflineAudioProvider';
+import type { StreamTargetChunk } from 'mediabunny';
 import {
   MAX_EXPORT_FRAMES,
   MAX_EXPORT_WIDTH,
@@ -24,7 +24,6 @@ import {
 } from './exportLimits';
 import { writable } from 'svelte/store';
 import VideoExportDialog from '../lib/components/export/VideoExportDialog.svelte';
-import VideoExportProgressOverlay from '../lib/components/export/VideoExportProgressOverlay.svelte';
 
 export interface VideoExportOrchestratorOptions {
   graph: NodeGraph;
@@ -45,10 +44,18 @@ export interface VideoExportDialogConfig {
   endSeconds?: number;
   /** When true and no audio is loaded, allow export as video-only (no audio track). */
   allowVideoOnly: boolean;
-  /** When true, use high-fidelity (slower) audio analysis to better match preview. */
-  highFidelityAudio: boolean;
   videoBitrate?: number;
+  /** Video bitrate mode as chosen in the dialog. */
+  videoBitrateMode?: 'vbr' | 'cbr';
   audioBitrate?: number;
+  /** Keyframe interval (seconds). */
+  keyFrameIntervalSeconds?: number;
+  /** Hardware acceleration preference for the encoder. */
+  hardwareAcceleration?: 'no-preference' | 'prefer-software' | 'prefer-hardware';
+  /** Latency mode: quality favors quality over speed; realtime favors rate control/latency. */
+  latencyMode?: 'quality' | 'realtime';
+  /** Video content hint for the encoder. */
+  contentHint?: 'detail' | 'motion' | 'text' | 'none';
   frameRate: number;
 }
 
@@ -57,6 +64,11 @@ const DEFAULT_AUDIO_BITRATE = 192_000;
 /** Default video bitrate in Mbps (shown in UI); stored as bps when passing to exporter */
 const DEFAULT_VIDEO_BITRATE_MBPS = 10;
 const DEFAULT_VIDEO_BITRATE = DEFAULT_VIDEO_BITRATE_MBPS * 1_000_000;
+const DEFAULT_VIDEO_BITRATE_MODE: NonNullable<VideoExportDialogConfig['videoBitrateMode']> = 'vbr';
+const DEFAULT_KEYFRAME_INTERVAL_SECONDS = 2;
+const DEFAULT_HARDWARE_ACCELERATION: NonNullable<VideoExportDialogConfig['hardwareAcceleration']> = 'prefer-software';
+const DEFAULT_LATENCY_MODE: NonNullable<VideoExportDialogConfig['latencyMode']> = 'quality';
+const DEFAULT_CONTENT_HINT: NonNullable<VideoExportDialogConfig['contentHint']> = 'detail';
 
 /** Config from dialog: audio optional (no buffer = video-only export when allowVideoOnly is true). */
 export type VideoExportResolvedConfig = VideoExportDialogConfig & {
@@ -67,88 +79,85 @@ export type VideoExportResolvedConfig = VideoExportDialogConfig & {
 
 /**
  * Show modal dialog to collect export config. Resolves with config on Confirm, rejects on Cancel.
- * Uses VideoExportDialog.svelte (mounted imperatively).
+ * After confirm, the dialog stays open and swaps to progress view.
  */
-function showExportDialog(options: VideoExportOrchestratorOptions): Promise<VideoExportResolvedConfig> {
-  return new Promise((resolve, reject) => {
-    const container = document.createElement('div');
-    document.body.appendChild(container);
-    let settled = false;
-    let instance: ReturnType<typeof mount> | null = null;
-
-    const cleanup = () => {
-      if (!container.parentNode) return;
-      if (instance) unmount(instance);
-      container.remove();
-    };
-
-    const handleClose = () => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      reject(new Error('Cancelled'));
-    };
-
-    const handleConfirm = (config: VideoExportResolvedConfig) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      resolve(config);
-    };
-
-    instance = mount(VideoExportDialog, {
-      target: container,
-      props: {
-        visible: true,
-        getPrimaryAudio: options.getPrimaryAudio,
-        onClose: handleClose,
-        onConfirm: handleConfirm,
-      },
-    });
-  });
-}
-
-/**
- * Show progress modal with "Frame N / M", a "keep in focus" hint, and Cancel button.
- * Uses VideoExportProgressOverlay.svelte.
- */
-function showProgressOverlay(): {
+function showExportDialog(options: VideoExportOrchestratorOptions): {
+  config: Promise<VideoExportResolvedConfig>;
   setProgress: (current: number, total: number) => void;
-  cancel: () => void;
-  closed: Promise<void>;
+  requestCancel: () => void;
+  close: () => void;
+  cancelled: Promise<void>;
 } {
-  let resolveClosed: () => void;
-  const closed = new Promise<void>((r) => {
-    resolveClosed = r;
-  });
-
   const progressStore = writable({ current: 0, total: 0 });
   const container = document.createElement('div');
   document.body.appendChild(container);
-  let instance: ReturnType<typeof mount> | null = null;
 
-  const handleCancel = () => {
+  let instance: ReturnType<typeof mount> | null = null;
+  let settled = false;
+
+  let resolveCancelled: () => void;
+  const cancelled = new Promise<void>((r) => {
+    resolveCancelled = r;
+  });
+  let cancelRequested = false;
+
+  const cleanup = () => {
+    if (!container.parentNode) return;
     if (instance) unmount(instance);
     container.remove();
-    resolveClosed();
   };
 
-  instance = mount(VideoExportProgressOverlay, {
+  let resolveConfig!: (config: VideoExportResolvedConfig) => void;
+  let rejectConfig!: (err: Error) => void;
+  const config = new Promise<VideoExportResolvedConfig>((resolve, reject) => {
+    resolveConfig = resolve;
+    rejectConfig = reject;
+  });
+
+  const handleClose = () => {
+    if (settled) return;
+    settled = true;
+    cleanup();
+    rejectConfig(new Error('Cancelled'));
+  };
+
+  const handleConfirm = (cfg: VideoExportResolvedConfig) => {
+    if (settled) return;
+    settled = true;
+    // Important: do NOT cleanup here. The dialog stays open and switches to progress step.
+    resolveConfig(cfg);
+  };
+
+  const handleCancelExport = () => {
+    if (cancelRequested) return;
+    cancelRequested = true;
+    resolveCancelled();
+  };
+
+  instance = mount(VideoExportDialog, {
     target: container,
     props: {
+      visible: true,
+      getPrimaryAudio: options.getPrimaryAudio,
+      onClose: handleClose,
+      onConfirm: handleConfirm,
       progress: progressStore,
-      onCancel: handleCancel,
+      onCancelExport: handleCancelExport,
     },
   });
 
   return {
+    config,
     setProgress(current: number, total: number) {
       progressStore.set({ current, total });
     },
-    cancel() {
-      handleCancel();
+    requestCancel() {
+      handleCancelExport();
     },
-    closed,
+    close() {
+      cleanup();
+    },
+    cancelled,
   };
 }
 
@@ -178,6 +187,46 @@ function defaultFilename(): string {
   return `shader-export-${y}-${m}-${d}-${h}${min}.mp4`;
 }
 
+async function pickSaveHandle(filename: string): Promise<FileSystemFileHandle> {
+  if (!('showSaveFilePicker' in window)) {
+    throw new Error('This browser does not support the File System Access API required for large video exports.');
+  }
+  const showSaveFilePicker = (window as unknown as { showSaveFilePicker: (opts: unknown) => Promise<FileSystemFileHandle> })
+    .showSaveFilePicker;
+  return await showSaveFilePicker({
+    suggestedName: filename,
+    types: [
+      {
+        description: 'MP4 video',
+        accept: { 'video/mp4': ['.mp4'] },
+      },
+    ],
+  });
+}
+
+function createFileSystemWritableStream(
+  fs: FileSystemWritableFileStream
+): WritableStream<StreamTargetChunk> {
+  return new WritableStream<StreamTargetChunk>({
+    async write(chunk) {
+      // FileSystemWritableFileStream supports random-access writes via { type: 'write', position, data }.
+      await fs.write({ type: 'write', position: chunk.position, data: chunk.data });
+    },
+    async close() {
+      await fs.close();
+    },
+    async abort(reason) {
+      // Chrome supports abort(); if not, close to release the file handle.
+      const maybeAbort = fs as unknown as { abort?: (reason?: unknown) => Promise<void> };
+      if (maybeAbort.abort) {
+        await maybeAbort.abort(reason);
+      } else {
+        await fs.close();
+      }
+    },
+  });
+}
+
 /**
  * Run the full video export flow: dialog → progress → offline loop → save.
  * Throws if WebCodecs not supported or user cancels. Audio is optional (video-only when no primary audio).
@@ -187,7 +236,8 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
     throw new Error('Video export is not supported in this browser. WebCodecs (VideoEncoder/AudioEncoder) is required.');
   }
 
-  const config = await showExportDialog(options);
+  const dialog = showExportDialog(options);
+  const config = await dialog.config;
   const { graph, audioSetup, compiler } = options;
   const { width, height, maxDurationSeconds, frameRate } = config;
 
@@ -238,16 +288,19 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
     );
   }
 
-  const progress = showProgressOverlay();
   let cancelled = false;
-  progress.closed.then(() => {
+  dialog.cancelled.then(() => {
     cancelled = true;
   });
 
+  // Pick output file upfront so we can stream bytes and avoid 4 GiB ArrayBuffer limits.
+  const filename = defaultFilename();
+  const fileHandle = await pickSaveHandle(filename);
+  const fileStream = await fileHandle.createWritable();
+  const writable = createFileSystemWritableStream(fileStream);
+
   const offlineProvider = hasAudio
-    ? (config.highFidelityAudio
-        ? await createHighFidelityOfflineAudioProvider(audioSetup, primaryNodeId, buffer!, sampleRate, frameRate, startSeconds)
-        : createOfflineAudioProvider(audioSetup, primaryNodeId, buffer!, sampleRate, frameRate, startSeconds))
+    ? createOfflineAudioProvider(audioSetup, primaryNodeId, buffer!, sampleRate, frameRate, startSeconds)
     : null;
 
   const renderPath = createExportRenderPath(graph, compiler, audioSetup, {
@@ -266,7 +319,13 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
     numberOfChannels,
     audioBuffer: slicedAudioBuffer,
     videoBitrate: config.videoBitrate ?? DEFAULT_VIDEO_BITRATE,
+    videoBitrateMode: config.videoBitrateMode ?? DEFAULT_VIDEO_BITRATE_MODE,
+    keyFrameIntervalSeconds: config.keyFrameIntervalSeconds ?? DEFAULT_KEYFRAME_INTERVAL_SECONDS,
+    hardwareAcceleration: config.hardwareAcceleration ?? DEFAULT_HARDWARE_ACCELERATION,
+    latencyMode: config.latencyMode ?? DEFAULT_LATENCY_MODE,
+    contentHint: config.contentHint ?? DEFAULT_CONTENT_HINT,
     audioBitrate: config.audioBitrate ?? DEFAULT_AUDIO_BITRATE,
+    outputTarget: { kind: 'stream', writable },
   });
 
   try {
@@ -276,7 +335,13 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
         exporter.terminate();
         break;
       }
-      progress.setProgress(frameIndex + 1, maxFrames);
+      const shouldYield = frameIndex === 0 || frameIndex === maxFrames - 1 || frameIndex % yieldEvery === 0;
+      // Avoid per-frame UI churn: update progress roughly at the same cadence we yield.
+      if (shouldYield) {
+        dialog.setProgress(frameIndex + 1, maxFrames);
+        // Important: allow the browser to paint progress updates before potentially blocking on encoding / stream backpressure.
+        await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      }
 
       const frameState: FrameAudioState = offlineProvider
         ? offlineProvider.getFrameState(frameIndex)
@@ -288,22 +353,32 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
       await exporter.addFrame(canvas, frameState.channelSamples, timestampSeconds);
 
       // Yield to UI so progress and cancel are responsive
-      if (frameIndex % yieldEvery === 0) {
+      if (shouldYield) {
         await new Promise((r) => setTimeout(r, 0));
       }
     }
 
     if (cancelled) {
-      throw new Error('Export cancelled');
+      // Sentinel error message used by the UI to treat cancel as user-intended (not an error).
+      throw new Error('Cancelled');
     }
 
     const data = await exporter.finalize();
-    progress.cancel();
+    dialog.close();
     renderPath.dispose();
-    downloadBlob(data, defaultFilename());
+    // Stream target returns null; buffer target returns bytes (kept for backwards compatibility).
+    if (data) {
+      downloadBlob(data, filename);
+    }
   } catch (err) {
     exporter.terminate();
-    progress.cancel();
+    try {
+      // Ensure the partially written file is aborted when possible.
+      await writable.abort(err);
+    } catch {
+      // ignore
+    }
+    dialog.close();
     renderPath.dispose();
     throw err;
   }

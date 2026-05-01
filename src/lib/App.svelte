@@ -631,6 +631,22 @@
       waveformService = null;
     };
   });
+
+  function openHelpForNodeType(nodeType: string): void {
+    const center = canvasApi?.getCanvasCenterInScreen() ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    const pos = getStoredPosition('help-panel', {
+      fallback: center,
+      legacyKey: 'shader-composer.helpPanelPosition',
+    });
+    getHelpContent(`node:${nodeType}`).then((content) => {
+      helpContent = content;
+      helpNodeType = nodeType;
+      helpScreenX = pos.x;
+      helpScreenY = pos.y;
+      helpPositionMode = 'center';
+      helpVisible = true;
+    });
+  }
 </script>
 
 <svelte:window />
@@ -712,18 +728,7 @@
         const nodeId = ids[0];
         const node = graphStore.graph.nodes.find((n) => n.id === nodeId);
         if (!node) return;
-        const content = await getHelpContent(`node:${node.type}`);
-        helpContent = content;
-        helpNodeType = node.type;
-        const center = canvasApi?.getCanvasCenterInScreen() ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-        const pos = getStoredPosition('help-panel', {
-          fallback: center,
-          legacyKey: 'shader-composer.helpPanelPosition',
-        });
-        helpScreenX = pos.x;
-        helpScreenY = pos.y;
-        helpPositionMode = 'center';
-        helpVisible = true;
+        openHelpForNodeType(node.type);
       },
       onPanelToggle: () => {
         isPanelVisible = !isPanelVisible;
@@ -789,7 +794,7 @@
     {/snippet}
 
     {#snippet docsPanel()}
-      <DocsPanelContent />
+      <DocsPanelContent nodeSpecs={nodeSpecs} onOpenNodeHelp={openHelpForNodeType} />
     {/snippet}
 
     {#snippet bottomBar(primaryTrackKey)}
@@ -880,19 +885,7 @@
   <NodeRightClickMenu
     bind:this={nodeRightClickMenuRef}
     onReadGuide={(_nodeId, nodeType) => {
-      const center = canvasApi?.getCanvasCenterInScreen() ?? { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-      const pos = getStoredPosition('help-panel', {
-        fallback: center,
-        legacyKey: 'shader-composer.helpPanelPosition',
-      });
-      getHelpContent(`node:${nodeType}`).then((content) => {
-        helpContent = content;
-        helpNodeType = nodeType;
-        helpScreenX = pos.x;
-        helpScreenY = pos.y;
-        helpPositionMode = 'center';
-        helpVisible = true;
-      });
+      openHelpForNodeType(nodeType);
     }}
     onCopyNodeName={(nodeType) => navigator.clipboard.writeText(nodeType).catch(() => {})}
     onRemove={(nodeId) => {

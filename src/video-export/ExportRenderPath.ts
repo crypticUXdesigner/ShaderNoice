@@ -79,10 +79,9 @@ function createExportRenderPathImpl(
   const { width, height, frameRate } = config;
   const startTimeSeconds = config.startTimeSeconds ?? 0;
 
-  const canvas =
-    typeof OffscreenCanvas !== 'undefined'
-      ? new OffscreenCanvas(width, height)
-      : Object.assign(document.createElement('canvas'), { width, height }) as HTMLCanvasElement;
+  // Prefer HTMLCanvasElement for export stability. In some browser paths,
+  // OffscreenCanvas + WebGL2 + WebCodecs capture can exhibit intermittent black frames.
+  const canvas = Object.assign(document.createElement('canvas'), { width, height }) as HTMLCanvasElement;
 
   if (!('width' in canvas && canvas.width === width && canvas.height === height)) {
     canvas.width = width;
@@ -125,6 +124,11 @@ function createExportRenderPathImpl(
     glContext.clearColor(0, 0, 0, 1);
     glContext.clear(glContext.COLOR_BUFFER_BIT);
     shaderInstance.render(width, height);
+
+    // Ensure GPU work is complete before the canvas is captured by the encoder.
+    // This avoids intermittent black frames caused by snapshotting before WebGL commands have finished.
+    glContext.flush();
+    glContext.finish();
 
     return canvas;
   }

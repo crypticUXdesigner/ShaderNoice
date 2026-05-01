@@ -1,9 +1,11 @@
 <script lang="ts">
+  import type { ButtonIconPosition, ButtonMode, ButtonSize, ButtonVariant } from './buttonTypes';
+
   interface Props {
-    variant?: 'primary' | 'secondary' | 'ghost' | 'warning';
-    size?: 'sm' | 'md' | 'lg';
-    mode?: 'icon-only' | 'label-only' | 'both';
-    iconPosition?: 'leading' | 'trailing';
+    variant?: ButtonVariant;
+    size?: ButtonSize;
+    mode?: ButtonMode;
+    iconPosition?: ButtonIconPosition;
     rounded?: boolean;
     disabled?: boolean;
     class?: string;
@@ -121,12 +123,9 @@
       &:active,
       &.is-active {
         color: var(--ghost-print-active);
-        background: var(--ghost-bg-active);
-        background: radial-gradient(
-          ellipse 60% 90% at 50% 51%,
-          var(--ghost-print-active-g1) 0%,
-          var(--ghost-print-active-g2) 100%
-        );
+        background-color: var(--ghost-bg-active);
+        /* Optional theme override: set `--ghost-active-bg-image` to a gradient. */
+        background-image: var(--ghost-active-bg-image, none);
       }
 
       &:not(.rounded) {

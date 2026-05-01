@@ -20,6 +20,22 @@
     if (disabled) return;
     onChange?.(isOn ? 0 : 1);
   }
+
+  $effect(() => {
+    if (!labelledBy) return;
+    if (typeof document === 'undefined') return;
+
+    const labelEl = document.getElementById(labelledBy);
+    if (!labelEl) return;
+
+    const onLabelClick = () => {
+      if (disabled) return;
+      onChange?.(isOn ? 0 : 1);
+    };
+
+    labelEl.addEventListener('click', onLabelClick);
+    return () => labelEl.removeEventListener('click', onLabelClick);
+  });
 </script>
 
 <button

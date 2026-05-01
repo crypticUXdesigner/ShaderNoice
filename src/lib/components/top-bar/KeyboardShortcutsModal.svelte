@@ -2,7 +2,8 @@
   /**
    * Modal that lists keyboard shortcuts. Surfaces F5 (document and surface shortcuts in-app).
    */
-  import { Modal, Button } from '../ui';
+  import { ModalDialog, ShortcutRow } from '../ui';
+  import type { ShortcutKeys } from '../ui/shortcut/shortcutTypes';
 
   interface Props {
     open?: boolean;
@@ -11,71 +12,106 @@
 
   let { open = false, onClose }: Props = $props();
 
-  const shortcuts = [
-    { keys: 'Delete / Backspace', action: 'Delete selected nodes' },
-    { keys: 'Ctrl/Cmd + Z', action: 'Undo' },
-    { keys: 'Ctrl/Cmd + Shift + Z', action: 'Redo' },
-    { keys: 'Ctrl/Cmd + C', action: 'Copy selected nodes' },
-    { keys: 'Ctrl/Cmd + V', action: 'Paste nodes' },
-    { keys: 'Ctrl/Cmd + A', action: 'Select all nodes' },
-    { keys: 'Ctrl/Cmd + D', action: 'Duplicate selected nodes' },
-    { keys: '1', action: 'View mode: Node' },
-    { keys: '2', action: 'View mode: Split' },
-    { keys: '3', action: 'View mode: Full' },
-    { keys: 'Tab', action: 'Toggle side panel' },
-    { keys: '<', action: 'Toggle UI visibility' },
-    { keys: 'Spacebar (hold)', action: 'Temporary pan (Hand tool)' },
-    { keys: 'F', action: 'Toggle fullscreen' },
+  const chord = (...parts: string[]): ShortcutKeys => ({ parts, joiner: ' + ' });
+  const either = (...parts: string[]): ShortcutKeys => ({ parts, joiner: ' / ' });
+
+  const groups: Array<{
+    title: string;
+    description?: string;
+    shortcuts: Array<{ action: string; keys: ShortcutKeys }>;
+  }> = [
+    {
+      title: 'View',
+      shortcuts: [
+        { action: 'View: Node', keys: ['1'] },
+        { action: 'View: Split', keys: ['2'] },
+        { action: 'View: Shader', keys: ['3'] },
+        { action: 'Library', keys: ['Tab'] },
+        { action: 'UI', keys: ['<'] },
+        { action: 'Fullscreen', keys: ['F'] },
+      ],
+    },  
+    {
+      title: 'Playback',
+      shortcuts: [
+        { action: 'Play/Pause', keys: ['Space'] },
+      ],
+    },
+    {
+      title: 'Tools',
+      shortcuts: [
+        { action: 'Tool: Cursor', keys: ['V'] },
+        { action: 'Tool: Hand', keys: either('H', 'Hold Space') },
+        { action: 'Tool: Select', keys: ['S'] },
+      ],
+    },
+    {
+      title: 'Node editor',
+      shortcuts: [
+        { action: 'Delete selection', keys: either('Delete', 'Backspace') },
+        { action: 'Copy selection', keys: chord('Ctrl/Cmd', 'C') },
+        { action: 'Paste', keys: chord('Ctrl/Cmd', 'V') },
+        { action: 'Duplicate selection', keys: chord('Ctrl/Cmd', 'D') },
+        { action: 'Pan (hold)', keys: ['Space'] },
+      ],
+    }
   ];
 </script>
 
-<Modal {open} {onClose} class="keyboard-shortcuts-modal">
-  <div class="shortcuts-content">
-    <h2 class="shortcuts-title">Keyboard shortcuts</h2>
-    <dl class="shortcuts-list">
-      {#each shortcuts as { keys, action } (keys)}
-        <dt class="shortcuts-keys">{keys}</dt>
-        <dd class="shortcuts-action">{action}</dd>
-      {/each}
-    </dl>
-    <div class="shortcuts-actions">
-      <Button variant="primary" size="sm" onclick={() => onClose?.()}>Close</Button>
-    </div>
+<ModalDialog
+  open={open}
+  onClose={onClose}
+  class="keyboard-shortcuts-modal"
+  title="Shortcuts"
+  primaryLabel="Done"
+  primaryVariant="secondary"
+  onPrimary={() => onClose?.()}
+  bodyClass="keyboard-shortcuts-body"
+>
+  <div class="shortcuts-groups">
+    {#each groups as group (group.title)}
+      <section class="group">
+        <h3 class="group-title">{group.title}</h3>
+
+        <dl class="shortcuts-list">
+          {#each group.shortcuts as s (s.action)}
+            <ShortcutRow action={s.action} keys={s.keys} />
+          {/each}
+        </dl>
+      </section>
+    {/each}
   </div>
-</Modal>
+</ModalDialog>
 
 <style>
-  .shortcuts-content {
-    padding: var(--pd-lg);
+  :global(.keyboard-shortcuts-body) {
     min-width: 280px;
   }
 
-  .shortcuts-title {
-    margin: 0 0 var(--pd-md);
-    font-size: var(--font-size-lg);
-    font-weight: 600;
+  .shortcuts-groups {
+    display: grid;
+    gap: var(--pd-md);
+  }
+
+  .group {
+    display: grid;
+    gap: var(--pd-xs);
+    margin-bottom: var(--pd-md);
+  }
+
+  .group-title {
+    margin: 0 0 var(--pd-xs) 0;
+    font-size: var(--text-xs);
+    color: var(--print-highlight);
   }
 
   .shortcuts-list {
     display: grid;
-    grid-template-columns: auto 1fr;
-    gap: var(--pd-xs) var(--pd-lg);
-    margin: 0 0 var(--pd-lg);
-    font-size: var(--font-size-sm);
-  }
-
-  .shortcuts-keys {
+    /* fixed action column + snug shortcut column */
+    grid-template-columns: var(--shortcut-action-col-width, 160px) auto;
+    align-items: center;
+    gap: var(--pd-xs) var(--pd-md);
     margin: 0;
-    font-family: var(--font-mono, ui-monospace, monospace);
-    color: var(--text-secondary, #666);
-  }
-
-  .shortcuts-action {
-    margin: 0;
-  }
-
-  .shortcuts-actions {
-    display: flex;
-    justify-content: flex-end;
+    font-size: var(--text-sm);
   }
 </style>

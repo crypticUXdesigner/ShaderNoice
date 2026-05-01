@@ -1,4 +1,6 @@
 export { default as Input } from './Input.svelte';
+export { default as InputClearButton } from './InputClearButton.svelte';
+export { default as SearchInput } from './SearchInput.svelte';
 export { default as Slider } from './Slider.svelte';
 export { default as ValueInput } from './ValueInput.svelte';
 export { default as RangeSlider } from './RangeSlider.svelte';

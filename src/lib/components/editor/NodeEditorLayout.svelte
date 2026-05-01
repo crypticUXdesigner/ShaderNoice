@@ -3,12 +3,14 @@
    * Node Editor Layout - Svelte 5 Migration WP 04A
    * Split view with resizable divider, corner widget, preset dropdown, zoom, help, panel toggle.
    */
-  import { Message, DropdownMenu, Modal, Button } from '../ui';
-  import type { DropdownMenuItem } from '../ui';
+  import { Message } from '../ui';
   import { TopBar, KeyboardShortcutsModal } from '../top-bar';
   import { SidePanel } from '../side-panel';
   import VerticalResizeHandle from './VerticalResizeHandle.svelte';
   import PreviewContainer from './PreviewContainer.svelte';
+  import ConfirmPresetImportModal from './ConfirmPresetImportModal.svelte';
+  import ConfirmPresetLoadModal from './ConfirmPresetLoadModal.svelte';
+  import PresetPickerDialog from './PresetPickerDialog.svelte';
   import { portal } from '../../actions/portal';
   import { getGraph } from '../../stores';
   import { globalErrorHandler } from '../../../utils/errorHandling';
@@ -55,10 +57,7 @@
   // State
   let containerEl = $state<HTMLDivElement | undefined>(undefined);
   let buttonContainerEl = $state<HTMLDivElement | undefined>(undefined);
-  let presetMenuOpen = $state(false);
-  let presetMenuX = $state(0);
-  let presetMenuY = $state(0);
-  let presetMenuItems = $state<DropdownMenuItem[]>([]);
+  let presetDialogOpen = $state(false);
 
   let viewMode = $state<ViewMode>('node');
   let activeTab = $state<'nodes' | 'docs'>('nodes');
@@ -80,7 +79,7 @@
 
   let toastVisible = $state(false);
   let toastMessage = $state('');
-  let toastVariant = $state<'success' | 'error'>('success');
+  let toastVariant = $state<'success' | 'error' | 'info'>('success');
   let presetLoading = $state(false);
   let shortcutsModalOpen = $state(false);
   /** When set, show "Load preset?" confirmation modal; confirm runs load for this preset name. */
@@ -108,15 +107,23 @@
   const panelOffset = $derived(isUiHidden ? 0 : rawPanelOffset);
 
   // Show toast helper
-  function showToast(message: string, type: 'success' | 'error') {
+  function showToast(message: string, type: 'success' | 'error' | 'info') {
     toastMessage = message;
     toastVariant = type;
     toastVisible = true;
-    if (type === 'success') {
+    if (type === 'success' || type === 'info') {
       setTimeout(() => {
         toastVisible = false;
       }, 3000);
     }
+  }
+
+  function isUserCancelled(err: unknown): boolean {
+    if (err && typeof err === 'object' && 'name' in err && (err as { name?: unknown }).name === 'AbortError') return true;
+    if (err instanceof Error) {
+      return err.message === 'Cancelled' || err.message === 'Export cancelled' || err.message === 'Export canceled';
+    }
+    return false;
   }
 
   function dismissToast() {
@@ -149,7 +156,7 @@
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (isTypingTarget(e.target)) return;
       if (shortcutsModalOpen || pendingLoadPresetName !== null || pendingImportJson !== null) return;
-      if (presetMenuOpen) return;
+      if (presetDialogOpen) return;
 
       if (e.key === 'Tab') {
         e.preventDefault();
@@ -160,7 +167,7 @@
       if (e.key === '<') {
         e.preventDefault();
         isUiHidden = !isUiHidden;
-        presetMenuOpen = false;
+        presetDialogOpen = false;
         return;
       }
 
@@ -290,14 +297,18 @@
       await callbacks.onVideoExport?.();
       showToast('Video exported successfully!', 'success');
     } catch (err) {
+      if (isUserCancelled(err)) {
+        showToast('Video export cancelled', 'info');
+        return;
+      }
       const msg = err instanceof Error ? err.message : 'Failed to export video';
-      if (msg === 'Cancelled') return;
       showToast(msg, 'error');
       globalErrorHandler.report('runtime', 'error', msg, { originalError: err instanceof Error ? err : new Error(msg) });
     }
   }
 
   async function handleLoadPreset(presetName: string) {
+    presetDialogOpen = false;
     const graph = getGraph();
     if (graph.nodes.length > 0) {
       pendingLoadPresetName = presetName;
@@ -353,25 +364,8 @@
     }
   }
 
-  function handlePresetClick(e: MouseEvent) {
-    const btn = e.currentTarget as HTMLElement;
-    const rect = btn.getBoundingClientRect();
-    const items: DropdownMenuItem[] = [
-      ...presetList.map((p) => ({
-        label: p.displayName,
-        action: () => handleLoadPreset(p.name),
-      })),
-      { label: 'Import from file…', action: () => { presetMenuOpen = false; presetFileInputEl?.click(); } },
-    ];
-    if (presetList.length === 0) items.unshift({ label: 'No presets available', action: () => {}, disabled: true });
-    presetMenuX = rect.left;
-    presetMenuY = rect.bottom + 4;
-    presetMenuItems = items;
-    presetMenuOpen = true;
-  }
-
-  function handlePresetMenuClose() {
-    presetMenuOpen = false;
+  function handlePresetClick(_e: MouseEvent) {
+    presetDialogOpen = true;
   }
 
   let containerWidth = $state(0);
@@ -394,33 +388,10 @@
     return () => ro.disconnect();
   });
 
-  let zoomClickTimeout: number | null = null;
-  function handleZoomClick() {
-    if (zoomClickTimeout) {
-      clearTimeout(zoomClickTimeout);
-      zoomClickTimeout = null;
-    }
-    zoomClickTimeout = window.setTimeout(() => {
-      zoomClickTimeout = null;
-      callbacks.onZoomChange?.(1.0);
-    }, 250);
-  }
-
-  function handleZoomDblClick() {
-    if (zoomClickTimeout) {
-      clearTimeout(zoomClickTimeout);
-      zoomClickTimeout = null;
-    }
-    const currentZoomPercent = Math.round((callbacks.getZoom?.() ?? 1) * 100);
-    const input = window.prompt('Enter zoom percentage:', String(currentZoomPercent));
-    if (input !== null) {
-      const value = parseFloat(input);
-      if (!isNaN(value) && value > 0) {
-        const zoomValue = Math.max(0.1, Math.min(1, value / 100));
-        callbacks.onZoomChange?.(zoomValue);
-      }
-    }
-  }
+  const topBarZoomChangeProps = $derived.by(() => {
+    // Work around occasional Svelte TS stale prop inference by passing this via spread.
+    return { onZoomChange: callbacks.onZoomChange } as unknown as Record<string, never>;
+  });
 
   const presetLabel = $derived(
     selectedPreset ? (presetList.find((p) => p.name === selectedPreset)?.displayName ?? selectedPreset) : 'None'
@@ -457,60 +428,36 @@
     onExport={handleExport}
     onVideoExport={handleVideoExport}
     isVideoExportSupported={isVideoExportSupported}
-    onZoomClick={handleZoomClick}
-    onZoomDblClick={handleZoomDblClick}
+    {...topBarZoomChangeProps}
     onHelpClick={callbacks.onHelpClick}
     onShortcutsClick={() => (shortcutsModalOpen = true)}
   />
 
   <KeyboardShortcutsModal open={shortcutsModalOpen} onClose={() => (shortcutsModalOpen = false)} />
 
-  <Modal
+  <ConfirmPresetLoadModal
     open={pendingLoadPresetName !== null}
     onClose={() => (pendingLoadPresetName = null)}
-    class="confirm-modal"
-  >
-    <div class="confirm-content">
-      <p>Load preset? This will replace the current graph and clear undo history.</p>
-      <div class="confirm-actions">
-        <Button variant="secondary" size="sm" onclick={() => (pendingLoadPresetName = null)}>Cancel</Button>
-        <Button
-          variant="primary"
-          size="sm"
-          onclick={() => pendingLoadPresetName != null && doLoadPreset(pendingLoadPresetName)}
-        >
-          Confirm
-        </Button>
-      </div>
-    </div>
-  </Modal>
+    onConfirm={() => pendingLoadPresetName != null && doLoadPreset(pendingLoadPresetName)}
+  />
 
-  <Modal
+  <ConfirmPresetImportModal
     open={pendingImportJson !== null}
     onClose={() => (pendingImportJson = null)}
-    class="confirm-modal"
-  >
-    <div class="confirm-content">
-      <p>Import preset? This will replace the current graph and clear undo history.</p>
-      <div class="confirm-actions">
-        <Button variant="secondary" size="sm" onclick={() => (pendingImportJson = null)}>Cancel</Button>
-        <Button
-          variant="primary"
-          size="sm"
-          onclick={() => pendingImportJson != null && doImportPreset(pendingImportJson)}
-        >
-          Confirm
-        </Button>
-      </div>
-    </div>
-  </Modal>
+    onConfirm={() => pendingImportJson != null && doImportPreset(pendingImportJson)}
+  />
 
-  <DropdownMenu
-    open={presetMenuOpen}
-    x={presetMenuX}
-    y={presetMenuY}
-    items={presetMenuItems}
-    onClose={handlePresetMenuClose}
+  <PresetPickerDialog
+    open={presetDialogOpen}
+    presetList={presetList}
+    selectedPreset={selectedPreset}
+    presetLoading={presetLoading}
+    onClose={() => (presetDialogOpen = false)}
+    onSelectPreset={(name) => handleLoadPreset(name)}
+    onImportFromFile={() => {
+      presetDialogOpen = false;
+      presetFileInputEl?.click();
+    }}
   />
 
   <input
@@ -600,21 +547,6 @@
 {/if}
 
 <style>
-  .confirm-content {
-    padding: var(--pd-lg);
-    min-width: 280px;
-  }
-
-  .confirm-content p {
-    margin: 0 0 var(--pd-md);
-  }
-
-  .confirm-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--pd-sm);
-  }
-
   /* Panel-affected layout: animate in sync with node panel slide (0.3s ease) */
   .node-editor-layout {
     overflow: visible;

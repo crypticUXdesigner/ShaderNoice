@@ -40,6 +40,7 @@
 <style>
   /* Headline: node header colors (gradient + print), icon box uses category/subgroup tokens. No negative margin — respects parent padding. */
   .help-callout-headline {
+    --headline-print: var(--node-header-print-default);
     display: flex;
     align-items: flex-start;
     gap: var(--pd-md);
@@ -50,7 +51,7 @@
       var(--node-header-bg-default),
       var(--node-header-bg-end-default)
     );
-    color: var(--node-header-print-default);
+    color: var(--headline-print);
     box-shadow: 0 0 0 3px var(--color-gray-90);
   }
 
@@ -242,7 +243,7 @@
       var(--node-header-bg-default),
       var(--node-header-bg-end-default)
     );
-    color: var(--node-header-print-default);
+    --headline-print: var(--node-header-print-default);
   }
 
   .headline-icon-box {

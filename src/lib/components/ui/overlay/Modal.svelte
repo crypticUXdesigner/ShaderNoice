@@ -18,14 +18,18 @@
     open?: boolean;
     onClose?: () => void;
     children?: import('svelte').Snippet<[]>;
+    /** CSS class applied to the `.content.frame` element (legacy). */
     class?: string;
+    /** CSS class applied to the `.content.frame` element. Prefer this over `class`. */
+    contentClass?: string;
   }
 
   let {
     open = false,
     onClose,
     children,
-    class: className = ''
+    class: className = '',
+    contentClass = ''
   }: Props = $props();
 
   let contentEl = $state<HTMLElement | null>(null);
@@ -105,7 +109,7 @@
   >
   <div
     bind:this={contentEl}
-    class="content frame {className || ''}"
+    class="content frame {contentClass || ''} {className || ''}"
       onclick={(e) => e.stopPropagation()}
     >
       {@render children?.()}

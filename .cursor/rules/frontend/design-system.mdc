@@ -1,0 +1,47 @@
+---
+description: Design system guardrails (density, color, motion, icons, copy) for UI changes.
+globs: "**/*.svelte,**/*.css"
+alwaysApply: false
+---
+
+# Design system (UI guardrails)
+
+This repo’s UI is a **dark, technical creative tool**. Follow the project’s design north star in `.impeccable.md` (Design Context + principles).
+
+## Density
+
+- Use **adaptive density**:
+  - **Comfortable** spacing for reading: docs, dialogs, help content, empty states.
+  - **Compact** spacing for tools: parameter editors, dense lists, inspector-like controls.
+- Prefer “**one dense region inside a calm frame**” over making everything dense.
+
+## Color & emphasis
+
+- Use tokens from `src/styles/scales.css`, `src/styles/tokens.css`, `src/styles/tokens-node-editor.css`.
+- Keep emphasis **disciplined**: teal/blue accents should communicate meaning (selection, primary actions, connected/animated state), not decoration.
+- **Do not reuse reserved state colors** for aesthetics. Example: `--reserved-animated-connected` is for connected/animated state only (see `tokens-node-editor.css`).
+
+## Motion
+
+- Motion should be **subtle polish**, never “showy”.
+- Always honor `prefers-reduced-motion: reduce` (see `src/styles/reduced-motion.css`).
+
+## Icons
+
+- Prefer existing icons and keep style consistent with **Phosphor defaults** (weight/stroke, proportions).
+- If you add a new icon variant, match existing tokenized stroke rules (see `tokens-node-editor.css` icon tokens).
+
+## Copy tone
+
+- Aim for **gentle guide**: short, supportive, non-judgmental.
+- Avoid corporate/SaaS phrasing. Avoid cutesy jokes—“playful” is allowed only as small, tasteful microcopy.
+
+## Quick checklist (before shipping UI changes)
+
+- [ ] Uses existing primitives from `src/lib/components/ui/` instead of one-off styled elements
+- [ ] Spacing matches **adaptive density** (comfy for reading, compact for tools)
+- [ ] Uses tokens (no new tokens unless reused 2+ times or semantic/JS-consumed)
+- [ ] Accent colors convey state/meaning, not decoration
+- [ ] Reduced motion is respected
+- [ ] Focus/hover/selected/disabled states are clear and consistent
+

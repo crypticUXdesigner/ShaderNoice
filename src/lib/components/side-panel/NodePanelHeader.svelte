@@ -3,7 +3,7 @@
    * Node panel header: search input, list/grid toggle, type filter tags.
    * Used only inside NodePanelContent.
    */
-  import { Input, Button, ButtonGroup, Tag, IconSvg } from '../ui';
+  import { Button, ButtonGroup, Tag, IconSvg, SearchInput } from '../ui';
 
   type DisplayMode = 'list' | 'grid';
 
@@ -29,46 +29,23 @@
     onCollapseAllSections,
   }: Props = $props();
 
-  function handleClearSearch() {
-    searchQuery = '';
-    onClearSearch?.();
-  }
-
-  function onSearchInput(e: Event) {
-    searchQuery = (e.currentTarget as HTMLInputElement).value;
-  }
+  let hadValue = $state(false);
 </script>
-
-{#snippet searchIcon()}
-  <IconSvg name="search" variant="line" />
-{/snippet}
-
-{#snippet clearButton()}
-  <Button
-    variant="ghost"
-    size="sm"
-    mode="icon-only"
-    title="Clear search"
-    class="input-clear {searchQuery.trim() === '' ? 'is-hidden' : ''}"
-    onclick={handleClearSearch}
-    type="button"
-  >
-    <IconSvg name="circle-x" variant="filled" />
-  </Button>
-{/snippet}
 
 <header class="node-panel-header" role="group" aria-label="Node panel search and filters">
   <div class="search">
-    <Input
+    <SearchInput
       variant="primary"
       size="sm"
-      type="text"
-      value={searchQuery}
-      oninput={onSearchInput}
+      bind:value={searchQuery}
       placeholder="Search nodes..."
       class="menu-input"
-      leading={searchIcon}
-      trailing={clearButton}
+      ariaLabel="Search nodes"
+      onInput={(value: string) => {
+        const now = value.trim() !== '';
+        if (hadValue && !now) onClearSearch?.();
+        hadValue = now;
+      }}
     />
     <ButtonGroup class="display-mode-toggle" role="group" ariaLabel="View mode">
       <Button
@@ -140,6 +117,7 @@
     display: flex;
     align-items: center;
     gap: var(--pd-md);
+    height: var(--size-md);
     flex-shrink: 0;
     padding: 0;
   }

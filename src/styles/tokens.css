@@ -17,7 +17,7 @@
 --print-subtle: var(--color-gray-90);
 
 /* === PRIMARY TOKENS === */
---primary-bg: var(--color-teal-light-100);
+--primary-bg: var(--color-teal-100);
 --primary-bg-hover: var(--color-teal-110);
 --primary-bg-active: var(--color-teal-120);
 --primary-print: var(--color-teal-40);
@@ -37,13 +37,14 @@
 
 /* === GHOST TOKENS === */
 --ghost-bg: transparent;
---ghost-bg-hover: var(--color-gray-60);
---ghost-bg-active: var(--color-gray-70);
+--ghost-bg-hover: var(--color-gray-70);
+--ghost-bg-active: var(--color-gray-80);
 --ghost-print: var(--color-gray-110);
 --ghost-print-hover: var(--color-gray-120);
 --ghost-print-active: var(--color-teal-light-130);
---ghost-print-active-g1: transparent;
---ghost-print-active-g2: transparent;
+/* Optional: define both to enable ghost active gradient in `Button.svelte`. */
+/* --ghost-print-active-g1: <color>; */
+/* --ghost-print-active-g2: <color>; */
 
 
 /* === WARNING TOKENS === */

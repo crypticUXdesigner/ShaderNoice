@@ -271,10 +271,10 @@
   }
 
   .input-wrapper:has(.leading):has(.trailing) :global(.input-clear) {
-    width: var(--size-xs);
-    height: var(--size-xs);
+    width: var(--input-clear-size, var(--size-xs));
+    height: var(--input-clear-size, var(--size-xs));
     padding: 0;
-    min-width: var(--size-xs);
+    min-width: var(--input-clear-size, var(--size-xs));
     color: var(--color-gray-110);
     opacity: 0.8;
   }
