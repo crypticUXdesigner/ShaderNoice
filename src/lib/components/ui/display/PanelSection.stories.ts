@@ -3,7 +3,7 @@ import { storyTextSnippet } from '../../../../utils/storybookSnippets';
 import Component from './PanelSection.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/display/PanelSection",
+  title: "ShaderNoice/ui/display/PanelSection",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

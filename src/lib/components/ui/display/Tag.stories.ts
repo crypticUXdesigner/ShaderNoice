@@ -3,7 +3,7 @@ import { storyTextSnippet } from '../../../../utils/storybookSnippets';
 import Component from './Tag.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/display/Tag",
+  title: "ShaderNoice/ui/display/Tag",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './Checkbox.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/checkbox/Checkbox",
+  title: "ShaderNoice/ui/checkbox/Checkbox",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

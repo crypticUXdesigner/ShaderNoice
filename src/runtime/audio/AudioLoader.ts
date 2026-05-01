@@ -123,7 +123,11 @@ export class AudioLoader extends BaseDisposable {
       // Fallback: check if we're in production by looking at the current path
       if (!baseUrl || baseUrl === '/' || baseUrl === '') {
         const currentPath = window.location.pathname;
-        if (currentPath.startsWith('/shader-composer/')) {
+        if (currentPath.startsWith('/ShaderNoice/')) {
+          baseUrl = '/ShaderNoice';
+        } else if (currentPath.startsWith('/shadernoice/')) {
+          baseUrl = '/shadernoice';
+        } else if (currentPath.startsWith('/shader-composer/')) {
           baseUrl = '/shader-composer';
         } else {
           baseUrl = '/';

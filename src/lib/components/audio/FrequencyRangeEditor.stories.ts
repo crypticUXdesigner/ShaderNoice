@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './FrequencyRangeEditor.svelte';
 
 const meta = {
-  title: "ShaderComposer/audio/FrequencyRangeEditor",
+  title: "ShaderNoice/audio/FrequencyRangeEditor",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

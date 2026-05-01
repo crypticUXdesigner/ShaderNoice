@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './BottomBarToolSelector.svelte';
 
 const meta = {
-  title: "ShaderComposer/bottom-bar/BottomBarToolSelector",
+  title: "ShaderNoice/bottom-bar/BottomBarToolSelector",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

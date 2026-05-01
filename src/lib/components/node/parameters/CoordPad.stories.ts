@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './CoordPad.svelte';
 
 const meta = {
-  title: "ShaderComposer/node/parameters/CoordPad",
+  title: "ShaderNoice/node/parameters/CoordPad",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

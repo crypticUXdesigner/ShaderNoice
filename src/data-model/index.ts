@@ -33,6 +33,11 @@ export type {
   AutomationLane,
   AutomationState,
 } from './types';
+export {
+  GRAPH_FILE_FORMAT,
+  LEGACY_GRAPH_FILE_FORMAT,
+  isKnownGraphFileFormat,
+} from './types';
 export type {
   SignalId,
   SignalValue,

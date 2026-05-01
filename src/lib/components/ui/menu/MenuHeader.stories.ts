@@ -3,7 +3,7 @@ import { storyTextSnippet } from '../../../../utils/storybookSnippets';
 import Component from './MenuHeader.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/menu/MenuHeader",
+  title: "ShaderNoice/ui/menu/MenuHeader",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

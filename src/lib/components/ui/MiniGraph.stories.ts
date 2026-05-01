@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './MiniGraph.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/MiniGraph",
+  title: "ShaderNoice/ui/MiniGraph",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

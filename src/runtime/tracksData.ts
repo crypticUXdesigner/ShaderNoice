@@ -16,7 +16,7 @@ export type TracksDataMap = Record<string, TrackEntry>;
 let cached: TracksDataMap | null = null;
 
 /**
- * Base URL for static assets (matches Vite base, e.g. /shader-composer/).
+ * Base URL for static assets (matches Vite base, e.g. /ShaderNoice/).
  * Relative fetch would use document URL; we use BASE_URL so it works with any base path.
  */
 function getTracksDataUrl(): string {

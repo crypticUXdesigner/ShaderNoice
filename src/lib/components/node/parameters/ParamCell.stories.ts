@@ -3,7 +3,7 @@ import { storyTextSnippet } from '../../../../utils/storybookSnippets';
 import Component from './ParamCell.svelte';
 
 const meta = {
-  title: "ShaderComposer/node/parameters/ParamCell",
+  title: "ShaderNoice/node/parameters/ParamCell",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

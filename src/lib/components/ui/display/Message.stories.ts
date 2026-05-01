@@ -3,7 +3,7 @@ import { storyTextSnippet } from '../../../../utils/storybookSnippets';
 import Component from './Message.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/display/Message",
+  title: "ShaderNoice/ui/display/Message",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

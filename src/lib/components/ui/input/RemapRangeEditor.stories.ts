@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './RemapRangeEditor.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/input/RemapRangeEditor",
+  title: "ShaderNoice/ui/input/RemapRangeEditor",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

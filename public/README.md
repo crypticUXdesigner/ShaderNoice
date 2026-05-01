@@ -12,9 +12,9 @@ Place your audio files (MP3) here to make them available to the app’s audio sy
 ### Path Notes
 
 - Files in this folder are served at the root path `/`
-- If your Vite config has a `base` path (like `/shader-composer/`), you may need to include it in the path
+- If your Vite config has a `base` path (like `/ShaderNoice/`), you may need to include it in the path
 - For development: use `/filename.mp3`
-- For production with base path: use `/shader-composer/filename.mp3` or use a relative path
+- For production with base path: use `/ShaderNoice/filename.mp3` or use a relative path
 
 ### Automatic Loading
 

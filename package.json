@@ -1,13 +1,13 @@
 {
-    "name": "shader-composer",
+    "name": "shadernoice",
     "version": "1.0.0",
     "type": "module",
     "description": "A web-based tool for generating abstract art images using composable WebGL shader visual elements",
     "repository": {
         "type": "git",
-        "url": "https://github.com/crypticUXdesigner/shader-composer.git"
+        "url": "https://github.com/crypticUXdesigner/ShaderNoice.git"
     },
-    "homepage": "https://crypticUXdesigner.github.io/shader-composer/",
+    "homepage": "https://crypticUXdesigner.github.io/ShaderNoice/",
     "keywords": [
         "shader",
         "webgl",
@@ -25,6 +25,7 @@
         "build": "tsc && vite build",
         "test": "vitest run",
         "check": "npm run type-check && npm test && npm run lint",
+        "verify:pages": "npm audit --audit-level=high && npm run check && npm run build && npm run build-storybook",
         "preview": "vite preview",
         "migrate": "tsx scripts/migrate.ts",
         "build-phosphor-icons": "tsx scripts/build-phosphor-icons.ts",

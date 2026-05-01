@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './VerticalResizeHandle.svelte';
 
 const meta = {
-  title: "ShaderComposer/editor/VerticalResizeHandle",
+  title: "ShaderNoice/editor/VerticalResizeHandle",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

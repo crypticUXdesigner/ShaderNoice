@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './SignalConnectionPicker.svelte';
 
 const meta = {
-  title: "ShaderComposer/audio/SignalConnectionPicker",
+  title: "ShaderNoice/audio/SignalConnectionPicker",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

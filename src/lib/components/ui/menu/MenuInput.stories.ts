@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './MenuInput.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/menu/MenuInput",
+  title: "ShaderNoice/ui/menu/MenuInput",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

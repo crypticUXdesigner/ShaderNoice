@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './VerticalRangeSlider.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/input/VerticalRangeSlider",
+  title: "ShaderNoice/ui/input/VerticalRangeSlider",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

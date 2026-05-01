@@ -1,5 +1,5 @@
 /**
- * Main entry point for Node-Based Shader Composer
+ * Main entry point for ShaderNoice
  *
  * Svelte 5 Migration WP 06: Mount App.svelte, load icons, handle HMR.
  */
@@ -16,7 +16,7 @@ function reportWebVitals(metric: { name: string; value: number; id: string }): v
   // Production: no-op; hook is in place for future RUM if needed.
 }
 
-const APP_MOUNTED_KEY = '__shaderComposerAppMounted';
+const APP_MOUNTED_KEY = '__shaderNoiceAppMounted';
 
 let appInstance: ReturnType<typeof mount> | null = null;
 
@@ -24,7 +24,7 @@ async function bootstrap(): Promise<void> {
   const hot = typeof import.meta !== 'undefined' && import.meta.hot;
   const hotData = hot ? (import.meta.hot!.data as Record<string, unknown>) : undefined;
 
-  if (hotData?.shaderComposerBooted === true) {
+  if (hotData?.shaderNoiceBooted === true) {
     return;
   }
   const alreadyMounted =
@@ -43,7 +43,7 @@ async function bootstrap(): Promise<void> {
 
   main.innerHTML = '';
   (window as unknown as Record<string, unknown>)[APP_MOUNTED_KEY] = true;
-  if (hotData) hotData.shaderComposerBooted = true;
+  if (hotData) hotData.shaderNoiceBooted = true;
 
   appInstance = mount(App, { target: main });
 
@@ -53,7 +53,7 @@ async function bootstrap(): Promise<void> {
       if (appInstance) unmount(appInstance);
       appInstance = null;
       (window as unknown as Record<string, unknown>)[APP_MOUNTED_KEY] = false;
-      if (hotData) hotData.shaderComposerBooted = false;
+      if (hotData) hotData.shaderNoiceBooted = false;
     });
   }
 }

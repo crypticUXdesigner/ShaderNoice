@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './SpectrumStrip.svelte';
 
 const meta = {
-  title: "ShaderComposer/audio/SpectrumStrip",
+  title: "ShaderNoice/audio/SpectrumStrip",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

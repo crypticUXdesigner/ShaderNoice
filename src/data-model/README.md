@@ -158,7 +158,7 @@ Graphs are serialized to JSON with the following structure:
 
 ```json
 {
-  "format": "shader-composer-node-graph",
+  "format": "shadernoice-node-graph",
   "formatVersion": "2.0",
   "graph": {
     "id": "graph-001",

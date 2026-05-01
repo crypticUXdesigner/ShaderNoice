@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './TopBarViewportStatus.svelte';
 
 const meta = {
-  title: "ShaderComposer/top-bar/TopBarViewportStatus",
+  title: "ShaderNoice/top-bar/TopBarViewportStatus",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

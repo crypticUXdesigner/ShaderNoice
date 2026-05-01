@@ -5,7 +5,15 @@
  * and setStoredPosition in onPositionChange when the user drags it.
  */
 
-const STORAGE_KEY_PREFIX = 'shader-composer.floatingPanel.';
+const STORAGE_KEY_PREFIX = 'shadernoice.floatingPanel.';
+const LEGACY_STORAGE_KEY_PREFIX = 'shader-composer.floatingPanel.';
+
+function buildLegacyPrefixKey(panelId: string, variant?: string): string {
+  if (variant) {
+    return `${LEGACY_STORAGE_KEY_PREFIX}${panelId}.${variant}`;
+  }
+  return `${LEGACY_STORAGE_KEY_PREFIX}${panelId}`;
+}
 
 export interface StoredPositionOptions {
   /** Variant of the panel (e.g. "large" | "compact"). Each variant has its own position. */
@@ -60,6 +68,7 @@ export function getStoredPosition(
       : [legacyKey];
   const stored =
     read(key) ??
+    read(buildLegacyPrefixKey(panelId, variant)) ??
     legacyKeys.reduce<{ x: number; y: number } | null>(
       (acc, k) => acc ?? read(k),
       null

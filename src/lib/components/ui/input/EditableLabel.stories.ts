@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './EditableLabel.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/input/EditableLabel",
+  title: "ShaderNoice/ui/input/EditableLabel",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

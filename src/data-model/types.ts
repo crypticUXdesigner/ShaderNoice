@@ -156,13 +156,24 @@ export interface NodeGraph {
   automation?: AutomationState;
 }
 
+/** Canonical on-disk format for new saves (ShaderNoice). */
+export const GRAPH_FILE_FORMAT = 'shadernoice-node-graph' as const;
+/** Legacy format (Shader Composer); still accepted when loading. */
+export const LEGACY_GRAPH_FILE_FORMAT = 'shader-composer-node-graph' as const;
+
+export function isKnownGraphFileFormat(
+  format: unknown
+): format is typeof GRAPH_FILE_FORMAT | typeof LEGACY_GRAPH_FILE_FORMAT {
+  return format === GRAPH_FILE_FORMAT || format === LEGACY_GRAPH_FILE_FORMAT;
+}
+
 /**
  * Serialized graph file format wrapper.
  * Optional audioSetup: panel audio configuration (files, bands, remappers, primarySource, playlistState).
  * startingTrackId: optional track id for preset/copy so paste restores current track.
  */
 export interface SerializedGraphFile {
-  format: 'shader-composer-node-graph';
+  format: typeof GRAPH_FILE_FORMAT;
   formatVersion: '2.0';
   graph: NodeGraph;
   audioSetup?: AudioSetup;

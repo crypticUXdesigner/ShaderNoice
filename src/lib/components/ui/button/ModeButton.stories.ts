@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './ModeButton.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/button/ModeButton",
+  title: "ShaderNoice/ui/button/ModeButton",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './HelpCalloutParametersSection.svelte';
 
 const meta = {
-  title: "ShaderComposer/floating-panel/HelpCalloutParametersSection",
+  title: "ShaderNoice/floating-panel/HelpCalloutParametersSection",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

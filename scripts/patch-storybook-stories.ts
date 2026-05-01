@@ -297,7 +297,7 @@ function main(): void {
     const titleM = storySrc.match(/title:\s*["']([^"']+)["']/);
     const title = titleM
       ? titleM[1]
-      : `ShaderComposer/${relative(srcRoot, dir).replace(/\\/g, '/')}/${base}`;
+      : `ShaderNoice/${relative(srcRoot, dir).replace(/\\/g, '/')}/${base}`;
 
     const next = buildStoryFile(storyPath, svelteSource, title, base);
     writeFileSync(storyPath, next, 'utf8');

@@ -25,7 +25,7 @@ function createStoryPrimaryAudio(durationSeconds = 148.51): () => {
 }
 
 const meta = {
-  title: 'ShaderComposer/export/VideoExportDialog',
+  title: 'ShaderNoice/export/VideoExportDialog',
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta<typeof Component>;

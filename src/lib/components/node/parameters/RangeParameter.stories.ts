@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './RangeParameter.svelte';
 
 const meta = {
-  title: "ShaderComposer/node/parameters/RangeParameter",
+  title: "ShaderNoice/node/parameters/RangeParameter",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

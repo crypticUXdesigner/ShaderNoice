@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './AudioSignalPickerCompact.svelte';
 
 const meta = {
-  title: "ShaderComposer/floating-panel/AudioSignalPickerCompact",
+  title: "ShaderNoice/floating-panel/AudioSignalPickerCompact",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './NodeIconSvg.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/icon/NodeIconSvg",
+  title: "ShaderNoice/ui/icon/NodeIconSvg",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

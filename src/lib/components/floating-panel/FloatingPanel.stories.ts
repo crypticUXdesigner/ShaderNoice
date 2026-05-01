@@ -3,7 +3,7 @@ import { storyTextSnippet } from '../../../utils/storybookSnippets';
 import Component from './FloatingPanel.svelte';
 
 const meta = {
-  title: "ShaderComposer/floating-panel/FloatingPanel",
+  title: "ShaderNoice/floating-panel/FloatingPanel",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

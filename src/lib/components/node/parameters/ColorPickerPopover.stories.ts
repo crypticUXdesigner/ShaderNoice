@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './ColorPickerPopover.svelte';
 
 const meta = {
-  title: "ShaderComposer/node/parameters/ColorPickerPopover",
+  title: "ShaderNoice/node/parameters/ColorPickerPopover",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './ErrorAnnouncer.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/display/ErrorAnnouncer",
+  title: "ShaderNoice/ui/display/ErrorAnnouncer",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

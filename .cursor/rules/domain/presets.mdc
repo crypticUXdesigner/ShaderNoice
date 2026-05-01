@@ -10,7 +10,7 @@ Presets are JSON files in `src/presets/`. They must follow the **SerializedGraph
 
 ## Format
 
-- **Required**: `format: "shader-composer-node-graph"`, `formatVersion: "2.0"`, `graph` (id, name, version, nodes, connections, viewState).
+- **Required**: `format: "shadernoice-node-graph"` (legacy loads: `shader-composer-node-graph`), `formatVersion: "2.0"`, `graph` (id, name, version, nodes, connections, viewState).
 - **Optional**: `audioSetup` (files, bands, remappers). Omit for presets without audio; legacy presets without it are still supported.
 - Example shape: see `src/presets/README.md` or an existing preset in `src/presets/`.
 

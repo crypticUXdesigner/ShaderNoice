@@ -11,7 +11,8 @@ import {
   type DeserializationResult,
 } from '../data-model/serialization';
 
-const DEFAULT_STATE_KEY = 'shader-composer-default-state';
+const DEFAULT_STATE_KEY = 'shadernoice-default-state';
+const LEGACY_DEFAULT_STATE_KEY = 'shader-composer-default-state';
 
 /**
  * Save the current graph (and optional audio setup) as the default starting state.
@@ -42,7 +43,19 @@ export function loadDefaultState(
   nodeSpecs: NodeSpecification[] = []
 ): DeserializationResult {
   try {
-    const serialized = localStorage.getItem(DEFAULT_STATE_KEY);
+    let serialized = localStorage.getItem(DEFAULT_STATE_KEY);
+    if (!serialized) {
+      const legacy = localStorage.getItem(LEGACY_DEFAULT_STATE_KEY);
+      if (legacy) {
+        serialized = legacy;
+        try {
+          localStorage.setItem(DEFAULT_STATE_KEY, legacy);
+          localStorage.removeItem(LEGACY_DEFAULT_STATE_KEY);
+        } catch {
+          /* ignore quota */
+        }
+      }
+    }
     if (!serialized) {
       return { graph: null, errors: [], warnings: [] };
     }
@@ -56,11 +69,13 @@ export function loadDefaultState(
         result.errors
       );
       localStorage.removeItem(DEFAULT_STATE_KEY);
+      localStorage.removeItem(LEGACY_DEFAULT_STATE_KEY);
     }
     return result;
   } catch (error) {
     console.error('[DefaultState] Failed to load default state:', error);
     localStorage.removeItem(DEFAULT_STATE_KEY);
+    localStorage.removeItem(LEGACY_DEFAULT_STATE_KEY);
     const message = error instanceof Error ? error.message : String(error);
     return {
       graph: null,
@@ -75,6 +90,7 @@ export function loadDefaultState(
  */
 export function clearDefaultState(): void {
   localStorage.removeItem(DEFAULT_STATE_KEY);
+  localStorage.removeItem(LEGACY_DEFAULT_STATE_KEY);
   console.log('[DefaultState] Cleared default state');
 }
 
@@ -82,5 +98,8 @@ export function clearDefaultState(): void {
  * Check if a default state exists
  */
 export function hasDefaultState(): boolean {
-  return localStorage.getItem(DEFAULT_STATE_KEY) !== null;
+  return (
+    localStorage.getItem(DEFAULT_STATE_KEY) !== null ||
+    localStorage.getItem(LEGACY_DEFAULT_STATE_KEY) !== null
+  );
 }

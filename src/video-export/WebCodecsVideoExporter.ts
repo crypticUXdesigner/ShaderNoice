@@ -1,5 +1,5 @@
 /**
- * WebCodecs-based video exporter for shader-composer video export.
+ * WebCodecs-based video exporter for ShaderNoice video export.
  *
  * Wraps Mediabunny (Output + CanvasSource + AudioBufferSource) to produce MP4
  * from per-frame canvas and audio. No dependency on NodeGraph or AudioManager.

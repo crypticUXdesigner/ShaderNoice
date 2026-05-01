@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './ColorPickerRow.svelte';
 
 const meta = {
-  title: "ShaderComposer/node/parameters/ColorPickerRow",
+  title: "ShaderNoice/node/parameters/ColorPickerRow",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

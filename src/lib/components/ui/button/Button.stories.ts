@@ -3,7 +3,7 @@ import { storyTextSnippet } from '../../../../utils/storybookSnippets';
 import Component from './Button.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/button/Button",
+  title: "ShaderNoice/ui/button/Button",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

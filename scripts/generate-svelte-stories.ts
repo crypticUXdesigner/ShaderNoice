@@ -28,13 +28,13 @@ function escapeTitleSegment(s: string): string {
   return s.replace(/\\/g, '/');
 }
 
-/** Sidebar path: omit `lib/components/` so stories are grouped as ShaderComposer/ui/… not ShaderComposer/lib/components/…. */
+/** Sidebar path: omit `lib/components/` so stories are grouped as ShaderNoice/ui/… not ShaderNoice/lib/components/…. */
 function storyTitleFromRelPath(relFromSrc: string): string {
   let p = relFromSrc.replace(/\.svelte$/, '');
   if (p.startsWith('lib/components/')) {
     p = p.slice('lib/components/'.length);
   }
-  return `ShaderComposer/${p}`;
+  return `ShaderNoice/${p}`;
 }
 
 let created = 0;

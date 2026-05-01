@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './BandCard.svelte';
 
 const meta = {
-  title: "ShaderComposer/audio/BandCard",
+  title: "ShaderNoice/audio/BandCard",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

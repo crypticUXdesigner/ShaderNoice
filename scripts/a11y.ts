@@ -12,11 +12,11 @@ import { spawn } from 'node:child_process';
 import * as http from 'node:http';
 import * as path from 'node:path';
 
-const BASE_PATH = '/shader-composer/';
+const BASE_PATH = '/ShaderNoice/';
 const WAIT_MS = 300;
 const WAIT_MAX_ATTEMPTS = 100;
 
-/** Match "Local:   http://localhost:4173/..." or "➜  Local:   http://localhost:4177/shader-composer/" */
+/** Match "Local:   http://localhost:4173/..." or "➜  Local:   http://localhost:4177/ShaderNoice/" */
 const LOCAL_URL_RE = /Local:\s*https?:\/\/[^:\s]+:(\d+)/;
 
 function waitForUrl(url: string): Promise<void> {

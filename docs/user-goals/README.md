@@ -1,6 +1,6 @@
-# Shader Composer — User Goals
+# ShaderNoice — User Goals
 
-**User-goals documentation** for the Node-Based Shader Composer. Each doc describes what the user can achieve in a given area: goals first, with short topic bullets only when a goal needs more detail.
+**User-goals documentation** for ShaderNoice (node-based shader editor). Each doc describes what the user can achieve in a given area: goals first, with short topic bullets only when a goal needs more detail.
 
 These goals reflect **current app behavior** as of the codebase and serve as a single reference for product functionality and as a baseline for design and testing.
 

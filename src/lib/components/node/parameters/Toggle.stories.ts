@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './Toggle.svelte';
 
 const meta = {
-  title: "ShaderComposer/node/parameters/Toggle",
+  title: "ShaderNoice/node/parameters/Toggle",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

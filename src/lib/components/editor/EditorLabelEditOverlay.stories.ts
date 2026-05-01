@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './EditorLabelEditOverlay.svelte';
 
 const meta = {
-  title: "ShaderComposer/editor/EditorLabelEditOverlay",
+  title: "ShaderNoice/editor/EditorLabelEditOverlay",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

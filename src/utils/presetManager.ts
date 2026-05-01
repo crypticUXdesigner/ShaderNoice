@@ -6,7 +6,11 @@
  * Uses audioSetup from file when valid; audio is configured outside the visual node graph.
  */
 
-import type { NodeGraph } from '../data-model/types';
+import {
+  type NodeGraph,
+  GRAPH_FILE_FORMAT,
+  LEGACY_GRAPH_FILE_FORMAT,
+} from '../data-model/types';
 import type { AudioSetup } from '../data-model/audioSetupTypes';
 import { serializeGraph, deserializeGraph } from '../data-model/serialization';
 import type { NodeSpecification } from '../data-model/validation';
@@ -97,7 +101,7 @@ export async function loadPreset(
     const data = (module as { default: unknown }).default as Record<string, unknown>;
 
     let graph: NodeGraph;
-    if (data.format === 'shader-composer-node-graph' && data.graph) {
+    if ((data.format === GRAPH_FILE_FORMAT || data.format === LEGACY_GRAPH_FILE_FORMAT) && data.graph) {
       graph = data.graph as NodeGraph;
     } else if (
       typeof data.id === 'string' &&

@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './VideoExportProgressOverlay.svelte';
 
 const meta = {
-  title: "ShaderComposer/export/VideoExportProgressOverlay",
+  title: "ShaderNoice/export/VideoExportProgressOverlay",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

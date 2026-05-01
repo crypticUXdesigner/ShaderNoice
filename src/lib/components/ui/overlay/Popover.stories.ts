@@ -3,7 +3,7 @@ import { storyTextSnippet } from '../../../../utils/storybookSnippets';
 import Component from './Popover.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/overlay/Popover",
+  title: "ShaderNoice/ui/overlay/Popover",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

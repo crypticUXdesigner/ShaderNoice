@@ -14,7 +14,7 @@ Presets must follow the `SerializedGraphFile` format:
 
 ```json
 {
-  "format": "shader-composer-node-graph",
+  "format": "shadernoice-node-graph",
   "formatVersion": "2.0",
   "graph": {
     "id": "graph-...",

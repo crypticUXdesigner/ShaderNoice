@@ -1,10 +1,12 @@
-# Shader Composer
+# ShaderNoice
 
 A web-based node-based shader editor for procedural shader art using WebGL. Build shader graphs by connecting nodes; the preview updates as you edit.
 
 > **Prototype status:** The app is under active development. Behavior and file formats can change between releases. Some features depend on browser capabilities (for example WebCodecs for video export).
 
-🌐 **[Live demo](https://crypticUXdesigner.github.io/shader-composer/)**
+**Repository:** [github.com/crypticUXdesigner/ShaderNoice](https://github.com/crypticUXdesigner/ShaderNoice)
+
+🌐 **[Live demo](https://crypticUXdesigner.github.io/ShaderNoice/)**
 
 ## Features
 
@@ -33,7 +35,7 @@ npm install
 npm run dev
 ```
 
-3. Open **http://localhost:3000** (see `vite.config.ts` if the port changes).
+3. Open **http://localhost:3000/ShaderNoice/** (Vite `base` matches the GitHub Pages path; see `vite.config.ts` if the port changes).
 
 Optional: copy `.env.example` to `.env` for local API tokens or RPC URL overrides (do not commit `.env`).
 
@@ -134,13 +136,13 @@ Output is written to `dist/`.
 - **[AGENTS.md](./AGENTS.md)** — How the repo is organized: rules in `.cursor/rules/`, user-facing behavior in `docs/user-goals/`, and workflow skills
 - **`docs/user-goals/README.md`** — Index of user-goals docs (product behavior by area)
 
-Before committing, run `npm run check` (and use `npm run build` if you changed anything that could break the production bundle).
+Before pushing to **`main`**, run **`npm run verify:pages`** — same blocking steps as the GitHub Pages workflow (audit at high level, `check`, `build`, Storybook). After changing dependencies, run **`npm ci`** first so the lockfile matches CI.
 
 ## Deployment
 
 Pushes to **`main`** trigger GitHub Actions: install (`npm ci`), `npm audit --audit-level=high`, type-check, tests, lint, `npm run build`, `npm run build-storybook`, then Playwright-based a11y against a preview server (non-blocking `continue-on-error`). The **`dist/`** artifact is deployed to **GitHub Pages**.
 
-Public URL: **https://crypticUXdesigner.github.io/shader-composer/**
+Public URL: **https://crypticUXdesigner.github.io/ShaderNoice/**
 
 ## License
 

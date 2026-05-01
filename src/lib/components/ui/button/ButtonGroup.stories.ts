@@ -3,7 +3,7 @@ import Demo from './ButtonGroupDemo.svelte';
 import ButtonGroup from './ButtonGroup.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/button/ButtonGroup",
+  title: "ShaderNoice/ui/button/ButtonGroup",
   component: ButtonGroup,
   tags: ['autodocs'],
 } satisfies Meta;

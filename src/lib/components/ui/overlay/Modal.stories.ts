@@ -3,7 +3,7 @@ import { storyTextSnippet } from '../../../../utils/storybookSnippets';
 import Component from './Modal.svelte';
 
 const meta = {
-  title: "ShaderComposer/ui/overlay/Modal",
+  title: "ShaderNoice/ui/overlay/Modal",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

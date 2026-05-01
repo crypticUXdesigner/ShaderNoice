@@ -341,7 +341,7 @@ export function testSerializeGraph(): void {
   };
 
   const json = serializeGraph(graph);
-  assert(json.includes('"format": "shader-composer-node-graph"'), 'Should include format');
+  assert(json.includes('"format": "shadernoice-node-graph"'), 'Should include format');
   assert(json.includes('"formatVersion": "2.0"'), 'Should include format version');
   assert(json.includes('"graph"'), 'Should include graph data');
 }
@@ -349,7 +349,7 @@ export function testSerializeGraph(): void {
 // Test: Deserialization - valid JSON
 export function testDeserializeValidGraph(): void {
   const json = `{
-    "format": "shader-composer-node-graph",
+    "format": "shadernoice-node-graph",
     "formatVersion": "2.0",
     "graph": {
       "id": "g1",
@@ -374,6 +374,32 @@ export function testDeserializeValidGraph(): void {
     assertEqual(result.graph.name, 'Test Graph', 'Graph name should match');
     assertEqual(result.graph.nodes.length, 1, 'Should have one node');
   }
+}
+
+// Test: Deserialization accepts legacy format id (Shader Composer saves)
+export function testDeserializeLegacyFormatGraph(): void {
+  const json = `{
+    "format": "shader-composer-node-graph",
+    "formatVersion": "2.0",
+    "graph": {
+      "id": "g1",
+      "name": "Test Graph",
+      "version": "2.0",
+      "nodes": [
+        {
+          "id": "n1",
+          "type": "uv-coordinates",
+          "position": { "x": 0, "y": 0 },
+          "parameters": {}
+        }
+      ],
+      "connections": []
+    }
+  }`;
+
+  const result = deserializeGraph(json, mockNodeSpecs);
+  assert(result.graph !== null, 'Should deserialize legacy format string');
+  assert(result.errors.length === 0, 'Should have no errors');
 }
 
 // Test: Serialization/deserialization with automation
@@ -434,7 +460,7 @@ export function testSerializeDeserializeGraphWithAutomation(): void {
 // Test: Deserialization - graph without automation (backward compat)
 export function testDeserializeGraphWithoutAutomation(): void {
   const json = `{
-    "format": "shader-composer-node-graph",
+    "format": "shadernoice-node-graph",
     "formatVersion": "2.0",
     "graph": {
       "id": "g1",
@@ -465,7 +491,7 @@ export function testDeserializeInvalidFormat(): void {
 // Test: Deserialization - unsupported formatVersion
 export function testDeserializeUnsupportedFormatVersion(): void {
   const json = `{
-    "format": "shader-composer-node-graph",
+    "format": "shadernoice-node-graph",
     "formatVersion": "999.0",
     "graph": {
       "id": "g1",
@@ -487,7 +513,7 @@ export function testDeserializeUnsupportedFormatVersion(): void {
 // Test: Deserialization - missing formatVersion (negative path for migration registry)
 export function testDeserializeMissingFormatVersion(): void {
   const json = `{
-    "format": "shader-composer-node-graph",
+    "format": "shadernoice-node-graph",
     "graph": {
       "id": "g1",
       "name": "Test Graph",
@@ -509,7 +535,7 @@ export function testDeserializeMissingFormatVersion(): void {
 export function testDeserializeAppliesBandRemapMigration(): void {
   const bandId = 'node-1770318840638-0u4geobd0';
   const json = `{
-    "format": "shader-composer-node-graph",
+    "format": "shadernoice-node-graph",
     "formatVersion": "2.0",
     "graph": {
       "id": "g1",
@@ -661,7 +687,7 @@ export function testDeserializeBandRemapMigrationIdempotentFromFixture(): void {
 export function testDeserializeBandRemapMigrationSkipsWhenAudioSetupMissing(): void {
   const bandId = 'node-missing-audio-band';
   const json = `{
-    "format": "shader-composer-node-graph",
+    "format": "shadernoice-node-graph",
     "formatVersion": "2.0",
     "graph": {
       "id": "g1",
@@ -701,7 +727,7 @@ export function testDeserializeBandRemapMigrationSkipsWhenAudioSetupMissing(): v
 export function testDeserializeUnvalidatedAppliesBandRemapMigration(): void {
   const bandId = 'node-1770318840638-0u4geobd0';
   const json = `{
-    "format": "shader-composer-node-graph",
+    "format": "shadernoice-node-graph",
     "formatVersion": "2.0",
     "graph": {
       "id": "g1",
@@ -1147,6 +1173,7 @@ describe('data-model', () => {
   it('validateParameterOutOfRange', testValidateParameterOutOfRange);
   it('serializeGraph', testSerializeGraph);
   it('deserializeValidGraph', testDeserializeValidGraph);
+  it('deserializeLegacyFormatGraph', testDeserializeLegacyFormatGraph);
   it('serializeDeserializeGraphWithAutomation', testSerializeDeserializeGraphWithAutomation);
   it('deserializeGraphWithoutAutomation', testDeserializeGraphWithoutAutomation);
   it('deserializeInvalidFormat', testDeserializeInvalidFormat);

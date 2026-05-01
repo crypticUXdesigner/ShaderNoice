@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './KeyboardShortcutsModal.svelte';
 
 const meta = {
-  title: "ShaderComposer/top-bar/KeyboardShortcutsModal",
+  title: "ShaderNoice/top-bar/KeyboardShortcutsModal",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

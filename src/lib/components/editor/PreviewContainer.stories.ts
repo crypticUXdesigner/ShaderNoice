@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './PreviewContainer.svelte';
 
 const meta = {
-  title: "ShaderComposer/editor/PreviewContainer",
+  title: "ShaderNoice/editor/PreviewContainer",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

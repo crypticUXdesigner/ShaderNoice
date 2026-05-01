@@ -5,9 +5,11 @@
  * deserialize JSON back to node graphs, with error handling and validation.
  */
 
-import type {
-  NodeGraph,
-  SerializedGraphFile,
+import {
+  type NodeGraph,
+  type SerializedGraphFile,
+  GRAPH_FILE_FORMAT,
+  isKnownGraphFileFormat,
 } from './types';
 import type { AudioSetup } from './audioSetupTypes';
 import { validateGraph } from './validation';
@@ -90,7 +92,7 @@ export function serializeGraph(
   options?: SerializeGraphOptions
 ): string {
   const wrapper: SerializedGraphFile = {
-    format: 'shader-composer-node-graph',
+    format: GRAPH_FILE_FORMAT,
     formatVersion: CURRENT_FORMAT_VERSION,
     graph,
     ...(audioSetup && { audioSetup }),
@@ -131,8 +133,10 @@ export function deserializeGraph(
     const data = JSON.parse(json);
 
     // Validate format
-    if (data.format !== 'shader-composer-node-graph') {
-      errors.push('Invalid file format: expected "shader-composer-node-graph"');
+    if (!isKnownGraphFileFormat(data.format)) {
+      errors.push(
+        'Invalid file format: expected "shadernoice-node-graph" (or legacy "shader-composer-node-graph")'
+      );
       return { graph: null, errors, warnings };
     }
 
@@ -201,8 +205,10 @@ export function deserializeGraphUnvalidated(json: string): DeserializationResult
     const data = JSON.parse(json);
 
     // Validate format
-    if (data.format !== 'shader-composer-node-graph') {
-      errors.push('Invalid file format: expected "shader-composer-node-graph"');
+    if (!isKnownGraphFileFormat(data.format)) {
+      errors.push(
+        'Invalid file format: expected "shadernoice-node-graph" (or legacy "shader-composer-node-graph")'
+      );
       return { graph: null, errors, warnings };
     }
 

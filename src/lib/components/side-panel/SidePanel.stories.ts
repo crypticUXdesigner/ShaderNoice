@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './SidePanel.svelte';
 
 const meta = {
-  title: "ShaderComposer/side-panel/SidePanel",
+  title: "ShaderNoice/side-panel/SidePanel",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;

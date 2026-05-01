@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import Component from './ParamPort.svelte';
 
 const meta = {
-  title: "ShaderComposer/node/parameters/ParamPort",
+  title: "ShaderNoice/node/parameters/ParamPort",
   component: Component,
   tags: ['autodocs'],
 } satisfies Meta;
