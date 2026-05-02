@@ -92,7 +92,7 @@ describe('automationSignals', () => {
     expect(evaluated.value).toBeCloseTo(direct ?? 0);
   });
 
-  it('returns null value when automation is inactive', () => {
+  it('returns null value when lane has no evaluable regions', () => {
     const node: NodeInstance = {
       id: 'n1',
       type: 'noise',
@@ -120,7 +120,10 @@ describe('automationSignals', () => {
                 startTime: 0,
                 duration: 2,
                 loop: false,
-                curve: makeCurve(),
+                curve: {
+                  interpolation: 'linear',
+                  keyframes: [],
+                },
               },
             ],
           },
@@ -129,13 +132,12 @@ describe('automationSignals', () => {
     };
 
     const paramSpec = makeParamSpec({ min: 0, max: 1 });
-    const tOutside = 10;
 
     const evaluated = evaluateAutomationSignalBindingForParam(
       node,
       'noiseScale',
       graph,
-      tOutside,
+      10,
       paramSpec,
     );
 

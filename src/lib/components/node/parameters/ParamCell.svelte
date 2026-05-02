@@ -5,6 +5,7 @@
    * Uses param-cell-* tokens (from tokens-node-editor.css).
    */
   import type { ParamCellProps as Props } from './ParamCell.types';
+  import { IconSvg } from '../../ui';
 
   let {
     connected = false,
@@ -12,6 +13,7 @@
     supportsAudio,
     supportsAnimation,
     label,
+    timelineDriven = false,
     leftBottom: leftBottomSlot,
     control,
     children: _children,
@@ -21,6 +23,7 @@
 <div
   class="param-cell {className}"
   class:connected
+  data-timeline-driven={timelineDriven ? 'true' : undefined}
   data-supports-audio={supportsAudio === undefined ? undefined : supportsAudio ? 'true' : 'false'}
   data-supports-animation={supportsAnimation === undefined
     ? undefined
@@ -31,6 +34,15 @@
   <div class="left-column">
     <div class="top">
       <span class="label">{label}</span>
+      {#if timelineDriven}
+        <span
+          class="timeline-driven-badge"
+          title="This parameter follows timeline automation for the whole timeline (including lead-in, gaps, and tail hold)."
+          aria-label="Timeline automation active"
+        >
+          <IconSvg name="wave-sine" variant="line" class="timeline-driven-icon" />
+        </span>
+      {/if}
     </div>
     {#if leftBottomSlot}
       <div class="bottom">
@@ -89,6 +101,7 @@
     flex-direction: row;
     align-items: center;
     flex-shrink: 0;
+    gap: var(--pd-xs, 4px);
   }
 
   .left-column .top .label {
@@ -97,6 +110,19 @@
     color: var(--param-label-color);
     text-align: left;
     flex-shrink: 0;
+  }
+
+  .timeline-driven-badge {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    opacity: 0.82;
+    color: var(--color-teal-120, var(--param-label-color));
+  }
+
+  :global(.timeline-driven-icon) {
+    width: 14px;
+    height: 14px;
   }
 
   .left-column .bottom {

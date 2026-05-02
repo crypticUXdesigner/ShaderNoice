@@ -1,12 +1,13 @@
 /**
  * JS-side evaluation of timeline automation at a given time.
- * Used by UI (effective parameter values) and can be mirrored in GLSL (WP 03).
+ * Used by UI (effective parameter values) and mirrored in GLSL (lane-wide extrapolation).
  */
 
 import type {
   NodeGraph,
   NodeInstance,
   AutomationState,
+  AutomationLane,
   AutomationRegion,
   AutomationCurve,
   AutomationKeyframe,
@@ -53,8 +54,6 @@ export function evaluateCurveAtNormalizedTime(curve: AutomationCurve, s: number)
     case 'linear':
       return k0.value + segT * (k1.value - k0.value);
     case 'bezier': {
-      // Cubic Hermite: use finite-difference tangents so only keyframe time/value needed.
-      // Mirrors well in GLSL (WP 03): same keyframe array, segment index, cubic formula.
       const m0 = tangentAtKeyframe(keyframes, i, n);
       const m1 = tangentAtKeyframe(keyframes, i + 1, n);
       return cubicHermite(segT, k0.value, m0 * segDuration, k1.value, m1 * segDuration);
@@ -85,10 +84,100 @@ function cubicHermite(t: number, p0: number, m0: number, p1: number, m1: number)
   return h00 * p0 + h10 * m0 + h01 * p1 + h11 * m1;
 }
 
+/** Region contributes to automation: positive duration and at least one keyframe. */
+export function isEvaluableRegion(region: AutomationRegion): boolean {
+  if (region.duration <= 0) return false;
+  return (region.curve?.keyframes?.length ?? 0) > 0;
+}
+
+/** Sort evaluable regions by start time, then region id (matches validation / GLSL). */
+export function sortEvaluableRegions(lane: AutomationLane): AutomationRegion[] {
+  return lane.regions.filter(isEvaluableRegion).sort((a, b) => {
+    if (a.startTime !== b.startTime) return a.startTime - b.startTime;
+    return a.id.localeCompare(b.id);
+  });
+}
+
+/** True if the lane has at least one evaluable region (automation is active on the timeline). */
+export function automationLaneHasEvaluableRegions(lane: AutomationLane): boolean {
+  return lane.regions.some(isEvaluableRegion);
+}
+
+function clamp01(x: number): number {
+  return Math.max(0, Math.min(1, x));
+}
+
+/** `mod` consistent with GLSL for positive divisor (result in [0, b)). */
+export function floatMod(a: number, b: number): number {
+  if (b <= 0) return 0;
+  return a - b * Math.floor(a / b);
+}
+
+/** Scale raw curve sample to parameter range. */
+export function scaleCurveToParamRange(
+  region: AutomationRegion,
+  s: number,
+  paramSpec?: ParameterSpec
+): number {
+  const raw = evaluateCurveAtNormalizedTime(region.curve, s);
+  const min = paramSpec?.min ?? 0;
+  const max = paramSpec?.max ?? 1;
+  const value = min + raw * (max - min);
+  return Math.max(min, Math.min(max, value));
+}
+
 /**
- * Find the lane for (nodeId, paramName) and the region containing time t.
- * If region has loop, local time is (t - startTime) % duration; normalizedTime = localTime / duration.
- * Returns null if no automation, no matching lane, or no region contains t.
+ * Lane-wide automation value at time t (lead-in, hold, loop-until-next).
+ * @param regions — evaluable regions, sorted (use {@link sortEvaluableRegions}).
+ */
+export function evaluateLaneAutomationAtTime(
+  regions: AutomationRegion[],
+  t: number,
+  paramSpec?: ParameterSpec
+): number | null {
+  if (regions.length === 0) return null;
+
+  if (t < regions[0].startTime) {
+    return scaleCurveToParamRange(regions[0], 0, paramSpec);
+  }
+
+  const n = regions.length;
+
+  for (let i = 0; i < n; i++) {
+    const region = regions[i];
+    const nextStart = i + 1 < n ? regions[i + 1].startTime : Infinity;
+
+    if (region.loop) {
+      if (t >= region.startTime && t < nextStart) {
+        const local = floatMod(t - region.startTime, region.duration);
+        const s = local / region.duration;
+        return scaleCurveToParamRange(region, s, paramSpec);
+      }
+    } else {
+      const end = region.startTime + region.duration;
+      const insideEnd = Math.min(end, nextStart);
+      if (t >= region.startTime && t < insideEnd) {
+        const s = (t - region.startTime) / region.duration;
+        return scaleCurveToParamRange(region, clamp01(s), paramSpec);
+      }
+      if (t >= end && t < nextStart) {
+        return scaleCurveToParamRange(region, 1, paramSpec);
+      }
+    }
+  }
+
+  const last = regions[n - 1];
+  if (last.loop) {
+    const local = floatMod(t - last.startTime, last.duration);
+    const s = local / last.duration;
+    return scaleCurveToParamRange(last, s, paramSpec);
+  }
+  return scaleCurveToParamRange(last, 1, paramSpec);
+}
+
+/**
+ * Find the lane for (nodeId, paramName) and the region whose curve **actively** drives t
+ * (strict interior for non-loop; looping uses repeat-until-next-start, same as evaluation).
  */
 export function findRegionAtTime(
   automation: AutomationState,
@@ -101,32 +190,36 @@ export function findRegionAtTime(
   );
   if (!lane) return null;
 
-  const regions = [...lane.regions].sort((a, b) => a.startTime - b.startTime);
-  for (const region of regions) {
+  const regions = sortEvaluableRegions(lane);
+  const n = regions.length;
+  if (n === 0) return null;
+
+  for (let i = 0; i < n; i++) {
+    const region = regions[i];
+    const nextStart = i + 1 < n ? regions[i + 1].startTime : Infinity;
     const start = region.startTime;
     const duration = region.duration;
     const end = start + duration;
-    if (duration <= 0) continue;
 
-    let localTime: number;
     if (region.loop) {
-      const elapsed = t - start;
-      if (elapsed < 0) continue;
-      localTime = elapsed % duration;
-      if (localTime < 0) localTime += duration;
+      if (t >= start && t < nextStart) {
+        const localTime = floatMod(t - start, duration);
+        return { region, normalizedTime: localTime / duration };
+      }
     } else {
-      if (t < start || t >= end) continue;
-      localTime = t - start;
+      const insideEnd = Math.min(end, nextStart);
+      if (t >= start && t < insideEnd) {
+        const localTime = t - start;
+        return { region, normalizedTime: localTime / duration };
+      }
     }
-    const normalizedTime = localTime / duration;
-    return { region, normalizedTime };
   }
   return null;
 }
 
 /**
  * Evaluate automation at time t for the given (nodeId, paramName).
- * Returns value in param range (scaled from curve 0–1 by paramSpec.min/max), or null if no region covers t.
+ * Returns value in param range, or null if the lane is inactive (no evaluable regions).
  */
 export function evaluateAutomationAtTime(
   graph: NodeGraph,
@@ -138,14 +231,13 @@ export function evaluateAutomationAtTime(
   const automation = graph.automation;
   if (!automation?.lanes?.length) return null;
 
-  const found = findRegionAtTime(automation, nodeId, paramName, t);
-  if (!found) return null;
+  const lane = automation.lanes.find(
+    (l) => l.nodeId === nodeId && l.paramName === paramName
+  );
+  if (!lane) return null;
 
-  const raw = evaluateCurveAtNormalizedTime(found.region.curve, found.normalizedTime);
-  const min = paramSpec?.min ?? 0;
-  const max = paramSpec?.max ?? 1;
-  const value = min + raw * (max - min);
-  return Math.max(min, Math.min(max, value));
+  const regions = sortEvaluableRegions(lane);
+  return evaluateLaneAutomationAtTime(regions, t, paramSpec);
 }
 
 /**

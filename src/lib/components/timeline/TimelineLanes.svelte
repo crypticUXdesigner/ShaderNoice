@@ -1,5 +1,7 @@
 <script lang="ts">
   import { Button, IconSvg, NodeIconSvg } from '../ui';
+  import { automationLaneHasEvaluableRegions } from '../../../utils/automationEvaluator';
+  import { getAutomationHoldSpanTimeRanges } from './timelineAutomationHoldSpans';
   import { getNodeIcon } from '../../../utils/nodeSpecUtils';
   import type { TimelineLaneRowViewModel } from './timelineLaneViewModel';
 
@@ -89,8 +91,18 @@
                 <NodeIconSvg identifier={getNodeIcon(vm.spec)} />
               </div>
             {/if}
-            <div class="lane-label-text-col" title={`${vm.paramLabel} — ${vm.nodeLabel}`}>
-              <span class="lane-label-param">{vm.paramLabel}</span>
+            <div
+              class="lane-label-text-col"
+              title={`${vm.paramLabel} — ${vm.nodeLabel}. Automation applies along the whole timeline (lead-in before the first region, hold in gaps, tail after the last region; looping repeats until the next region).`}
+            >
+              <div class="lane-label-param-row">
+                <span class="lane-label-param">{vm.paramLabel}</span>
+                {#if automationLaneHasEvaluableRegions(vm.lane)}
+                  <span class="lane-timeline-hint" aria-hidden="true">
+                    <IconSvg name="wave-sine" variant="line" class="lane-timeline-hint-icon" />
+                  </span>
+                {/if}
+              </div>
               <span class="lane-label-node">{vm.nodeLabel}</span>
             </div>
           </div>
@@ -128,6 +140,21 @@
                     <div class="track-grid-line" style="left: {x}px"></div>
                   {/each}
                 </div>
+                {#if automationLaneHasEvaluableRegions(vm.lane)}
+                  {#each getAutomationHoldSpanTimeRanges(vm.lane, duration) as span, idx (`hold-${vm.lane.id}-${span.start}-${span.end}-${idx}`)}
+                    {@const gLeft = timeToX(span.start)}
+                    {@const gRight = timeToX(span.end)}
+                    {@const gW = Math.max(1, gRight - gLeft)}
+                    <div
+                      class="automation-hold-ghost"
+                      data-category={vm.categorySlug}
+                      data-subgroup={vm.subGroupSlug || undefined}
+                      style="left: {gLeft}px; width: {gW}px"
+                      aria-hidden="true"
+                      title="Automation holds the endpoint value here (before first region, between regions, or after the last)."
+                    ></div>
+                  {/each}
+                {/if}
                 {#each vm.lane.regions as region (region.id)}
                   {@const isDragging = regionDrag?.laneId === vm.lane.id && regionDrag?.regionId === region.id}
                   {@const isResizing = regionResize?.laneId === vm.lane.id && regionResize?.regionId === region.id}
@@ -307,6 +334,13 @@
     line-height: 1.15;
   }
 
+  .lane-label-param-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
   .lane-label-param {
     font-size: var(--text-xs);
     font-weight: 600;
@@ -314,6 +348,20 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .lane-timeline-hint {
+    flex-shrink: 0;
+    display: inline-flex;
+    opacity: 0.75;
+    color: var(--color-teal-110, var(--print-subtle));
+  }
+
+  :global(.lane-timeline-hint-icon) {
+    width: 12px;
+    height: 12px;
   }
 
   .lane-label-node {
@@ -387,15 +435,87 @@
     background: var(--color-gray-70);
   }
 
+  .automation-hold-ghost {
+    position: absolute;
+    top: var(--pd-2xs);
+    bottom: var(--pd-2xs);
+    z-index: 1;
+    pointer-events: none;
+    border-radius: var(--radius-xs);
+    box-sizing: border-box;
+    opacity: 0.16;
+    background: var(--timeline-region-color-default);
+  }
+
   .region-block {
     position: absolute;
     top: var(--pd-2xs);
     bottom: var(--pd-2xs);
+    z-index: 2;
     background: var(--timeline-region-color-default);
     border-radius: var(--radius-xs);
     box-sizing: border-box;
     cursor: default;
     user-select: none;
+  }
+
+  .automation-hold-ghost[data-category='inputs'] {
+    background: var(--timeline-region-color-inputs);
+  }
+  .automation-hold-ghost[data-category='patterns'] {
+    background: var(--timeline-region-color-patterns);
+  }
+  .automation-hold-ghost[data-category='shapes'] {
+    background: var(--timeline-region-color-shapes);
+  }
+  .automation-hold-ghost[data-category='sdf'] {
+    background: var(--timeline-region-color-sdf);
+  }
+  .automation-hold-ghost[data-category='math'] {
+    background: var(--timeline-region-color-math);
+  }
+  .automation-hold-ghost[data-category='utilities'] {
+    background: var(--timeline-region-color-utilities);
+  }
+  .automation-hold-ghost[data-category='distort'] {
+    background: var(--timeline-region-color-distort);
+  }
+  .automation-hold-ghost[data-category='blend'] {
+    background: var(--timeline-region-color-blend);
+  }
+  .automation-hold-ghost[data-category='mask'] {
+    background: var(--timeline-region-color-mask);
+  }
+  .automation-hold-ghost[data-category='effects'] {
+    background: var(--timeline-region-color-effects);
+  }
+  .automation-hold-ghost[data-category='output'] {
+    background: var(--timeline-region-color-output);
+  }
+  .automation-hold-ghost[data-category='audio'] {
+    background: var(--timeline-region-color-audio);
+  }
+
+  .automation-hold-ghost[data-category='inputs'][data-subgroup='system-input'] {
+    background: var(--timeline-region-color-inputs-system);
+  }
+  .automation-hold-ghost[data-category='patterns'][data-subgroup='structured'] {
+    background: var(--timeline-region-color-patterns-structured);
+  }
+  .automation-hold-ghost[data-category='shapes'][data-subgroup='derived'] {
+    background: var(--timeline-region-color-shapes-derived);
+  }
+  .automation-hold-ghost[data-category='math'][data-subgroup='functions'] {
+    background: var(--timeline-region-color-math-functions);
+  }
+  .automation-hold-ghost[data-category='math'][data-subgroup='advanced'] {
+    background: var(--timeline-region-color-math-advanced);
+  }
+  .automation-hold-ghost[data-category='distort'][data-subgroup='warp'] {
+    background: var(--timeline-region-color-distort-warp);
+  }
+  .automation-hold-ghost[data-category='effects'][data-subgroup='stylize'] {
+    background: var(--timeline-region-color-effects-stylize);
   }
 
   .region-block[data-category='inputs'] {

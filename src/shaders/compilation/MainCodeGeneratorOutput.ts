@@ -1,6 +1,23 @@
-import type { NodeGraph, NodeInstance } from '../../data-model/types';
+import type { NodeGraph, NodeInstance, AutomationRegion } from '../../data-model/types';
 import type { NodeSpec } from '../../types/nodeSpec';
 import type { AutomationCurve } from '../../data-model/types';
+import {
+  evaluateCurveAtNormalizedTime,
+  sortEvaluableRegions,
+} from '../../utils/automationEvaluator';
+
+function scaledCurveEndpoint(region: AutomationRegion, s: number, min: number, max: number): number {
+  const raw = evaluateCurveAtNormalizedTime(region.curve, s);
+  const v = min + raw * (max - min);
+  return Math.max(min, Math.min(max, v));
+}
+
+function fmtGlslFloat(v: number): string {
+  if (!Number.isFinite(v)) {
+    throw new Error('Automation codegen: non-finite scalar');
+  }
+  return v.toFixed(10);
+}
 
 /**
  * Base shader template for node-based shader system
@@ -90,6 +107,7 @@ export function emitCurveEvalGlsl(
 
 /**
  * Generate GLSL functions float evalAutomation_<laneId>(float t) for each automation lane.
+ * Mirrors lane-wide extrapolation in {@link evaluateLaneAutomationAtTime} (lead-in, hold, loop-until-next).
  */
 export function generateAutomationFunctions(
   graph: NodeGraph,
@@ -113,40 +131,65 @@ export function generateAutomationFunctions(
     const paramSpec = nodeSpec.parameters[lane.paramName];
     if (!paramSpec || paramSpec.type !== 'float') continue;
 
+    const regions = sortEvaluableRegions(lane);
+    if (regions.length === 0) continue;
+
     const id = sanitizeAutomationLaneIdFn(lane.id);
     const min = paramSpec.min ?? 0;
     const max = paramSpec.max ?? 1;
-    const minStr = min.toFixed(10);
-    const maxStr = max.toFixed(10);
+    const minStr = fmtGlslFloat(min);
+    const maxStr = fmtGlslFloat(max);
 
-    const regions = [...lane.regions].sort((a, b) => a.startTime - b.startTime);
-    const blocks: string[] = [];
-    regions.forEach((region, ri) => {
-      const start = region.startTime.toFixed(10);
-      const dur = region.duration.toFixed(10);
-      const prefix = `lane_${id}_r${ri}`;
-      const curve = region.curve;
-      const keyframes = [...(curve?.keyframes ?? [])].sort((a, b) => a.time - b.time);
-      if (keyframes.length === 0) return;
+    const lines: string[] = [];
+    lines.push(`float evalAutomation_${id}(float t) {`);
 
-      const cond = region.loop
-        ? `t >= ${start}`
-        : `t >= ${start} && t < ${start} + ${dur}`;
-      const localT = region.loop
-        ? `mod(t - ${start}, ${dur})`
-        : `t - ${start}`;
-      blocks.push(`  if (${cond}) {`);
-      blocks.push(`    float localT = ${localT};`);
-      blocks.push(`    float s = localT / ${dur};`);
-      blocks.push(emitCurveEvalGlslFn(curve, 's', prefix).replace(/^/gm, '    '));
-      blocks.push(`    return clamp(${minStr} + ${prefix}_raw * (${maxStr} - ${minStr}), ${minStr}, ${maxStr});`);
-      blocks.push(`  }`);
-    });
+    const r0 = regions[0];
+    const leadIn = scaledCurveEndpoint(r0, 0, min, max);
+    lines.push(`  if (t < ${fmtGlslFloat(r0.startTime)}) return ${fmtGlslFloat(leadIn)};`);
 
-    out.push(`float evalAutomation_${id}(float t) {`);
-    out.push(blocks.join('\n'));
-    out.push(`  return ${minStr};`);
-    out.push(`}`);
+    const n = regions.length;
+    for (let i = 0; i < n; i++) {
+      const region = regions[i];
+      const nextStart = i + 1 < n ? regions[i + 1].startTime : null;
+      const start = region.startTime;
+      const dur = region.duration;
+      const end = start + dur;
+      const prefix = `lane_${id}_r${i}`;
+
+      if (region.loop) {
+        if (nextStart !== null) {
+          lines.push(`  if (t >= ${fmtGlslFloat(start)} && t < ${fmtGlslFloat(nextStart)}) {`);
+        } else {
+          lines.push(`  if (t >= ${fmtGlslFloat(start)}) {`);
+        }
+        lines.push(`    float localT = mod(t - ${fmtGlslFloat(start)}, ${fmtGlslFloat(dur)});`);
+        lines.push(`    float s = localT / ${fmtGlslFloat(dur)};`);
+        lines.push(emitCurveEvalGlslFn(region.curve, 's', prefix).replace(/^/gm, '    '));
+        lines.push(`    return clamp(${minStr} + ${prefix}_raw * (${maxStr} - ${minStr}), ${minStr}, ${maxStr});`);
+        lines.push(`  }`);
+      } else {
+        const insideEnd = nextStart !== null ? Math.min(end, nextStart) : end;
+        lines.push(`  if (t >= ${fmtGlslFloat(start)} && t < ${fmtGlslFloat(insideEnd)}) {`);
+        lines.push(`    float s = (t - ${fmtGlslFloat(start)}) / ${fmtGlslFloat(dur)};`);
+        lines.push(emitCurveEvalGlslFn(region.curve, 's', prefix).replace(/^/gm, '    '));
+        lines.push(`    return clamp(${minStr} + ${prefix}_raw * (${maxStr} - ${minStr}), ${minStr}, ${maxStr});`);
+        lines.push(`  }`);
+        if (nextStart !== null) {
+          const hold = scaledCurveEndpoint(region, 1, min, max);
+          lines.push(`  if (t >= ${fmtGlslFloat(end)} && t < ${fmtGlslFloat(nextStart)}) {`);
+          lines.push(`    return ${fmtGlslFloat(hold)};`);
+          lines.push(`  }`);
+        }
+      }
+    }
+
+    const last = regions[n - 1];
+    if (!last.loop) {
+      lines.push(`  return ${fmtGlslFloat(scaledCurveEndpoint(last, 1, min, max))};`);
+    }
+
+    lines.push(`}`);
+    out.push(lines.join('\n'));
   }
 
   return out.length ? out.join('\n\n') : '';

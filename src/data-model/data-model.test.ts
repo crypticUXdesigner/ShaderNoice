@@ -1112,6 +1112,143 @@ export function testValidateAutomationIntLaneWarning(): void {
   assert(result.warnings.some((w) => w.includes('noiseOctaves') && w.includes('int') && w.includes('float')), 'Should warn that int param is not supported for automation');
 }
 
+// Automation: duplicate keyframe times are validation errors (blocks deserialize/save)
+export function testValidateAutomationDuplicateKeyframeErrors(): void {
+  const graph: NodeGraph = {
+    id: 'g1',
+    name: 'Test',
+    version: '2.0',
+    nodes: [{ id: 'n1', type: 'noise', position: { x: 0, y: 0 }, parameters: {} }],
+    connections: [],
+    automation: {
+      bpm: 120,
+      durationSeconds: 30,
+      lanes: [
+        {
+          id: 'lane1',
+          nodeId: 'n1',
+          paramName: 'noiseScale',
+          regions: [
+            {
+              id: 'r1',
+              startTime: 0,
+              duration: 10,
+              loop: false,
+              curve: {
+                keyframes: [
+                  { time: 0.5, value: 0 },
+                  { time: 0.5, value: 1 },
+                ],
+                interpolation: 'linear',
+              },
+            },
+          ],
+        },
+      ],
+    },
+  };
+  const result = validateGraph(graph, mockNodeSpecs);
+  assert(result.valid === false, 'Duplicate keyframe times should fail validation');
+  assert(
+    result.errors.some((e) => e.includes('duplicate keyframe')),
+    'Should report duplicate keyframe error'
+  );
+}
+
+// Automation: overlapping evaluable regions are validation errors
+export function testValidateAutomationEvaluableOverlapErrors(): void {
+  const graph: NodeGraph = {
+    id: 'g1',
+    name: 'Test',
+    version: '2.0',
+    nodes: [{ id: 'n1', type: 'noise', position: { x: 0, y: 0 }, parameters: {} }],
+    connections: [],
+    automation: {
+      bpm: 120,
+      durationSeconds: 30,
+      lanes: [
+        {
+          id: 'lane1',
+          nodeId: 'n1',
+          paramName: 'noiseScale',
+          regions: [
+            {
+              id: 'r1',
+              startTime: 0,
+              duration: 10,
+              loop: false,
+              curve: {
+                keyframes: [{ time: 0, value: 0 }, { time: 1, value: 1 }],
+                interpolation: 'linear',
+              },
+            },
+            {
+              id: 'r2',
+              startTime: 5,
+              duration: 10,
+              loop: false,
+              curve: {
+                keyframes: [{ time: 0, value: 0 }, { time: 1, value: 1 }],
+                interpolation: 'linear',
+              },
+            },
+          ],
+        },
+      ],
+    },
+  };
+  const result = validateGraph(graph, mockNodeSpecs);
+  assert(result.valid === false, 'Overlapping evaluable regions should fail validation');
+  assert(
+    result.errors.some((e) => e.includes('overlapping evaluable')),
+    'Should report evaluable overlap error'
+  );
+}
+
+// Non-evaluable regions overlapping do not error (no evaluable overlap)
+export function testValidateAutomationNonEvaluableOverlapOk(): void {
+  const graph: NodeGraph = {
+    id: 'g1',
+    name: 'Test',
+    version: '2.0',
+    nodes: [{ id: 'n1', type: 'noise', position: { x: 0, y: 0 }, parameters: {} }],
+    connections: [],
+    automation: {
+      bpm: 120,
+      durationSeconds: 30,
+      lanes: [
+        {
+          id: 'lane1',
+          nodeId: 'n1',
+          paramName: 'noiseScale',
+          regions: [
+            {
+              id: 'emptyCurve',
+              startTime: 0,
+              duration: 10,
+              loop: false,
+              curve: { keyframes: [], interpolation: 'linear' },
+            },
+            {
+              id: 'r2',
+              startTime: 5,
+              duration: 10,
+              loop: false,
+              curve: {
+                keyframes: [{ time: 0, value: 0 }, { time: 1, value: 1 }],
+                interpolation: 'linear',
+              },
+            },
+          ],
+        },
+      ],
+    },
+  };
+  const result = validateGraph(graph, mockNodeSpecs);
+  assert(result.valid === true, 'Only non-evaluable overlap should not add automation errors');
+  assert(!result.errors.some((e) => e.includes('overlapping evaluable')), 'No evaluable overlap');
+}
+
 // Test: Connection invariant - exactly one of targetPort or targetParameter (03B)
 export function testValidateConnectionInvariant(): void {
   const graphWithBoth: NodeGraph = {
@@ -1204,4 +1341,7 @@ describe('data-model', () => {
   it('validateConnectionInvariant', testValidateConnectionInvariant);
   it('setAutomationDuration', testSetAutomationDuration);
   it('validateAutomationIntLaneWarning', testValidateAutomationIntLaneWarning);
+  it('validateAutomationDuplicateKeyframeErrors', testValidateAutomationDuplicateKeyframeErrors);
+  it('validateAutomationEvaluableOverlapErrors', testValidateAutomationEvaluableOverlapErrors);
+  it('validateAutomationNonEvaluableOverlapOk', testValidateAutomationNonEvaluableOverlapOk);
 });

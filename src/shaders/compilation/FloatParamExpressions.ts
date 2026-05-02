@@ -1,6 +1,7 @@
 import type { NodeGraph } from '../../data-model/types';
 import type { NodeSpec } from '../../types/nodeSpec';
 import { isVirtualNodeId } from '../../utils/virtualNodes';
+import { automationLaneHasEvaluableRegions } from '../../utils/automationEvaluator';
 
 export type FloatParamExpressionMap = Record<string, string> & {
   __hasInputConnections?: boolean;
@@ -16,7 +17,7 @@ export function getAutomationExpressionForParam(
   const lane = graph.automation.lanes.find(
     (l) => l.nodeId === nodeId && l.paramName === paramName
   );
-  if (!lane) return null;
+  if (!lane || !automationLaneHasEvaluableRegions(lane)) return null;
   return `evalAutomation_${sanitizeAutomationLaneId(lane.id)}(uTimelineTime)`;
 }
 

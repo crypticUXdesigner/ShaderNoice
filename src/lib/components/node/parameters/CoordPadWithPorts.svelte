@@ -25,6 +25,8 @@
   }
 
   interface Props {
+    /** Timeline automation drives X and/or Y (evaluable regions). */
+    timelineDriven?: boolean;
     label?: string;
     x: number;
     y: number;
@@ -52,6 +54,7 @@
   }
 
   let {
+    timelineDriven = false,
     label = 'Center',
     x,
     y,
@@ -100,6 +103,7 @@
 <ParamCell
   connected={isConnected}
   {label}
+  {timelineDriven}
   class="coord-pad-with-ports {className}"
 >
   {#snippet leftBottom()}

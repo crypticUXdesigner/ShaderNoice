@@ -4,7 +4,8 @@
  * Graph-level validation and re-exports. Node/connection validation in validationNode.ts and validationConnection.ts.
  */
 
-import type { NodeGraph, Connection, ValidationResult, AutomationState } from './types';
+import type { NodeGraph, Connection, ValidationResult, AutomationState, AutomationLane } from './types';
+import { sortEvaluableRegions } from '../utils/automationEvaluator';
 import { isPortConnection, getConnectionTargetKey } from './connectionUtils';
 import type { NodeSpecification } from './validationTypes';
 import { validateNode } from './validationNode';
@@ -75,19 +76,21 @@ export function validateGraph(
   }
 
   if (graph.automation) {
-    validateAutomation(graph.automation, graph, nodeSpecs, warnings);
+    validateAutomation(graph.automation, graph, nodeSpecs, errors, warnings);
   }
 
   return { valid: errors.length === 0, errors, warnings };
 }
 
 /**
- * Validates automation state. Pushes issues to warnings only so graph load never fails due to invalid automation.
+ * Validates automation state. Structural/node/param mismatches go to **warnings** so legacy graphs stay inspectable.
+ * **Hard errors:** duplicate keyframe times in a curve; overlapping **evaluable** regions on the same lane (same rules as runtime §4.4 — blocks deserialize/save when invalid).
  */
 export function validateAutomation(
   automation: AutomationState,
   graph: NodeGraph,
   nodeSpecs: NodeSpecification[],
+  errors: string[],
   warnings: string[]
 ): void {
   if (typeof automation.bpm !== 'number' || automation.bpm <= 0) {
@@ -135,7 +138,9 @@ export function validateAutomation(
       warnings.push(`Automation lane ${lane.id}: regions must be an array`);
       continue;
     }
-    const sortedRegions = [...lane.regions].sort((a, b) => a.startTime - b.startTime);
+    const sortedRegions = [...lane.regions].sort((a, b) =>
+      a.startTime !== b.startTime ? a.startTime - b.startTime : a.id.localeCompare(b.id)
+    );
     for (let i = 0; i < sortedRegions.length; i++) {
       const r = sortedRegions[i];
       if (typeof r.startTime !== 'number' || r.startTime < 0) {
@@ -144,19 +149,31 @@ export function validateAutomation(
       if (typeof r.duration !== 'number' || r.duration < 0) {
         warnings.push(`Automation region ${r.id}: duration must be >= 0`);
       }
-      if (r.curve?.keyframes) {
+      if (r.curve?.keyframes?.length) {
+        const sortedKf = [...r.curve.keyframes].sort((a, b) => a.time - b.time);
+        for (let k = 1; k < sortedKf.length; k++) {
+          if (sortedKf[k].time === sortedKf[k - 1].time) {
+            errors.push(
+              `Automation region ${r.id}: duplicate keyframe times at ${sortedKf[k].time} are not allowed`
+            );
+          }
+        }
         for (const kf of r.curve.keyframes) {
           if (typeof kf.time !== 'number' || kf.time < 0 || kf.time > 1) {
             warnings.push(`Automation region ${r.id}: keyframe time must be in [0, 1], got ${kf.time}`);
           }
         }
       }
-      if (i < sortedRegions.length - 1) {
-        const next = sortedRegions[i + 1];
-        const end = r.startTime + r.duration;
-        if (end > next.startTime) {
-          warnings.push(`Automation lane ${lane.id}: overlapping regions (${r.id} ends at ${end}, next starts at ${next.startTime})`);
-        }
+    }
+    const evaluableSorted = sortEvaluableRegions(lane as AutomationLane);
+    for (let ei = 0; ei < evaluableSorted.length - 1; ei++) {
+      const r = evaluableSorted[ei];
+      const next = evaluableSorted[ei + 1];
+      const end = r.startTime + r.duration;
+      if (end > next.startTime) {
+        errors.push(
+          `Automation lane ${lane.id}: overlapping evaluable regions (${r.id} ends at ${end}, ${next.id} starts at ${next.startTime})`
+        );
       }
     }
   }

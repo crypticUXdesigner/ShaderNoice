@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { NodeShaderCompiler } from '../shaders/NodeShaderCompiler';
 import { nodeSystemSpecs } from '../shaders/nodes/index';
 import { toValidationSpecs } from './nodeSpecUtils';
-import { loadPreset, loadPresetFromJson } from './presetManager';
+import { loadPreset, loadPresetFromJson, listPresets } from './presetManager';
 import { UndoRedoManager } from '../ui/editor';
 import { updateNodeParameter, validateGraph } from '../data-model';
 
@@ -390,6 +390,17 @@ describe('presetManager scenario tests', () => {
       compileResult.shaderCode,
       'Compiled shader must not contain raw $param.hexRadius placeholder when audio connection is present'
     ).not.toContain('$param.hexRadius');
+  });
+
+  it('all bundled presets pass validateGraph (incl. automation hard rules)', async () => {
+    const validationSpecs = toValidationSpecs(nodeSystemSpecs);
+    const presets = await listPresets();
+    expect(presets.length).toBeGreaterThan(0);
+    for (const p of presets) {
+      const r = await loadPreset(p.name, validationSpecs);
+      expect(r.errors, `${p.name}: ${r.errors.join('; ')}`).toHaveLength(0);
+      expect(r.graph).not.toBeNull();
+    }
   });
 });
 

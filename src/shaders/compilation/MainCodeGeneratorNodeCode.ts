@@ -3,6 +3,7 @@ import type { NodeSpec } from '../../types/nodeSpec';
 import { isVirtualNodeId } from '../../utils/virtualNodes';
 import { formatParamLiteralForGlsl, generateOutputVariableName, getInputDefaultValue } from './MainCodeGeneratorUtils';
 import { sanitizeAutomationLaneId } from './MainCodeGeneratorOutput';
+import { automationLaneHasEvaluableRegions } from '../../utils/automationEvaluator';
 import { replacePlaceholders, type PlaceholderContext } from './MainCodeGeneratorPlaceholders';
 
 export function generatePromotionCode(
@@ -39,7 +40,7 @@ export function getParameterComponentExpression(
   const paramSpec = nodeSpec.parameters[paramName];
   if (graph?.automation?.lanes && paramSpec?.type === 'float') {
     const lane = graph.automation.lanes.find((l) => l.nodeId === node.id && l.paramName === paramName);
-    if (lane) {
+    if (lane && automationLaneHasEvaluableRegions(lane)) {
       return `evalAutomation_${sanitizeAutomationLaneId(lane.id)}(uTimelineTime)`;
     }
   }

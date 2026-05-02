@@ -3,7 +3,7 @@
    * ParamPortWithAudioState - WP 13
    * Wraps ParameterCell and resolves connection state, signal name, and live value
    * from graph store + parameterValueCalculator. Polls live value on RAF when audio-connected.
-   * WP 03: When param has an automation lane and playhead is in range, shows automation-driven value.
+   * WP 03: When param has evaluable timeline automation, shows automation-driven value for the whole timeline (lead-in, gaps, tail).
    * Mode button shows only when connected (graph or audio); icon reflects input mode.
    * Passes effectiveValue to children for knob/input display when connected.
    */
@@ -16,6 +16,7 @@
     getParameterInputValue,
   } from '../../../../utils/parameterValueCalculator';
   import { evaluateAutomationSignalBindingForParam } from '../../../../utils/automationSignals';
+  import { automationLaneHasEvaluableRegions } from '../../../../utils/automationEvaluator';
   import { subscribeParameterValueTick } from '../../../stores/parameterValueTickStore';
   import type { NodeGraph } from '../../../../data-model/types';
   import type { NodeSpec, ParameterInputMode } from '../../../../types/nodeSpec';
@@ -88,9 +89,14 @@
     getParamPortConnectionState(nodeId, paramName, graph, audioSetup)
   );
 
-  /** WP 03: True when this parameter has an automation lane (so we subscribe to tick for live value). */
-  const hasAutomationLane = $derived(
-    Boolean(graph.automation?.lanes?.some((l) => l.nodeId === nodeId && l.paramName === paramName))
+  const automationLaneForParam = $derived(
+    graph.automation?.lanes?.find((l) => l.nodeId === nodeId && l.paramName === paramName)
+  );
+  /** True when the lane has at least one evaluable region (automation is active for the full timeline). */
+  const hasEvaluableAutomationLane = $derived(
+    Boolean(
+      automationLaneForParam && automationLaneHasEvaluableRegions(automationLaneForParam)
+    )
   );
 
   const paramSpec = $derived(nodeSpecs.get(node.type)?.parameters?.[paramName]);
@@ -122,7 +128,8 @@
     const setup = audioSetup;
     const specs = nodeSpecs;
     const info = getParamPortConnectionState(nodeId, paramName, g, setup);
-    const hasLane = g.automation?.lanes?.some((l) => l.nodeId === nodeId && l.paramName === paramName);
+    const lane = g.automation?.lanes?.find((l) => l.nodeId === nodeId && l.paramName === paramName);
+    const hasLane = Boolean(lane && automationLaneHasEvaluableRegions(lane));
     if (info.state === 'default' && !hasLane) {
       effectiveValue = null;
       return;
@@ -190,9 +197,9 @@
     inputMode === 'multiply' &&
     (inputValue === null || (typeof inputValue === 'number' && Math.abs(inputValue) < 1e-10))
   );
-  /** When connected or has automation lane, depend on tickCount so display updates when playhead moves. */
+  /** When connected or has evaluable automation lane, depend on tickCount so display updates when playhead moves. */
   const displayValue = $derived.by(() => {
-    if (connectionInfo.state !== 'default' || hasAutomationLane) {
+    if (connectionInfo.state !== 'default' || hasEvaluableAutomationLane) {
       const _ = tickCount;
       void _;
     }
@@ -221,6 +228,7 @@
   liveValue={liveValue}
   supportsAudio={supportsAudio}
   supportsAnimation={supportsAnimation}
+  timelineDriven={hasEvaluableAutomationLane}
   {onPortPointerDown}
   {onPortDoubleClick}
   onModeClick={handleModeClick}

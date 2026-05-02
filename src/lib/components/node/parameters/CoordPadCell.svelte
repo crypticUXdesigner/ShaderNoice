@@ -2,7 +2,7 @@
   /**
    * CoordPadCell - Wraps CoordPadWithPorts with graph/audio connection resolution.
    * Resolves connection state and polls live values for X and Y params.
-   * WP 03: When a param has an automation lane and playhead is in range, shows automation-driven value.
+   * WP 03: When a param has evaluable timeline automation, shows automation-driven value for the whole timeline.
    */
   import CoordPadWithPorts from './CoordPadWithPorts.svelte';
   import { getParamPortConnectionState } from '../../../../utils/paramPortAudioState';
@@ -11,7 +11,10 @@
     getParameterInputValue,
     snapParameterValue,
   } from '../../../../utils/parameterValueCalculator';
-  import { getAutomationValueForParam } from '../../../../utils/automationEvaluator';
+  import {
+    getAutomationValueForParam,
+    automationLaneHasEvaluableRegions,
+  } from '../../../../utils/automationEvaluator';
   import { subscribeParameterValueTick } from '../../../stores/parameterValueTickStore';
   import type { NodeGraph } from '../../../../data-model/types';
   import type { NodeSpec, ParameterInputMode } from '../../../../types/nodeSpec';
@@ -93,8 +96,10 @@
     const specs = nodeSpecs;
     const specX = specs.get(n.type)?.parameters?.[paramX];
     const specY = specs.get(n.type)?.parameters?.[paramY];
-    const hasLaneX = g.automation?.lanes?.some((l) => l.nodeId === nodeId && l.paramName === paramX);
-    const hasLaneY = g.automation?.lanes?.some((l) => l.nodeId === nodeId && l.paramName === paramY);
+    const laneX = g.automation?.lanes?.find((l) => l.nodeId === nodeId && l.paramName === paramX);
+    const laneY = g.automation?.lanes?.find((l) => l.nodeId === nodeId && l.paramName === paramY);
+    const hasLaneX = Boolean(laneX && automationLaneHasEvaluableRegions(laneX));
+    const hasLaneY = Boolean(laneY && automationLaneHasEvaluableRegions(laneY));
     if (
       connX.state === 'default' &&
       connY.state === 'default' &&
@@ -270,9 +275,20 @@
     (paramSpecX?.label ?? 'Center')
       .replace(/\s+[XY]$/i, '')
   );
+
+  const timelineDrivenPad = $derived.by(() => {
+    const g = graph;
+    const lx = g.automation?.lanes?.find((l) => l.nodeId === nodeId && l.paramName === paramX);
+    const ly = g.automation?.lanes?.find((l) => l.nodeId === nodeId && l.paramName === paramY);
+    return Boolean(
+      (lx && automationLaneHasEvaluableRegions(lx)) ||
+        (ly && automationLaneHasEvaluableRegions(ly))
+    );
+  });
 </script>
 
 <CoordPadWithPorts
+  timelineDriven={timelineDrivenPad}
   label={label}
   x={displayValueX}
   y={displayValueY}

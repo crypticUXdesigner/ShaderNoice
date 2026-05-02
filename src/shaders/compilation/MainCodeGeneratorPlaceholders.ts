@@ -2,6 +2,7 @@ import type { NodeGraph, NodeInstance } from '../../data-model/types';
 import type { NodeSpec } from '../../types/nodeSpec';
 import { formatParamLiteralForGlsl } from './MainCodeGeneratorUtils';
 import { sanitizeAutomationLaneId } from './MainCodeGeneratorOutput';
+import { automationLaneHasEvaluableRegions } from '../../utils/automationEvaluator';
 
 export type PlaceholderContext = {
   escapeRegex: (str: string) => string;
@@ -79,7 +80,7 @@ export function replacePlaceholders(
         const lane = graph.automation.lanes.find(
           (l) => l.nodeId === node.id && l.paramName === paramName
         );
-        if (lane) {
+        if (lane && automationLaneHasEvaluableRegions(lane)) {
           const expr = `evalAutomation_${sanitizeAutomationLaneId(lane.id)}(uTimelineTime)`;
           const regex = new RegExp(`\\$param\\.${ctx.escapeRegex(paramName)}\\b`, 'g');
           result = result.replace(regex, expr);

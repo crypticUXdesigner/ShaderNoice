@@ -11,6 +11,8 @@ export interface ParamCellProps {
   supportsAnimation?: boolean;
   /** Label text in the left column top row. */
   label: string;
+  /** When true, show a small icon that the parameter is driven by timeline automation (full timeline, not only inside regions). */
+  timelineDriven?: boolean;
   /** Optional snippet for left column bottom (port row(s)). */
   leftBottom?: Snippet;
   /** Snippet for the control slot (slider, pad, etc.). */

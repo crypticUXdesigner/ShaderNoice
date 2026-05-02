@@ -26,6 +26,8 @@
     liveValue?: number;
     supportsAudio?: boolean;
     supportsAnimation?: boolean;
+    /** Timeline automation drives this parameter (evaluable regions on lane). */
+    timelineDriven?: boolean;
     onModeClick?: () => void;
     onPortPointerDown?: (e: PointerEvent) => void;
     onPortDoubleClick?: (e: MouseEvent) => void;
@@ -48,6 +50,7 @@
     liveValue = 0,
     supportsAudio,
     supportsAnimation,
+    timelineDriven = false,
     onModeClick,
     onPortPointerDown,
     onPortDoubleClick,
@@ -108,6 +111,7 @@
   class={className}
   supportsAudio={supportsAudio}
   supportsAnimation={supportsAnimation}
+  {timelineDriven}
   leftBottom={showPort ? portRowContent : undefined}
 >
   {#snippet control()}
