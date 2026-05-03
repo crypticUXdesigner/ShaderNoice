@@ -49,8 +49,8 @@ export const iteratedInversionNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Twist'
-    },
+      label: 'Twist',
+      knobPolarity: 'two-sided' },
     iteratedInversionOrbitRadius: {
       type: 'float',
       default: 0.35,

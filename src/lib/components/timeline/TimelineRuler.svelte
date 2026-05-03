@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Action } from 'svelte/action';
   import type { WaveformService } from '../../../runtime/waveform';
 
   interface RulerData {
@@ -31,21 +32,34 @@
     onWaveformCanvasEl,
   }: Props = $props();
 
-  let rulerTrackEl: HTMLDivElement | null = $state(null);
-  let rulerWaveformCanvasEl: HTMLCanvasElement | null = $state(null);
+  const notifyDiv: Action<
+    HTMLDivElement,
+    ((el: HTMLDivElement | null) => void) | undefined
+  > = (node, cb) => {
+    cb?.(node);
+    return {
+      update(next) {
+        next?.(node);
+      },
+    };
+  };
 
-  $effect(() => {
-    onRulerTrackEl?.(rulerTrackEl);
-  });
-
-  $effect(() => {
-    onWaveformCanvasEl?.(rulerWaveformCanvasEl);
-  });
+  const notifyCanvas: Action<
+    HTMLCanvasElement,
+    ((el: HTMLCanvasElement | null) => void) | undefined
+  > = (node, cb) => {
+    cb?.(node);
+    return {
+      update(next) {
+        next?.(node);
+      },
+    };
+  };
 </script>
 
 <div class="ruler-row">
   <div
-    bind:this={rulerTrackEl}
+    use:notifyDiv={onRulerTrackEl}
     class="ruler-track"
     class:ruler-seek-enabled={rulerSeekEnabled}
     role="slider"
@@ -59,7 +73,7 @@
   >
     {#if waveformService}
       <div class="ruler-waveform" aria-hidden="true">
-        <canvas bind:this={rulerWaveformCanvasEl}></canvas>
+        <canvas use:notifyCanvas={onWaveformCanvasEl}></canvas>
       </div>
     {/if}
     {#if rulerData}

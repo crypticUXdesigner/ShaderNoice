@@ -16,174 +16,301 @@ import { getPhosphorNodesOutline, getPhosphorNodesFilled } from './phosphor-icon
 /**
  * Icon definition: Phosphor icon name (kebab-case, as in JSON keys) + variant
  */
+export type IconVariant = 'line' | 'filled';
+
 export interface IconDefinition {
   phosphorIconName: string;
-  variant: 'line' | 'filled';
+  variant: IconVariant;
+}
+
+type CanonicalIconId = `${string}:${IconVariant}`;
+
+function canonicalId(phosphorIconName: string, variant: IconVariant): CanonicalIconId {
+  return `${phosphorIconName}:${variant}`;
 }
 
 /**
- * Centralized icon registry. Single source of truth for DOM and canvas.
- * phosphorIconName must match a key in phosphor-nodes-regular.json or phosphor-nodes-fill.json.
+ * A canonical icon identity is self-describing: "phosphor-icon-name:variant".
+ * We intentionally do not keep a second "canonical registry" list here — the
+ * Phosphor icon set is already enumerated in `public/phosphor-nodes-*.json`.
  */
-export const iconRegistry: Record<string, IconDefinition> = {
+function iconDefinitionFromCanonicalId(id: CanonicalIconId): IconDefinition {
+  const sepIdx = id.lastIndexOf(':');
+  const phosphorIconName = id.slice(0, sepIdx);
+  const variant = id.slice(sepIdx + 1) as IconVariant;
+  return { phosphorIconName, variant };
+}
+
+/**
+ * Human/app-facing icon names are aliases that resolve to canonical identities.
+ * This prevents "new names" from silently creating new icon definitions.
+ */
+const iconAliases: Record<string, CanonicalIconId> = {
   // Basic shapes
-  'circle': { phosphorIconName: 'circle', variant: 'filled' },
-  'circle-dotted': { phosphorIconName: 'circle-dashed', variant: 'line' },
-  'square': { phosphorIconName: 'square', variant: 'line' },
-  'star': { phosphorIconName: 'star', variant: 'line' },
-  'square-rounded-corners': { phosphorIconName: 'square', variant: 'line' },
-  'rectangle': { phosphorIconName: 'rectangle', variant: 'line' },
-  'hexagon': { phosphorIconName: 'hexagon', variant: 'line' },
-  'sphere': { phosphorIconName: 'circle', variant: 'line' },
-  'cube': { phosphorIconName: 'cube', variant: 'filled' },
-  'cube-transparent': { phosphorIconName: 'cube-transparent', variant: 'line' },
-  'box': { phosphorIconName: 'cube', variant: 'line' },
-  'cylinder': { phosphorIconName: 'cylinder', variant: 'line' },
-  'ring': { phosphorIconName: 'circle', variant: 'line' },
-  'rings': { phosphorIconName: 'circle', variant: 'line' },
-  'infinity': { phosphorIconName: 'infinity', variant: 'line' },
-  'sparkles-2': { phosphorIconName: 'sparkles', variant: 'line' },
-  'circle-dashed': { phosphorIconName: 'circle-dashed', variant: 'line' },
-  'car': { phosphorIconName: 'headlights', variant: 'line' },
-  'droplets': { phosphorIconName: 'drop', variant: 'line' },
+  'circle': canonicalId('circle', 'filled'),
+  'circle-dotted': canonicalId('circle-dashed', 'line'),
+  'square': canonicalId('square', 'line'),
+  'star': canonicalId('star', 'line'),
+  'square-rounded-corners': canonicalId('square', 'line'),
+  'rectangle': canonicalId('rectangle', 'line'),
+  'hexagon': canonicalId('hexagon', 'line'),
+  'sphere': canonicalId('sphere', 'line'),
+  'cube': canonicalId('cube', 'filled'),
+  'cube-transparent': canonicalId('cube-transparent', 'line'),
+  'box': canonicalId('cube', 'line'),
+  'cylinder': canonicalId('cylinder', 'line'),
+  'ring': canonicalId('circle', 'line'),
+  'rings': canonicalId('circle', 'line'),
+  'infinity': canonicalId('infinity', 'line'),
+  'sparkles-2': canonicalId('sparkles', 'line'),
+  'circle-dashed': canonicalId('circle-dashed', 'line'),
+  'car': canonicalId('headlights', 'line'),
+  'droplets': canonicalId('drop', 'line'),
 
   // Patterns & grids
-  'grid': { phosphorIconName: 'grid-four', variant: 'line' },
-  'grid-nine': { phosphorIconName: 'grid-nine', variant: 'line' },
-  'dither': { phosphorIconName: 'checkerboard', variant: 'line' },
-  'grain': { phosphorIconName: 'dots-three', variant: 'line' },
-  'noise': { phosphorIconName: 'dots-three', variant: 'line' },
-  'particle': { phosphorIconName: 'dots-three', variant: 'line' },
-  'cell': { phosphorIconName: 'squares-four', variant: 'line' },
-  'curly-loop': { phosphorIconName: 'infinity', variant: 'line' },
-  'hexagons': { phosphorIconName: 'hexagon', variant: 'line' },
-  'dots': { phosphorIconName: 'dot', variant: 'line' },
-  'dots-nine': { phosphorIconName: 'dots-nine', variant: 'line' },
-  'spray': { phosphorIconName: 'dots-three', variant: 'line' },
-  'atom-2': { phosphorIconName: 'atom', variant: 'line' },
-  'topology-star-ring': { phosphorIconName: 'star', variant: 'line' },
-  'sunrise': { phosphorIconName: 'sun', variant: 'line' },
-  'triangles': { phosphorIconName: 'caret-up', variant: 'line' },
-  'streak': { phosphorIconName: 'arrow-down-right', variant: 'line' },
-  'shape-2': { phosphorIconName: 'shapes', variant: 'line' },
-  'shapes-filled': { phosphorIconName: 'shapes', variant: 'filled' },
-  'layout-board': { phosphorIconName: 'squares-four', variant: 'line' },
-  'kaleidoscope': { phosphorIconName: 'shapes', variant: 'line' },
-  'compass-rose': { phosphorIconName: 'compass-rose', variant: 'line' },
+  'grid': canonicalId('grid-four', 'line'),
+  'grid-nine': canonicalId('grid-nine', 'line'),
+  'dither': canonicalId('checkerboard', 'line'),
+  'grain': canonicalId('dots-nine', 'line'),
+  'noise': canonicalId('dots-nine', 'line'),
+  'particle': canonicalId('dots-nine', 'line'),
+  'cell': canonicalId('squares-four', 'line'),
+  'curly-loop': canonicalId('infinity', 'line'),
+  'hexagons': canonicalId('hexagon', 'line'),
+  'dots': canonicalId('dot', 'line'),
+  'dots-nine': canonicalId('dots-nine', 'line'),
+  'spray': canonicalId('dots-three', 'line'),
+  'atom-2': canonicalId('atom', 'line'),
+  'topology-star-ring': canonicalId('star', 'line'),
+  'sunrise': canonicalId('sun', 'line'),
+  'triangles': canonicalId('caret-up', 'line'),
+  'streak': canonicalId('arrow-down-right', 'line'),
+  'shape-2': canonicalId('shapes', 'line'),
+  'shapes-filled': canonicalId('shapes', 'filled'),
+  'layout-board': canonicalId('squares-four', 'line'),
+  'kaleidoscope': canonicalId('shapes', 'line'),
+  'compass-rose': canonicalId('compass-rose', 'line'),
 
   // Audio & waveforms
-  'audio-waveform': { phosphorIconName: 'wave-sine', variant: 'line' },
-  'wave': { phosphorIconName: 'wave-sine', variant: 'line' },
-  'waves': { phosphorIconName: 'waves', variant: 'line' },
-  'ripple': { phosphorIconName: 'wave-sine', variant: 'line' },
-  'trig-wave': { phosphorIconName: 'wave-sine', variant: 'line' },
+  'audio-waveform': canonicalId('wave-sine', 'line'),
+  'wave': canonicalId('wave-sine', 'line'),
+  'waves': canonicalId('waves', 'line'),
+  'ripple': canonicalId('wave-sine', 'line'),
+  'trig-wave': canonicalId('wave-sine', 'line'),
 
   // Math & operations
-  'calculator': { phosphorIconName: 'calculator', variant: 'line' },
-  'plus': { phosphorIconName: 'plus', variant: 'filled' },
-  'minus': { phosphorIconName: 'minus', variant: 'filled' },
-  'multiply-x': { phosphorIconName: 'asterisk', variant: 'filled' },
-  'divide': { phosphorIconName: 'divide', variant: 'line' },
-  'power': { phosphorIconName: 'caret-up', variant: 'line' },
-  'sqrt': { phosphorIconName: 'function', variant: 'line' },
-  'constant': { phosphorIconName: 'hash', variant: 'line' },
-  'hash': { phosphorIconName: 'hash', variant: 'line' },
-  'hash-straight': { phosphorIconName: 'hash-straight', variant: 'line' },
-  'percentage': { phosphorIconName: 'percent', variant: 'line' },
-  'math-min': { phosphorIconName: 'caret-down', variant: 'line' },
-  'math-max': { phosphorIconName: 'caret-up', variant: 'line' },
-  'math-max-min': { phosphorIconName: 'arrows-vertical', variant: 'line' },
-  'math-cos': { phosphorIconName: 'wave-sine', variant: 'line' },
-  'math-tg': { phosphorIconName: 'wave-sine', variant: 'line' },
-  'math-function-y': { phosphorIconName: 'function', variant: 'line' },
-  'math-symbols': { phosphorIconName: 'plus-minus', variant: 'line' },
-  'math-xy': { phosphorIconName: 'grid-four', variant: 'line' },
-  'math-function': { phosphorIconName: 'function', variant: 'line' },
-  'wave-sine': { phosphorIconName: 'wave-sine', variant: 'line' },
+  'calculator': canonicalId('calculator', 'line'),
+  'plus': canonicalId('plus', 'filled'),
+  'minus': canonicalId('minus', 'filled'),
+  'multiply-x': canonicalId('asterisk', 'filled'),
+  'divide': canonicalId('divide', 'line'),
+  'power': canonicalId('caret-up', 'line'),
+  'sqrt': canonicalId('function', 'line'),
+  'constant': canonicalId('hash', 'line'),
+  'hash': canonicalId('hash', 'line'),
+  'hash-straight': canonicalId('hash-straight', 'line'),
+  'percentage': canonicalId('percent', 'line'),
+  'math-min': canonicalId('caret-down', 'line'),
+  'math-max': canonicalId('caret-up', 'line'),
+  'math-max-min': canonicalId('arrows-vertical', 'line'),
+  'math-cos': canonicalId('wave-sine', 'line'),
+  'math-tg': canonicalId('wave-sine', 'line'),
+  'math-function-y': canonicalId('function', 'line'),
+  'math-symbols': canonicalId('plus-minus', 'line'),
+  'math-xy': canonicalId('grid-four', 'line'),
+  'math-function': canonicalId('function', 'line'),
+  'wave-sine': canonicalId('wave-sine', 'line'),
 
   // Vectors & geometry
-  'arrow-right': { phosphorIconName: 'arrow-right', variant: 'line' },
-  'arrow-down': { phosphorIconName: 'arrow-down', variant: 'line' },
-  'arrow-up': { phosphorIconName: 'arrow-up', variant: 'line' },
-  'arrows-left-right': { phosphorIconName: 'arrows-left-right', variant: 'line' },
-  'arrows-right-left': { phosphorIconName: 'arrows-left-right', variant: 'line' },
-  'vector-dot': { phosphorIconName: 'dot', variant: 'filled' },
-  'vector-cross': { phosphorIconName: 'x', variant: 'line' },
-  'vector-two': { phosphorIconName: 'vector-two', variant: 'line' },
-  'vector-three': { phosphorIconName: 'vector-three', variant: 'line' },
-  'normalize': { phosphorIconName: 'arrows-vertical', variant: 'line' },
-  'reflect': { phosphorIconName: 'arrows-left-right', variant: 'line' },
-  'refract': { phosphorIconName: 'circle-half', variant: 'line' },
-  'bezier': { phosphorIconName: 'bezier-curve', variant: 'line' },
-  'normal-map': { phosphorIconName: 'circle-half', variant: 'line' },
+  'arrow-right': canonicalId('arrow-right', 'line'),
+  'arrow-down': canonicalId('arrow-down', 'line'),
+  'arrow-up': canonicalId('arrow-up', 'line'),
+  'arrows-left-right': canonicalId('arrows-left-right', 'line'),
+  'arrows-right-left': canonicalId('arrows-left-right', 'line'),
+  'vector-dot': canonicalId('dot', 'filled'),
+  'vector-cross': canonicalId('x', 'line'),
+  'vector-two': canonicalId('vector-two', 'line'),
+  'vector-three': canonicalId('vector-three', 'line'),
+  'normalize': canonicalId('arrows-vertical', 'line'),
+  'reflect': canonicalId('arrows-left-right', 'line'),
+  'refract': canonicalId('circle-half', 'line'),
+  'bezier': canonicalId('bezier-curve', 'line'),
+  'normal-map': canonicalId('circle-half', 'line'),
 
   // Transform & movement
-  'move': { phosphorIconName: 'arrows-out', variant: 'line' },
-  'rotate': { phosphorIconName: 'arrow-clockwise', variant: 'line' },
-  'resize': { phosphorIconName: 'arrows-out-simple', variant: 'line' },
-  'twist': { phosphorIconName: 'arrow-clockwise', variant: 'line' },
-  'arrow-move-right': { phosphorIconName: 'arrow-right', variant: 'line' },
-  'arrow-autofit-height': { phosphorIconName: 'arrows-vertical', variant: 'line' },
-  'arrow-up-right': { phosphorIconName: 'arrow-up-right', variant: 'line' },
-  'arrow-big-right': { phosphorIconName: 'arrow-fat-right', variant: 'line' },
-  'flip-horizontal': { phosphorIconName: 'arrows-left-right', variant: 'line' },
-  'zoom-in': { phosphorIconName: 'magnifying-glass-plus', variant: 'line' },
-  'spiral': { phosphorIconName: 'spiral', variant: 'line' },
-  'ikosaedr': { phosphorIconName: 'cube', variant: 'line' },
+  'move': canonicalId('arrows-out', 'line'),
+  'rotate': canonicalId('arrow-clockwise', 'line'),
+  'resize': canonicalId('arrows-out-simple', 'line'),
+  'twist': canonicalId('arrow-clockwise', 'line'),
+  'arrow-move-right': canonicalId('arrow-right', 'line'),
+  'arrow-autofit-height': canonicalId('arrows-vertical', 'line'),
+  'arrow-up-right': canonicalId('arrow-up-right', 'line'),
+  'arrow-big-right': canonicalId('arrow-fat-right', 'line'),
+  'flip-horizontal': canonicalId('arrows-left-right', 'line'),
+  'zoom-in': canonicalId('magnifying-glass-plus', 'line'),
+  'spiral': canonicalId('spiral', 'line'),
+  'ikosaedr': canonicalId('cube', 'line'),
 
   // Effects & filters
-  'blur-circle': { phosphorIconName: 'circle-half', variant: 'line' },
-  'glow': { phosphorIconName: 'sun', variant: 'filled' },
-  'scanline': { phosphorIconName: 'scan', variant: 'line' },
-  'rgb-split': { phosphorIconName: 'arrows-out', variant: 'line' },
-  'glitch-block': { phosphorIconName: 'grid-four', variant: 'filled' },
-  'adjustments': { phosphorIconName: 'sliders', variant: 'line' },
-  'focus': { phosphorIconName: 'crosshair', variant: 'line' },
-  'glitch': { phosphorIconName: 'lightning', variant: 'line' },
-  'displacement': { phosphorIconName: 'arrows-out', variant: 'line' },
-  'brightness': { phosphorIconName: 'sun', variant: 'line' },
-  'fish-simple': { phosphorIconName: 'fish-simple', variant: 'line' },
-  'perspective': { phosphorIconName: 'perspective', variant: 'line' },
+  'blur-circle': canonicalId('circle-half', 'line'),
+  'glow': canonicalId('sun', 'filled'),
+  'scanline': canonicalId('scan', 'line'),
+  'rgb-split': canonicalId('arrows-out', 'line'),
+  'glitch-block': canonicalId('grid-four', 'line'),
+  'adjustments': canonicalId('sliders', 'line'),
+  'focus': canonicalId('crosshair', 'line'),
+  'glitch': canonicalId('lightning', 'line'),
+  'displacement': canonicalId('arrows-out', 'line'),
+  'brightness': canonicalId('sun', 'line'),
+  'fish-simple': canonicalId('fish-simple', 'line'),
+  'perspective': canonicalId('perspective', 'line'),
 
   // Color & gradients
-  'color-palette': { phosphorIconName: 'palette', variant: 'line' },
-  'color-wheel': { phosphorIconName: 'circle-half', variant: 'filled' },
-  'color-picker': { phosphorIconName: 'eyedropper', variant: 'line' },
-  'color-swatch': { phosphorIconName: 'palette', variant: 'line' },
-  'gradient': { phosphorIconName: 'gradient', variant: 'line' },
-  'ease-in-out-control-points': { phosphorIconName: 'chart-line', variant: 'line' },
+  'color-palette': canonicalId('palette', 'line'),
+  'color-wheel': canonicalId('circle-half', 'filled'),
+  'color-picker': canonicalId('eyedropper', 'line'),
+  'color-swatch': canonicalId('palette', 'line'),
+  'gradient': canonicalId('gradient', 'line'),
+  'ease-in-out-control-points': canonicalId('chart-line', 'line'),
 
   // Coordinates
-  'chart-scatter': { phosphorIconName: 'chart-scatter', variant: 'line' },
-  'chart-scatter-3d': { phosphorIconName: 'chart-scatter', variant: 'line' },
+  'chart-scatter': canonicalId('chart-scatter', 'line'),
+  'chart-scatter-3d': canonicalId('chart-scatter', 'line'),
 
   // Special icons
-  'brand-planetscale': { phosphorIconName: 'database', variant: 'filled' },
-  'screen-share': { phosphorIconName: 'share', variant: 'line' },
-  'contrast-2': { phosphorIconName: 'circle-half', variant: 'line' },
+  'brand-planetscale': canonicalId('database', 'filled'),
+  'screen-share': canonicalId('share', 'line'),
+  'contrast-2': canonicalId('circle-half', 'line'),
 
   // UI & controls
-  'settings': { phosphorIconName: 'gear', variant: 'line' },
-  'settings-2': { phosphorIconName: 'gear', variant: 'line' },
-  'monitor': { phosphorIconName: 'desktop', variant: 'line' },
-  'video': { phosphorIconName: 'video', variant: 'line' },
-  'time-clock': { phosphorIconName: 'clock', variant: 'line' },
-  'layers': { phosphorIconName: 'stack', variant: 'line' },
-  'layers-selected': { phosphorIconName: 'stack', variant: 'line' },
-  'layers-union': { phosphorIconName: 'stack', variant: 'line' },
-  'layers-difference': { phosphorIconName: 'stack-minus', variant: 'line' },
-  'blend-mode': { phosphorIconName: 'circles-four', variant: 'line' },
-  'sparkles': { phosphorIconName: 'sparkle', variant: 'filled' },
-  'light': { phosphorIconName: 'lightbulb', variant: 'filled' },
-  'ruler': { phosphorIconName: 'ruler', variant: 'line' },
-  'tone-curve': { phosphorIconName: 'chart-line', variant: 'line' },
-  'select': { phosphorIconName: 'selection', variant: 'line' },
-  'compare': { phosphorIconName: 'columns', variant: 'line' },
-  'mask': { phosphorIconName: 'frame-corners', variant: 'line' },
+  'settings': canonicalId('gear', 'line'),
+  'settings-2': canonicalId('gear', 'line'),
+  'monitor': canonicalId('desktop', 'line'),
+  'video': canonicalId('video', 'line'),
+  'time-clock': canonicalId('clock', 'line'),
+  'layers': canonicalId('stack', 'line'),
+  'layers-selected': canonicalId('stack', 'line'),
+  'layers-union': canonicalId('stack', 'line'),
+  'layers-difference': canonicalId('stack-minus', 'line'),
+  'blend-mode': canonicalId('circles-four', 'line'),
+  'sparkles': canonicalId('sparkle', 'filled'),
+  'light': canonicalId('lightbulb', 'filled'),
+  'ruler': canonicalId('ruler', 'line'),
+  'tone-curve': canonicalId('chart-line', 'line'),
+  'select': canonicalId('selection', 'line'),
+  'compare': canonicalId('columns', 'line'),
+  'mask': canonicalId('frame-corners', 'line'),
 
   // Utility operations
-  'transfer-out': { phosphorIconName: 'arrow-square-out', variant: 'line' },
+  'transfer-out': canonicalId('arrow-square-out', 'line'),
+
+  // Additional Phosphor icons (direct aliases, default to line)
+  'aperture': canonicalId('aperture', 'line'),
+  'asterisk-simple': canonicalId('asterisk-simple', 'line'),
+  'asterisk': canonicalId('asterisk', 'line'),
+  'alien': canonicalId('alien', 'line'),
+  'angle': canonicalId('angle', 'line'),
+  'approximate-equals': canonicalId('approximate-equals', 'line'),
+  'arrows-in-simple': canonicalId('arrows-in-simple', 'line'),
+  'arrows-out-simple': canonicalId('arrows-out-simple', 'line'),
+  'barcode': canonicalId('barcode', 'line'),
+  'beach-ball': canonicalId('beach-ball', 'line'),
+  'basketball': canonicalId('basketball', 'line'),
+  'biohazard': canonicalId('biohazard', 'line'),
+  'boules': canonicalId('boules', 'line'),
+  'brain': canonicalId('brain', 'line'),
+  'broadcast': canonicalId('broadcast', 'line'),
+  'checkerboard': canonicalId('checkerboard', 'line'),
+  'circle-half-tilt': canonicalId('circle-half-tilt', 'line'),
+  'circle-notch': canonicalId('circle-notch', 'line'),
+  'circuitry': canonicalId('circuitry', 'line'),
+  'corners-in': canonicalId('corners-in', 'line'),
+  'corners-out': canonicalId('corners-out', 'line'),
+  'cpu': canonicalId('cpu', 'line'),
+  'crosshair': canonicalId('crosshair', 'line'),
+  'crosshair-simple': canonicalId('crosshair-simple', 'line'),
+  'diamonds-four': canonicalId('diamonds-four', 'line'),
+  'diamonds': canonicalId('diamonds', 'line'),
+  'dice-four': canonicalId('dice-four', 'line'),
+  'dice-five': canonicalId('dice-five', 'line'),
+  'dice-six': canonicalId('dice-six', 'line'),
+  'disco-ball': canonicalId('disco-ball', 'line'),
+  'disc': canonicalId('disc', 'line'),
+  'dna': canonicalId('dna', 'line'),
+  'drone': canonicalId('drone', 'line'),
+  'equalizer': canonicalId('equalizer', 'line'),
+  'fan': canonicalId('fan', 'line'),
+  'fallout-shelter': canonicalId('fallout-shelter', 'line'),
+  'gps': canonicalId('gps', 'line'),
+  'gps-fix': canonicalId('gps-fix', 'line'),
+  'hourglass-simple': canonicalId('hourglass-simple', 'line'),
+  'intersect-three': canonicalId('intersect-three', 'line'),
+  'meteor': canonicalId('meteor', 'line'),
+  'mouse-scroll': canonicalId('mouse-scroll', 'line'),
+  'nut': canonicalId('nut', 'line'),
+  'octagon': canonicalId('octagon', 'line'),
+  'parallelogram': canonicalId('parallelogram', 'line'),
+  'path': canonicalId('path', 'line'),
+  'peace': canonicalId('peace', 'line'),
+  'pentagon': canonicalId('pentagon', 'line'),
+  'piano-keys': canonicalId('piano-keys', 'line'),
+  'placeholder': canonicalId('placeholder', 'line'),
+  'planet': canonicalId('planet', 'line'),
+  'poker-chip': canonicalId('poker-chip', 'line'),
+  'polygon': canonicalId('polygon', 'line'),
+  'pulse': canonicalId('pulse', 'line'),
+  'puzzle-piece': canonicalId('puzzle-piece', 'line'),
+  'radioactive': canonicalId('radioactive', 'line'),
+  'rainbow': canonicalId('rainbow', 'line'),
+  'radio-button': canonicalId('radio-button', 'line'),
+  'record': canonicalId('record', 'line'),
+  'rectangle-dashed': canonicalId('rectangle-dashed', 'line'),
+  'robot': canonicalId('robot', 'line'),
+  'scan': canonicalId('scan', 'line'),
+  'scan-smiley': canonicalId('scan-smiley', 'line'),
+  'scribble': canonicalId('scribble', 'line'),
+  'scribble-loop': canonicalId('scribble-loop', 'line'),
+  'seal': canonicalId('seal', 'line'),
+  'selection-all': canonicalId('selection-all', 'line'),
+  'shooting-star': canonicalId('shooting-star', 'line'),
+  'snowflake': canonicalId('snowflake', 'line'),
+  'soccer-ball': canonicalId('soccer-ball', 'line'),
+  'spinner': canonicalId('spinner', 'line'),
+  'spinner-ball': canonicalId('spinner-ball', 'line'),
+  'star-of-david': canonicalId('star-of-david', 'line'),
+  'sticker': canonicalId('sticker', 'line'),
+  'swap': canonicalId('swap', 'line'),
+  'target': canonicalId('target', 'line'),
+  'tennis-ball': canonicalId('tennis-ball', 'line'),
+  'tilde': canonicalId('tilde', 'line'),
+  'tornado': canonicalId('tornado', 'line'),
+  'tree': canonicalId('tree', 'line'),
+  'triangle': canonicalId('triangle', 'line'),
+  'triangle-dashed': canonicalId('triangle-dashed', 'line'),
+  'visor': canonicalId('visor', 'line'),
+  'vinyl-record': canonicalId('vinyl-record', 'line'),
+  'vignette': canonicalId('vignette', 'line'),
+  'virus': canonicalId('virus', 'line'),
+  'volleyball': canonicalId('volleyball', 'line'),
+  'wall': canonicalId('wall', 'line'),
+  'washing-machine': canonicalId('washing-machine', 'line'),
+  'yarn': canonicalId('yarn', 'line'),
+  'yin-yang': canonicalId('yin-yang', 'line'),
 };
+
+/**
+ * Centralized icon registry. Single source of truth for DOM and canvas callers.
+ * Keys are app-facing identifiers; values resolve to canonical Phosphor name + variant.
+ */
+export const iconRegistry: Record<string, IconDefinition> = Object.fromEntries(
+  Object.entries(iconAliases).map(([alias, id]) => {
+    return [alias, iconDefinitionFromCanonicalId(id)];
+  })
+);
+
+export function getCanonicalIconIdForAlias(iconName: string): CanonicalIconId | null {
+  return iconAliases[iconName] ?? null;
+}
 
 
 /**
@@ -200,7 +327,7 @@ const pathDataCache = new Map<string, string[]>();
 /**
  * Extracts path data from Phosphor icon nodes: [["path", {d}], ...].
  */
-function getPhosphorIconPathData(phosphorIconName: string, variant: 'line' | 'filled'): string[] {
+function getPhosphorIconPathData(phosphorIconName: string, variant: IconVariant): string[] {
   try {
     const nodes = variant === 'filled' ? getPhosphorNodesFilled() : getPhosphorNodesOutline();
     const iconData = nodes[phosphorIconName];
@@ -216,7 +343,7 @@ function getPhosphorIconPathData(phosphorIconName: string, variant: 'line' | 'fi
   }
 }
 
-function getCachedPathData(iconName: string, phosphorIconName: string, variant: 'line' | 'filled'): string[] {
+function getCachedPathData(iconName: string, phosphorIconName: string, variant: IconVariant): string[] {
   const cacheKey = `${iconName}-${variant}`;
   const cached = pathDataCache.get(cacheKey);
   if (cached) return cached;
@@ -239,7 +366,7 @@ function renderPhosphorIconOnCanvas(
   y: number,
   size: number,
   color: string,
-  variant: 'line' | 'filled',
+  variant: IconVariant,
   strokeWidth: number = 2
 ): void {
   const pathData = getCachedPathData(iconName, phosphorIconName, variant);
@@ -287,7 +414,7 @@ function getCachedIcon(
   iconName: string,
   size: number,
   color: string,
-  variant: 'line' | 'filled',
+  variant: IconVariant,
   strokeWidth: number = 2
 ): HTMLCanvasElement {
   const cacheKey = `${iconName}-${size}-${color}-${variant}-${strokeWidth}`;
@@ -371,7 +498,7 @@ export function preloadIcons(
 ): void {
   for (const iconName of iconNames) {
     const iconDef = iconRegistry[iconName];
-    const variant = iconDef?.variant ?? 'line';
+    const variant: IconVariant = iconDef?.variant ?? 'line';
     for (const size of sizes) {
       for (const color of colors) {
         getCachedIcon(iconName, size, color, variant);

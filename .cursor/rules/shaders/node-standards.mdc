@@ -4,25 +4,14 @@ globs: "src/shaders/nodes/**/*.ts"
 alwaysApply: false
 ---
 
-# Shader Node Standards
+# Shader node checklist
 
-When adding a new node or changing the public shape of an existing node in `src/shaders/nodes/`, ensure the following so the app and help system stay in sync.
+New or changed **`src/shaders/nodes/**`** specs:
 
-## Checklist
+1. **`NodeSpec`** — match peers (id, name, category, ports, glsl, …); see `src/types/nodeSpec.ts`.
+2. **`node-documentation.json`** — key **`"node:<id>"`** (e.g. `"node:noise"`): title, category, icon, tagline, description, inputs/outputs with `suggestedTargets`, `relatedItems` as needed.
+3. **`index.ts`** — export/register the node with the bundle.
+4. **`npm run build`** — green types.
+5. Align with **`docs/user-goals/04-nodes-and-parameters.md`** if behavior is user-visible.
 
-1. **Node spec**: Follow existing `NodeSpec` shape (id, name, category, inputs, outputs, glsl, etc.). Match patterns in other files in this folder.
-2. **Documentation**: Add or update the entry for this node in `src/data/node-documentation.json`. Include `title`, `titleType: "node"`, `category`, `icon`, `tagline`, `description`, `inputs`, `outputs` (with `name`, `type`, `description`, `suggestedTargets`), and `relatedItems` as needed.
-3. **Export**: Export the node spec from `src/shaders/nodes/index.ts` (import and add to the registry/export list).
-4. **Build**: Run `npm run build` and fix any type or compile errors.
-5. **Requirements**: If `docs/user-goals/` or other docs describe node behavior, keep the implementation aligned.
-
-## Example (documentation key)
-
-In `src/data/node-documentation.json`, the key for a node is `"node:<node-id>"` (e.g. `"node:noise"`). Add an entry under `helpItems` with the same shape as existing nodes.
-
-## References
-
-- Existing node files in `src/shaders/nodes/` for spec shape and GLSL patterns
-- `src/types/nodeSpec.ts` for `NodeSpec` and related types
-- `src/data/node-documentation.json` for help entry format
-- `docs/user-goals/04-nodes-and-parameters.md` for node/parameter requirements
+**Refs:** Existing nodes in `src/shaders/nodes/`, `src/data/node-documentation.json`.

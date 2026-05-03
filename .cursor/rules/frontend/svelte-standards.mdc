@@ -4,43 +4,24 @@ globs: "**/*.svelte"
 alwaysApply: false
 ---
 
-# Svelte Component Standards
+# Svelte 5
 
-**Svelte 5** — runes and snippets for all new/edited `.svelte` files.
+- **Props:** `$props()` + typed `Props`; one-line destructure + defaults; **`$bindable()`** when parent binds.
+- **State:** `$state` / `$derived` / `$derived.by` — not legacy `let` + `$:` for app state.
+- **Effects:** `$effect` for DOM/side effects only; return teardown; don’t write state that the same effect reads (loops).
+- **Events:** callback props (`onSelect`, …), not `createEventDispatcher`; `onclick`/`oninput` not `on:click` on components.
+- **Snippets:** Svelte 5 snippets; **`Snippet` / `Snippet<[T]>`** args when typed.
+- **Structure:** PascalCase components; **`script → markup → style`**. Prefer **`src/lib/components/ui/`** primitives over one-off styled tags.
+- **Canvas:** vanilla TS + `bind:this`; `$effect` to sync DOM; no 60fps churn through runes/store.
+- **Styles:** colocated `<style>`; tokens per **css-standards**.
+- **`svelte-ignore a11y_*`:** only real false positives; comment why.
 
-## Runes
-
-- **Props**: `$props()` + typed `Props`; destructure with defaults on one line. **`$bindable()`** when the parent binds.
-- **State**: `$state()` mutable; `$derived` / `$derived.by()` for computed. No legacy `let` / `$:` for reactivity.
-- **Effects**: `$effect()` only for DOM/subscriptions; return teardown for listeners. Prefer `$derived` for pure computation. Don’t set reactive state in an effect that reads it (loops).
+Runes live in `.svelte` / `.svelte.ts` / `.svelte.js`; shared stores as `.svelte.ts`; parent→child via props/`$derived`, not extra stores.
 
 ```svelte
 <script lang="ts">
-  interface Props { count: number; label?: string; }
-  let { count, label = 'Count' }: Props = $props();
-  const doubled = $derived(count * 2);
+  interface Props { count: number; label?: string }
+  let { count, label = 'Count' }: Props = $props()
+  const doubled = $derived(count * 2)
 </script>
 ```
-
-## Events, snippets, script
-
-- **Callbacks**: `onSelect`, `onClose`, etc. — not `createEventDispatcher`. `onclick` / `oninput`, not `on:click` on components.
-- **Snippets**: Svelte 5 snippets; `Snippet` / `Snippet<[T]>` when args. Named snippets for multiple regions.
-- **`<script lang="ts">`**; `import type` for component types from `./Foo.svelte`.
-
-## Structure
-
-- **Names**: Components PascalCase; stores/shared `*.svelte.ts` camelCase.
-- **Order**: script → markup → `<style>`.
-- **Folders**: Feature areas (`lib/components/...`); **`lib/components/ui/`** for Button, Input, Tag, Slider, Popover, Modal, etc. — use those primitives, not one-off styled raw elements.
-- **Markup**: Single root when possible; `role` / `aria-*` where needed.
-- **Canvas**: Vanilla TS + `bind:this` + `$effect` to sync; no 60fps state in Svelte stores/runes.
-- **Styles**: Colocate in `<style>`; tokens/nesting per `.cursor/rules/frontend/css-standards.mdc`.
-
-## Stores vs runes
-
-Runes only in `.svelte` / `.svelte.ts` / `.svelte.js`. Shared app state in `.svelte.ts` (e.g. graph store). Parent→child data via `$props()` + `$derived`, not extra stores.
-
-## Accessibility
-
-`svelte-ignore a11y_*` only for real false positives; prefer fixes (`tabindex`, keys). Comment non-obvious ignores.

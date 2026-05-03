@@ -199,6 +199,9 @@
 --layout-message-error-color: var(--color-red-120);
 --layout-message-info-bg: var(--color-blue-gray-60);
 --layout-message-info-border: var(--color-blue-gray-80);
+--layout-message-warning-bg: var(--color-yellow-60);
+--layout-message-warning-border: var(--color-yellow-80);
+--layout-message-warning-color: var(--color-yellow-120);
 --layout-message-color: var(--color-blue-110);
 
 /* === BOTTOM BAR TOKENS === */

@@ -4,6 +4,7 @@
    * Uses the shared Input Svelte component.
    */
   import { tick } from 'svelte';
+  import type { Action } from 'svelte/action';
   import { Input } from '../ui';
 
   interface Props {
@@ -30,24 +31,34 @@
     onCancel,
   }: Props = $props();
 
-  let wrapperEl = $state<HTMLDivElement | null>(null);
   let inputValue = $state('');
 
-  $effect(() => {
-    if (!visible) return;
-    const displayValue =
-      paramType === 'int' ? Math.round(value).toString() : Number(value).toFixed(3);
-    inputValue = displayValue;
-  });
-
-  $effect(() => {
-    if (!visible || !wrapperEl) return;
-    tick().then(() => {
-      const el = wrapperEl?.querySelector('input');
-      el?.focus();
-      el?.select();
-    });
-  });
+  const syncParamOverlay: Action<
+    HTMLDivElement,
+    {
+      visible: boolean;
+      value: number;
+      paramType: 'int' | 'float';
+      setInput: (v: string) => void;
+    }
+  > = (_node, _p) => {
+    let prevVis = false;
+    return {
+      update(np) {
+        if (np.visible && !prevVis) {
+          const displayValue =
+            np.paramType === 'int' ? Math.round(np.value).toString() : Number(np.value).toFixed(3);
+          np.setInput(displayValue);
+          tick().then(() => {
+            const el = _node.querySelector('input');
+            el?.focus();
+            el?.select();
+          });
+        }
+        prevVis = np.visible;
+      },
+    };
+  };
 
   function handleCommit() {
     const num = parseFloat(inputValue);
@@ -68,11 +79,18 @@
 
 {#if visible}
   <div
-    bind:this={wrapperEl}
     class="canvas-parameter-value-overlay"
     style="left: {x}px; top: {y}px; width: {width}px; height: {height}px;"
     role="dialog"
     aria-label="Edit parameter value"
+    use:syncParamOverlay={{
+      visible,
+      value,
+      paramType,
+      setInput: (v) => {
+        inputValue = v;
+      },
+    }}
   >
     <Input
       type="number"

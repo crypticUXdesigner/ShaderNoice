@@ -67,7 +67,11 @@
       clone.style.left = '-9999px';
       clone.style.top = '0';
       clone.style.width = `${el.offsetWidth}px`;
-      clone.style.overflow = 'visible';
+      /* Match visible card corners (list vs grid); inline var() on a body clone is unreliable for drag snapshots. */
+      const cs = getComputedStyle(el);
+      clone.style.borderRadius = cs.borderRadius;
+      clone.style.overflow = 'hidden';
+      clone.style.isolation = 'isolate';
       document.body.appendChild(clone);
       dragImageEl = clone;
       void clone.offsetHeight; /* force reflow so clone is styled before capture */
@@ -267,7 +271,8 @@
     }
   }
 
-  /* Custom drag preview (clone is in document.body). :global so the class we add in JS matches. */
+  /* Custom drag preview (clone is in document.body). :global so the class we add in JS matches.
+   * Radius + clip come from inline styles (computed from source) — border-radius here fought list vs grid. */
   :global(.node-panel-item-drag-image) {
     border: 2px solid var(--color-teal-light-110);
     box-shadow: 0 0 0 2px var(--color-teal-light-110);

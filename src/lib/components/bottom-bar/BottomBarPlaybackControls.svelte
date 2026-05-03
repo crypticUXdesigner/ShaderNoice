@@ -1,10 +1,11 @@
 <script lang="ts">
   /**
-   * BottomBarPlaybackControls - Play/pause, loop, skip, and track selector for the bottom bar.
+   * BottomBarPlaybackControls - Play/pause, loop, and load-track dialog for the bottom bar.
    */
   import { Button, ButtonGroup, IconSvg } from '../ui';
-  import BottomBarTrackSelector from './BottomBarTrackSelector.svelte';
-  import type { AudioSetup } from '../../../data-model/audioSetupTypes';
+  import LoadTrackDialog from './LoadTrackDialog.svelte';
+  import type { AudioSetup, PlaylistTrackPickMeta } from '../../../data-model/audioSetupTypes';
+  import type { AuthenticatedClient } from '@audiotool/nexus';
 
   interface Props {
     isPlaying: boolean;
@@ -12,11 +13,12 @@
     loopCurrentTrack?: boolean;
     onPlayToggle?: () => void;
     onLoopToggle?: () => void;
-    onSkipBack?: () => void;
-    onSkipForward?: () => void;
     getPrimaryAudioFileNodeId?: () => string | undefined;
-    onSelectTrack?: (trackId: string) => void;
+    onSelectTrack?: (trackId: string, pickMeta?: PlaylistTrackPickMeta) => void | Promise<void>;
     onAudioFileSelected?: (nodeId: string, file: File) => Promise<void>;
+    audiotoolRpcClient?: AuthenticatedClient | null;
+    audiotoolUserName?: string;
+    onAudiotoolSessionInvalidated?: () => void;
   }
 
   let {
@@ -25,11 +27,12 @@
     loopCurrentTrack = false,
     onPlayToggle,
     onLoopToggle,
-    onSkipBack,
-    onSkipForward,
     getPrimaryAudioFileNodeId,
     onSelectTrack,
     onAudioFileSelected,
+    audiotoolRpcClient = null,
+    audiotoolUserName,
+    onAudiotoolSessionInvalidated,
   }: Props = $props();
 
   function handlePlayToggle() {
@@ -66,30 +69,15 @@
       >
         <IconSvg name="repeat" variant="line" />
       </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        mode="icon-only"
-        title="Previous track"
-        onclick={() => onSkipBack?.()}
-      >
-        <IconSvg name="skip-back" variant="filled" />
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        mode="icon-only"
-        title="Next track"
-        onclick={() => onSkipForward?.()}
-      >
-        <IconSvg name="skip-forward" variant="filled" />
-      </Button>
     {/if}
-    <BottomBarTrackSelector
+    <LoadTrackDialog
       audioSetup={audioSetup}
       getPrimaryAudioFileNodeId={getPrimaryAudioFileNodeId ?? (() => undefined)}
       onSelectTrack={onSelectTrack ?? (() => {})}
       onAudioFileSelected={onAudioFileSelected ?? (async () => {})}
+      audiotoolRpcClient={audiotoolRpcClient}
+      audiotoolUserName={audiotoolUserName}
+      onAudiotoolSessionInvalidated={onAudiotoolSessionInvalidated}
     />
   </ButtonGroup>
 </div>

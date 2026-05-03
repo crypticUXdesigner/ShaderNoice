@@ -3,6 +3,7 @@
    * EditableLabel - Label that switches to an input on double-click.
    * Confirm: Enter or click outside (blur). Cancel: Esc.
    */
+  import { onMount } from 'svelte';
   interface Props {
     value: string;
     placeholder?: string;
@@ -15,6 +16,12 @@
     onCancel?: () => void;
     disabled?: boolean;
     ariaLabel?: string;
+    /** When true, enters edit mode once after mount (e.g. toolbar “rename” beside the label). */
+    autoEditOnMount?: boolean;
+    /** Reports when switching between viewing and editing (for parent chrome such as sibling toolbars). */
+    onEditingChange?: (active: boolean) => void;
+    /** Forwarded to the edit `<input>` when set (omit for no limit). */
+    inputMaxLength?: number;
   }
 
   let {
@@ -26,21 +33,26 @@
     onCancel,
     disabled = false,
     ariaLabel = 'Editable label. Double-click to edit.',
+    autoEditOnMount = false,
+    onEditingChange,
+    inputMaxLength,
   }: Props = $props();
 
   let editing = $state(false);
   let editText = $state('');
   let inputEl: HTMLInputElement | undefined = $state();
 
-  $effect(() => {
-    if (!editing) {
-      editText = value;
-    }
+  onMount(() => {
+    if (!autoEditOnMount || disabled) return;
+    queueMicrotask(() => {
+      startEdit();
+    });
   });
 
   function startEdit() {
     if (disabled) return;
     editing = true;
+    onEditingChange?.(true);
     editText = value;
     requestAnimationFrame(() => {
       inputEl?.focus();
@@ -49,16 +61,24 @@
   }
 
   function commit() {
+    if (!editing) return;
     const trimmed = editText.trim();
     if (trimmed !== value) {
       onCommit(trimmed || value);
     }
     editing = false;
+    onEditingChange?.(false);
+  }
+
+  /** Programmatic confirm (e.g. adjacent Save button). No-op if not editing. */
+  export function commitEditing(): void {
+    commit();
   }
 
   function cancel() {
     editText = value;
     editing = false;
+    onEditingChange?.(false);
     onCancel?.();
   }
 
@@ -84,6 +104,7 @@
     onblur={commit}
     aria-label={ariaLabel}
     disabled={disabled}
+    maxlength={inputMaxLength ?? undefined}
   />
 {:else}
   <span

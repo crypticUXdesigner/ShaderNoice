@@ -28,6 +28,7 @@ export interface CanvasCallbacks {
   onPaste?: () => void;
   onDuplicateSelected?: () => void;
   hasClipboard?: () => boolean;
+  onRequestAddNodeAtCanvas?: (screenX: number, screenY: number) => void;
 }
 
 export interface SetCallbacksCanvas {
@@ -52,7 +53,8 @@ export interface SetCallbacksCanvas {
   onPaste?: CanvasCallbacks['onPaste'];
   onDuplicateSelected?: CanvasCallbacks['onDuplicateSelected'];
   hasClipboard?: CanvasCallbacks['hasClipboard'];
-  mouseEventHandler?: { deps?: { onTypeLabelClick?: CanvasCallbacks['onTypeLabelClick']; onNodeSelected?: CanvasCallbacks['onNodeSelected']; onParameterChanged?: CanvasCallbacks['onParameterChanged']; onConnectionCreated?: CanvasCallbacks['onConnectionCreated'] } };
+  onRequestAddNodeAtCanvas?: CanvasCallbacks['onRequestAddNodeAtCanvas'];
+  mouseEventHandler?: { deps?: { onTypeLabelClick?: CanvasCallbacks['onTypeLabelClick']; onNodeSelected?: CanvasCallbacks['onNodeSelected']; onParameterChanged?: CanvasCallbacks['onParameterChanged']; onConnectionCreated?: CanvasCallbacks['onConnectionCreated']; onRequestAddNodeAtCanvas?: CanvasCallbacks['onRequestAddNodeAtCanvas'] } };
   overlayManager?: { updateDependencies: (deps: Partial<Pick<CanvasCallbacks, 'onFileParameterChanged' | 'onFileDialogOpen' | 'onFileDialogClose' | 'onParameterChanged' | 'onNodeLabelChanged'>>) => void };
 }
 
@@ -78,6 +80,7 @@ export function setCallbacksImpl(canvas: SetCallbacksCanvas, callbacks: CanvasCa
   canvas.onPaste = callbacks.onPaste;
   canvas.onDuplicateSelected = callbacks.onDuplicateSelected;
   canvas.hasClipboard = callbacks.hasClipboard;
+  canvas.onRequestAddNodeAtCanvas = callbacks.onRequestAddNodeAtCanvas;
 
   if (canvas.mouseEventHandler?.deps) {
     const deps = canvas.mouseEventHandler.deps;
@@ -85,6 +88,7 @@ export function setCallbacksImpl(canvas: SetCallbacksCanvas, callbacks: CanvasCa
     deps.onNodeSelected = canvas.onNodeSelected;
     deps.onParameterChanged = canvas.onParameterChanged;
     deps.onConnectionCreated = canvas.onConnectionCreated;
+    deps.onRequestAddNodeAtCanvas = canvas.onRequestAddNodeAtCanvas;
   }
 
   if (canvas.overlayManager) {

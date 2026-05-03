@@ -32,16 +32,16 @@ export const translateNodeSpec: NodeSpec = {
       min: -10.0,
       max: 10.0,
       step: 0.01,
-      label: 'Offset X'
-    },
+      label: 'Offset X',
+      knobPolarity: 'two-sided' },
     y: {
       type: 'float',
       default: 0.0,
       min: -10.0,
       max: 10.0,
       step: 0.01,
-      label: 'Offset Y'
-    }
+      label: 'Offset Y',
+      knobPolarity: 'two-sided' }
   },
   parameterLayout: {
     elements: [
@@ -85,24 +85,24 @@ export const rotateNodeSpec: NodeSpec = {
       min: -6.28,
       max: 6.28,
       step: 0.05,
-      label: 'Angle'
-    },
+      label: 'Angle',
+      knobPolarity: 'two-sided' },
     centerX: {
       type: 'float',
       default: 0.0,
       min: -10.0,
       max: 10.0,
       step: 0.01,
-      label: 'Center X'
-    },
+      label: 'Center X',
+      knobPolarity: 'two-sided' },
     centerY: {
       type: 'float',
       default: 0.0,
       min: -10.0,
       max: 10.0,
       step: 0.01,
-      label: 'Center Y'
-    }
+      label: 'Center Y',
+      knobPolarity: 'two-sided' }
   },
   parameterLayout: {
     elements: [
@@ -166,16 +166,16 @@ export const scaleNodeSpec: NodeSpec = {
       min: -10.0,
       max: 10.0,
       step: 0.01,
-      label: 'Center X'
-    },
+      label: 'Center X',
+      knobPolarity: 'two-sided' },
     centerY: {
       type: 'float',
       default: 0.0,
       min: -10.0,
       max: 10.0,
       step: 0.01,
-      label: 'Center Y'
-    }
+      label: 'Center Y',
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

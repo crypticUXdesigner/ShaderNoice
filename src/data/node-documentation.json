@@ -196,6 +196,53 @@
         "Use Out min / Out max to bias motion (e.g. 0 to 0.5) before Multiply into a parameter."
       ]
     },
+    "node:oscillator-2d": {
+      "title": "Oscillator 2D",
+      "titleType": "node",
+      "tagline": "Stacked sine motion on X and Y with optional rotation and offset—drive paired float parameters without building the math patch by hand.",
+      "description": "Uses shader time (no separate Time node). Layer mix (same for X and Y) chooses how the three partial waves on each axis combine before rotation: Sum (additive); Normalized (sum divided by a small ε plus the sum of absolute amplitudes for enabled layers, which reduces blow-up when many layers are loud); Product (multiplies enabled terms amp×sin; disabled layers count as multiplicative 1, so muting one layer does not zero the stack—if all layers on an axis are off, that axis is 0); Max absolute value (the signed partial at the largest |amp×sin| among enabled layers; ties use the first layer in X1→X3 or Y1→Y3 order). Each partial has an On toggle in the same row as Amp, Freq, and Phase so you can mute a layer without changing its amplitude. Parameters are grouped as X1–X3 and Y1–Y3; each group has On, Amp, Freq, and Phase. Layers can use mismatched frequencies for organic drift. Rotation uses Speed, Phase, and wobble (Wobble, Wob freq, Wob phase). Outputs are rotated in the XY plane, then offset X/Y is added last. On all float knobs and value strips in the app, vertical drag is finer when the value is near zero in absolute terms (easier to land small numbers like 0.05–0.2). Shift still gives extra-fine control. Coordinate scale matches typical distortion sliders (p-style units, roughly O(±1)). Connect X→Center X and Y→Center Y (or any float pair); parameter input modes on the target still behave per axis.",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "x",
+          "type": "float",
+          "description": "Horizontal oscillator value after stacks, rotation and offset.",
+          "suggestedTargets": [
+            "node:vortex",
+            "node:spherize",
+            "node:ripple",
+            "node:add",
+            "node:multiply"
+          ]
+        },
+        {
+          "name": "y",
+          "type": "float",
+          "description": "Vertical oscillator value after stacks, rotation and offset.",
+          "suggestedTargets": [
+            "node:vortex",
+            "node:spherize",
+            "node:ripple",
+            "node:add",
+            "node:multiply"
+          ]
+        }
+      ],
+      "relatedItems": [
+        "type:float",
+        "node:mixed-wave-signal",
+        "node:vortex",
+        "node:time",
+        "node:sine",
+        "node:cosine"
+      ],
+      "examples": [
+        "Wire Oscillator X and Y into Vortex center X/Y; keep small amplitudes and layer three slightly different frequencies.",
+        "Set Rotation speed to spin the oscillator vector together; Rot wobble amplitude modulates spin rate subtly.",
+        "Use Offset to park the wandering path near a baseline while the stacks move around it.",
+        "On the target parameter, multiply mode combines the oscillator with the pad slider for proportional motion."
+      ]
+    },
     "node:resolution": {
       "title": "Resolution",
       "titleType": "node",

@@ -177,7 +177,7 @@ export class RuntimeManager implements Disposable {
         handler.report(
           'validation',
           'error',
-          'Invalid graph provided to setGraph',
+          'That graph could not be loaded',
           { graphId: graph?.id }
         );
       }

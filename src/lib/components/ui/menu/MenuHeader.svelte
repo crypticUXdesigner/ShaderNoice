@@ -24,8 +24,6 @@
     /* Typography */
     font-size: var(--text-xs);
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: var(--scale-1);
     color: var(--menu-header-color);
   }
 </style>

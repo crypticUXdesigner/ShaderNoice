@@ -4,6 +4,7 @@
    * Edits keyframes and interpolation for one automation region.
    * Normalized time [0,1] horizontal, value [0,1] vertical.
    */
+  import type { Action } from 'svelte/action';
   import { Button, DropdownMenu, MenuItem, IconSvg, NodeIconSvg } from '../ui';
   import EditorParameterValueOverlay from '../editor/EditorParameterValueOverlay.svelte';
   import { updateAutomationRegion } from '../../../data-model';
@@ -181,10 +182,25 @@
     selectedKeyframeIndices = [...s].sort((a, b) => a - b);
   }
 
-  /** After graph data changes, drop out-of-band selection indices. */
-  $effect(() => {
-    keyframesSorted;
-    pruneSelectedIndicesIfStale();
+  const pruneStaleKeyframeSelection: Action<
+    HTMLElement,
+    { keyframesRef: unknown }
+  > = (_node, _init) => ({
+    update(p) {
+      void p.keyframesRef;
+      pruneSelectedIndicesIfStale();
+    },
+  });
+
+  const focusGraphWhenRegionTargeted: Action<
+    HTMLElement,
+    { laneId: string; regionId: string }
+  > = (node, _init) => ({
+    update(_p) {
+      queueMicrotask(() => {
+        node.focus({ preventScroll: true });
+      });
+    },
   });
 
   function updateCurve(newCurve: AutomationCurve) {
@@ -519,14 +535,6 @@
     };
   });
 
-  /** Focus graph when opened for a lane/region (keyboard + pointer affordances live on the canvas). */
-  $effect(() => {
-    laneId;
-    regionId;
-    queueMicrotask(() => {
-      graphWrapEl?.focus({ preventScroll: true });
-    });
-  });
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex keyboard events require focus trap on graph-wrap; shortcuts gated by focus-within -->
@@ -537,6 +545,11 @@
   data-subgroup={subGroupSlug || undefined}
   onkeydowncapture={handleKeyDownCapture}
 >
+  <span
+    class="curve-editor-selection-sync"
+    aria-hidden="true"
+    use:pruneStaleKeyframeSelection={{ keyframesRef: keyframesSorted }}
+  ></span>
   <div class="header">
     <div class="header-left">
       {#if nodeIconIdentifier}
@@ -646,6 +659,7 @@
     role="application"
     aria-label="Automation curve graph. Double-click empty area adds a keyframe; double-click a keyframe to edit its value. Hover a keyframe to see its value. Shift-click or Ctrl-click to multi-select."
     aria-keyshortcuts="Delete Backspace"
+    use:focusGraphWhenRegionTargeted={{ laneId, regionId }}
     onmousedown={handleGraphMousedown}
     ondblclick={handleGraphDblclick}
     onmousemove={handleGraphMousemove}

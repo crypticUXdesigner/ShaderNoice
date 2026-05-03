@@ -68,8 +68,8 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** Minimal mount; add args or decorators when this component needs context or props. */
-export const Default: Story = {};
+/** Minimal mount; expand \`args\` when the component needs props with no defaults. */
+export const Default: Story = { args: {} };
 `;
 
   writeFileSync(storyTs, content, 'utf8');

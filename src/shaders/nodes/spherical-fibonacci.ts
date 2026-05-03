@@ -46,8 +46,8 @@ export const sphericalFibonacciNodeSpec: NodeSpec = {
       max: 1,
       step: 0.01,
       label: 'Dir X',
-      inputMode: 'override'
-    },
+      inputMode: 'override',
+      knobPolarity: 'two-sided' },
     directionY: {
       type: 'float',
       default: 0,
@@ -55,8 +55,8 @@ export const sphericalFibonacciNodeSpec: NodeSpec = {
       max: 1,
       step: 0.01,
       label: 'Dir Y',
-      inputMode: 'override'
-    },
+      inputMode: 'override',
+      knobPolarity: 'two-sided' },
     directionZ: {
       type: 'float',
       default: 1,
@@ -64,8 +64,8 @@ export const sphericalFibonacciNodeSpec: NodeSpec = {
       max: 1,
       step: 0.01,
       label: 'Dir Z',
-      inputMode: 'override'
-    },
+      inputMode: 'override',
+      knobPolarity: 'two-sided' },
     indexInput: {
       type: 'float',
       default: 0,

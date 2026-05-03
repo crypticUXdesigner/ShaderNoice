@@ -96,8 +96,8 @@ export const genericRaymarcherNodeSpec: NodeSpec = {
       label: 'Ro X',
       inputMode: 'override',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     cameraRoY: {
       type: 'float',
       default: 0.0,
@@ -107,8 +107,8 @@ export const genericRaymarcherNodeSpec: NodeSpec = {
       label: 'Ro Y',
       inputMode: 'override',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     cameraRoZ: {
       type: 'float',
       default: 3.0,
@@ -118,8 +118,8 @@ export const genericRaymarcherNodeSpec: NodeSpec = {
       label: 'Ro Z',
       inputMode: 'override',
       supportsAnimation: true,
-      supportsAudio: true
-    }
+      supportsAudio: true,
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

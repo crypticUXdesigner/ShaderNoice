@@ -32,16 +32,16 @@ export const discoPatternNodeSpec: NodeSpec = {
       min: -10.0,
       max: 10.0,
       step: 0.01,
-      label: 'Phase X'
-    },
+      label: 'Phase X',
+      knobPolarity: 'two-sided' },
     phaseOffsetY: {
       type: 'float',
       default: 0.0,
       min: -10.0,
       max: 10.0,
       step: 0.01,
-      label: 'Phase Y'
-    }
+      label: 'Phase Y',
+      knobPolarity: 'two-sided' }
   },
   parameterLayout: {
     elements: [

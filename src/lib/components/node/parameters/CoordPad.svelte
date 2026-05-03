@@ -51,10 +51,8 @@
   let lastY = $state(0);
   let isDragging = $state(false);
 
-  $effect(() => {
-    lastX = x;
-    lastY = y;
-  });
+  const displayX = $derived(isDragging ? lastX : x);
+  const displayY = $derived(isDragging ? lastY : y);
 
   const rangeX = $derived(maxX - minX || 1);
   const rangeY = $derived(maxY - minY || 1);
@@ -84,13 +82,15 @@
     return snapValue(minY + norm * rangeY, minY, maxY);
   }
 
-  const normX = $derived(valueToNormX(x));
-  const normY = $derived(valueToNormY(y));
+  const normX = $derived(valueToNormX(displayX));
+  const normY = $derived(valueToNormY(displayY));
 
   function handlePadPointerDown(e: PointerEvent) {
     if (disabled || !padEl) return;
     e.preventDefault();
     isDragging = true;
+    lastX = x;
+    lastY = y;
     const pointerId = e.pointerId;
     padEl.setPointerCapture(pointerId);
 

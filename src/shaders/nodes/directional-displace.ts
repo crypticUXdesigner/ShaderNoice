@@ -33,8 +33,8 @@ export const directionalDisplaceNodeSpec: NodeSpec = {
       min: -6.28,
       max: 6.28,
       step: 0.05,
-      label: 'Angle'
-    },
+      label: 'Angle',
+      knobPolarity: 'two-sided' },
     directionalDisplaceScale: {
       type: 'float',
       default: 1.0,
@@ -43,7 +43,8 @@ export const directionalDisplaceNodeSpec: NodeSpec = {
       step: 0.01,
       label: 'Scale'
     },
-    amount: { type: 'float', default: 1.0, min: -10.0, max: 10.0, step: 0.01, label: 'Amount' }
+    amount: { type: 'float', default: 1.0, min: -10.0, max: 10.0, step: 0.01, label: 'Amount',
+      knobPolarity: 'two-sided' }
   },
   parameterLayout: {
     elements: [

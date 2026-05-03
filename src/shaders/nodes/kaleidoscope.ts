@@ -27,16 +27,16 @@ export const kaleidoscopeNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Center X'
-    },
+      label: 'Center X',
+      knobPolarity: 'two-sided' },
     kaleidCenterY: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Center Y'
-    },
+      label: 'Center Y',
+      knobPolarity: 'two-sided' },
     kaleidSegments: {
       type: 'int',
       default: 6,

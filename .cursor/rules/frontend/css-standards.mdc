@@ -4,53 +4,30 @@ globs: "**/*.css,**/*.svelte"
 alwaysApply: false
 ---
 
-# CSS Standards
+# CSS
 
-## Critical rules
+**Layout / tokens**
 
-1. **Nesting**: Nested blocks (`.parent { .child { } }`), not flat chained selectors at top level. Short names when nested (e.g. `.section` inside `.bottom-bar`).
-2. **Tokens, not hardcodes**: Colors, spacing, sizes from `scales.css` or component tokens. New tokens only if reusable (2+ uses, JS-consumed, or semantic); one-offs hardcoded with a comment.
-3. **Token files**: Node editor → `tokens-node-editor.css`. DOM UI → `tokens.css`. Base → `scales.css`.
-4. **Disabled**: `--opacity-disabled`; never `opacity: 0.5` for disabled UI.
-5. **Cursor**: No `cursor: pointer`; use `cursor: default` for clickable; `ew-resize`, `grab`, etc. when appropriate.
+1. Nest (`.parent { .child {} }`); short inner names when scoped by parent.
+2. Colors/spacing/size from **`scales.css` / `tokens.css` / `tokens-node-editor.css`**; new token only if ≥2 uses, JS‑consumed, or semantic — otherwise comment one-offs.
+3. Role: node editor **`tokens-node-editor.css`**; DOM UI **`tokens.css`**; primitives **`scales.css`**.
+4. Disabled UI: **`--opacity-disabled`** — not raw `opacity: 0.5`.
+5. **No `cursor: pointer` by default** — `default` on click targets unless resize/drag cues apply.
 
-**File roles:** `scales.css`, `tokens.css`, `tokens-node-editor.css`, `reset.css`, `layout/*.css`, `components/*.css`; Svelte `<style>` for component-owned styles.
+**Classes:** kebab-case; nested names stay short (**no BEM** `__`/`--`). Modifiers: `.foo.is-active`, `.button.primary`.
 
-## Class naming
+**Global (`src/styles/`)** vs **Svelte `<style>`:** globals for cross-cutting layout/tokens; colocate owned component styles.
 
-- **Kebab-case** only (e.g. `.audio-signal-picker`). No camelCase/PascalCase in class strings.
-- **Nested = short names**: `.header` inside `.panel`, not `.panel-header` / BEM elements.
-- **Modifiers**: `.button.primary`, `.button.is-active`; state via `is-*`. **No BEM** (`__`, `--`).
-- **Avoid** redundant long names when parent already scopes (e.g. `.section` not `.bottom-bar-section` inside `.bottom-bar`).
+**Motion:** Honor **`prefers-reduced-motion`** (`src/styles/reduced-motion.css` + scoped media / zero-duration transitions).
 
-## Global vs Svelte styles
+**Format:** 2 spaces; layout → box → visual → typography; section comments on large blocks.
 
-- **Global (`src/styles/`)**: Cross-cutting layout, shared overlays/canvas DOM, tokens/scales.
-- **Svelte `<style>`**: One component owns the styles. Prefer colocation; move styles out of layout files when only one component uses them.
-
-## Example (tokens + nesting)
+Stylelint absent — honor this doc + ESLint-Svelte during review.
 
 ```css
 .bottom-bar {
-  bottom: 0;
   .section {
-    display: flex;
-    .play-button {
-      width: var(--size-xl);
-    }
+    .play-button { width: var(--size-xl); }
   }
 }
 ```
-
-## Formatting
-
-- **Indent**: 2 spaces. **Order**: layout → box → visual → typography. Section comments for large token blocks.
-- **Modifiers / transitions**: `0.15s` or tokens; children of click targets: `pointer-events: none` where needed.
-
-## Reduced motion
-
-Honor `prefers-reduced-motion: reduce` for non-essential motion (WCAG 2.3.3). See `src/styles/reduced-motion.css` for global overlays. Components: scoped `@media (prefers-reduced-motion: reduce)` or Svelte transitions with `duration: 0` when reduced motion matches.
-
-## Enforcement
-
-**No Stylelint in this repo yet** — follow this doc and ESLint for Svelte; nesting vs DOM is review-only. If Stylelint is added later, align config with `postcss-html` for Svelte.

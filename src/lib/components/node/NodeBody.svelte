@@ -407,6 +407,8 @@
                     step={paramSpec.type === 'int' ? (paramSpec.step ?? 1) : (paramSpec.step ?? 0.01)}
                     decimals={paramSpec.type === 'int' ? 0 : (paramSpec.step && paramSpec.step >= 1 ? 0 : 3)}
                     connected={connInfo.state !== 'default'}
+                    knobPolarity={paramSpec.knobPolarity ?? 'one-sided'}
+                    knobCenter={paramSpec.knobCenter ?? 0}
                     onChange={(v) => onParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
                   />
                 {/snippet}
@@ -570,6 +572,8 @@
                     step={paramSpec.type === 'int' ? (paramSpec.step ?? 1) : (paramSpec.step ?? 0.01)}
                     decimals={paramSpec.type === 'int' ? 0 : (paramSpec.step && paramSpec.step >= 1 ? 0 : 3)}
                     connected={connInfo.state !== 'default'}
+                    knobPolarity={paramSpec.knobPolarity ?? 'one-sided'}
+                    knobCenter={paramSpec.knobCenter ?? 0}
                     onChange={(v) => onParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
                   />
                 {/snippet}

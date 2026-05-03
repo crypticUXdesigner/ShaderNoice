@@ -45,32 +45,32 @@ export const orbitCameraNodeSpec: NodeSpec = {
       min: -5.0,
       max: 5.0,
       step: 0.1,
-      label: 'Target X'
-    },
+      label: 'Target X',
+      knobPolarity: 'two-sided' },
     targetY: {
       type: 'float',
       default: 0.0,
       min: -5.0,
       max: 5.0,
       step: 0.1,
-      label: 'Target Y'
-    },
+      label: 'Target Y',
+      knobPolarity: 'two-sided' },
     targetZ: {
       type: 'float',
       default: 0.0,
       min: -5.0,
       max: 5.0,
       step: 0.1,
-      label: 'Target Z'
-    },
+      label: 'Target Z',
+      knobPolarity: 'two-sided' },
     inclination: {
       type: 'float',
       default: 0.0,
       min: -1.57,
       max: 1.57,
       step: 0.05,
-      label: 'Inclination'
-    },
+      label: 'Inclination',
+      knobPolarity: 'two-sided' },
     fovScale: {
       type: 'float',
       default: 1.0,

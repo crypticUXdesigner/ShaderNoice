@@ -129,14 +129,22 @@
   const lanes = $derived(laneVMs.map((vm) => vm.lane));
 
   /** Snapshot of timeline state so playhead and ruler react to playback (getTimelineState is not reactive). */
-  let timelineStateSnapshot = $state<{ currentTime: number; duration: number } | null>(null);
+  let timelineStateSnapshot = $state<{
+    currentTime: number;
+    duration: number;
+    hasAudio: boolean;
+  } | null>(null);
 
   $effect(() => {
     if (!getTimelineState) return;
     const poll = () => {
       const state = getTimelineState();
       timelineStateSnapshot = state
-        ? { currentTime: state.currentTime, duration: state.duration }
+        ? {
+            currentTime: state.currentTime,
+            duration: state.duration,
+            hasAudio: state.hasAudio,
+          }
         : null;
     };
     poll();
@@ -144,8 +152,21 @@
     return () => clearInterval(interval);
   });
 
-  /** Fetch full waveform when service or primary audio changes. */
+  /**
+   * When the primary MP3 finishes decoding, `hasAudio` flips true and duration becomes the real clip length.
+   * Waveform must refetch then — the first attempt often ran while only the heuristic CDN URL existed (404)
+   * and no decode buffer, so audiograph + fetch both failed.
+   */
+  const waveformReloadToken = $derived.by(() => {
+    const svc = waveformService;
+    const wk = svc?.getPrimaryWaveformKey() ?? '';
+    const st = timelineStateSnapshot;
+    return `${wk}:${st?.hasAudio === true ? 1 : 0}:${(st?.duration ?? 0).toFixed(3)}`;
+  });
+
+  /** Fetch full waveform when service, primary, or decoded audio binding changes. */
   $effect(() => {
+    void waveformReloadToken;
     const svc = waveformService;
     const primaryWaveformKey = svc?.getPrimaryWaveformKey() ?? null;
     if (!svc || !primaryWaveformKey) {

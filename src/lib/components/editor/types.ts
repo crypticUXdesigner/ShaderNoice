@@ -4,7 +4,6 @@ export interface LayoutCallbacks {
   onDownloadPreset?: () => void;
   onExport?: () => Promise<void> | void;
   onVideoExport?: () => Promise<void>;
-  onLoadPreset?: (presetName: string) => Promise<void> | void;
   /** Called when user selects a preset file; receives JSON string. App should load via loadPresetFromJson and apply graph. */
   onImportPresetFromFile?: (json: string) => Promise<void> | void;
   onZoomChange?: (zoom: number) => void;

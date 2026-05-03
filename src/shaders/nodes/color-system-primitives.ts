@@ -113,7 +113,7 @@ export const bayerDitherNodeSpec: NodeSpec = {
   category: 'Effects',
   displayName: 'Bayer Dither',
   description: 'Applies Bayer dithering to a float value using fragment coordinates',
-  icon: 'grain',
+  icon: 'noise',
   inputs: [
     { name: 'in', type: 'float', label: 'Value' },
     { name: 'fragCoord', type: 'vec2', label: 'Frag coords' },

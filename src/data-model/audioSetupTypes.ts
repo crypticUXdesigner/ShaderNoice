@@ -44,10 +44,34 @@ export interface AudioRemapperEntry {
   outMax: number;
 }
 
+/**
+ * Provenance for persisted playlist display metadata (denormalized; trackId remains canonical identity).
+ */
+export type PlaylistDisplayNameSource =
+  | 'bundled'
+  | 'audiotool'
+  | 'user-cache'
+  | 'unknown';
+
+/** Primary when user selected a bundled or Audiotool playlist entry. */
+export interface PlaylistPrimarySource {
+  type: 'playlist';
+  trackId: string;
+  /** Last-known human-readable title — may lag renames on the Audiotool side. */
+  displayName?: string;
+  displayNameSource?: PlaylistDisplayNameSource;
+  /** ISO timestamp when display metadata was written (persisted selection or hydration). */
+  displayNameUpdatedAt?: string;
+}
+
 /** Primary source: one playlist track (by id) or one uploaded file. */
-export type PrimarySource =
-  | { type: 'playlist'; trackId: string }
-  | { type: 'upload'; file: AudioFileEntry };
+export type PrimarySource = PlaylistPrimarySource | { type: 'upload'; file: AudioFileEntry };
+
+/** Metadata passed from the track picker when a list row is chosen (omit for programmatic switches). */
+export interface PlaylistTrackPickMeta {
+  displayName: string;
+  displayNameSource: PlaylistDisplayNameSource;
+}
 
 /** Playlist state: order (track ids), current index, loop current track flag. */
 export interface PlaylistState {

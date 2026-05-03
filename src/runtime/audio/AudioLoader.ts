@@ -15,7 +15,6 @@ import type { AudioContextManager } from './AudioContextManager';
  */
 export class AudioLoader extends BaseDisposable {
   private contextManager: AudioContextManager;
-  private loadingNodes: Set<string> = new Set(); // Track nodes currently loading to prevent concurrent loads
   private errorHandler?: ErrorHandler;
   
   constructor(contextManager: AudioContextManager, errorHandler?: ErrorHandler) {
@@ -30,22 +29,9 @@ export class AudioLoader extends BaseDisposable {
    */
   async loadAudioFile(nodeId: string, file: File | string, options?: { reportLoadFailure?: boolean }): Promise<AudioBuffer> {
     this.ensureNotDestroyed();
-    
-    // Prevent concurrent loads of the same node
-    if (this.loadingNodes.has(nodeId)) {
-      const handler = this.errorHandler || globalErrorHandler;
-      handler.report(
-        'audio',
-        'info',
-        `Already loading audio for node ${nodeId}, skipping duplicate load`,
-        { nodeId }
-      );
-      throw new Error(`Already loading audio for node ${nodeId}`);
-    }
-    
-    this.loadingNodes.add(nodeId);
+
     const reportFailure = options?.reportLoadFailure !== false;
-    
+
     try {
       await this.contextManager.initialize();
       
@@ -85,16 +71,13 @@ export class AudioLoader extends BaseDisposable {
         const errorObj = error instanceof Error ? error : new Error(String(error));
         handler.reportError(
           ErrorUtils.audioError(
-            `Error loading audio file for node ${nodeId}`,
+            `Could not load this audio file`,
             { originalError: errorObj, nodeId, fileName: file instanceof File ? file.name : file }
           )
         );
       }
       // Re-throw so caller can handle it
       throw error;
-    } finally {
-      // Remove from loading set when done (success or failure)
-      this.loadingNodes.delete(nodeId);
     }
   }
   
@@ -369,7 +352,7 @@ export class AudioLoader extends BaseDisposable {
           handler.report(
             'audio',
             'warning',
-            `Failed to load audio: file empty or not found`,
+            `Could not load audio (file missing or empty)`,
             { originalError: error, nodeId, fileName, contextState, bufferSize }
           );
         }
@@ -388,7 +371,7 @@ export class AudioLoader extends BaseDisposable {
       if (reportFailure) {
         handler.reportError(
           ErrorUtils.audioError(
-            `Failed to decode audio data: ${errorMessage}`,
+            `Could not decode this audio file`,
             { originalError: error, nodeId, fileName, contextState, bufferSize }
           )
         );
@@ -403,7 +386,7 @@ export class AudioLoader extends BaseDisposable {
         const handler = this.errorHandler || globalErrorHandler;
         handler.reportError(
           ErrorUtils.audioError(
-            `Decoded audio buffer is empty`,
+            `This audio file has no usable samples`,
             { originalError: error, nodeId, fileName }
           )
         );
@@ -417,8 +400,5 @@ export class AudioLoader extends BaseDisposable {
   /**
    * Clean up resources.
    */
-  protected doDestroy(): void {
-    // Clear loading set
-    this.loadingNodes.clear();
-  }
+  protected doDestroy(): void {}
 }

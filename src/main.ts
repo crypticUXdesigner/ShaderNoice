@@ -8,6 +8,10 @@ import { mount, unmount } from 'svelte';
 import { onCLS, onINP, onLCP } from 'web-vitals';
 import App from './lib/App.svelte';
 import { loadPhosphorIconData } from './utils/phosphor-icons-loader';
+import { redirectLoopbackHostnameToIPv4 } from './utils/loopbackRedirect';
+
+/** Audiotool OAuth forbids `localhost` in redirect URIs; align origin before PKCE / app boot. */
+redirectLoopbackHostnameToIPv4();
 
 function reportWebVitals(metric: { name: string; value: number; id: string }): void {
   if (import.meta.env.DEV) {

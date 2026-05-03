@@ -22,6 +22,10 @@
     class?: string;
     /** CSS class applied to the `.content.frame` element. Prefer this over `class`. */
     contentClass?: string;
+    /** When false, clicking the dimmed backdrop does not call `onClose`. */
+    backdropDismisses?: boolean;
+    /** When false, Escape does not call `onClose`. */
+    escapeDismisses?: boolean;
   }
 
   let {
@@ -29,7 +33,9 @@
     onClose,
     children,
     class: className = '',
-    contentClass = ''
+    contentClass = '',
+    backdropDismisses = true,
+    escapeDismisses = true,
   }: Props = $props();
 
   let contentEl = $state<HTMLElement | null>(null);
@@ -62,7 +68,7 @@
   });
 
   function handleKeydown(e: KeyboardEvent): void {
-    if (e.key === 'Escape' && open && onClose) {
+    if (e.key === 'Escape' && open && escapeDismisses && onClose) {
       onClose();
       return;
     }
@@ -103,7 +109,7 @@
     class="modal-backdrop"
     role="dialog"
     aria-modal="true"
-    onclick={(e) => e.target === e.currentTarget && onClose?.()}
+    onclick={(e) => e.target === e.currentTarget && backdropDismisses && onClose?.()}
     use:portal
     transition:fade={{ duration: reducedMotion ? 0 : 150 }}
   >

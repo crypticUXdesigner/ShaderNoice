@@ -49,7 +49,7 @@ export function runInteractionUpdatesAndHover(
     if (ctx.deps.interactionManager.update(ctx.deps.createInteractionEvent(InteractionType.BezierControlDrag, e, bezierHit))) eventHandled = true;
     if (getActiveTool() === 'select' && ctx.deps.interactionManager.update(ctx.deps.createInteractionEvent(InteractionType.RectangleSelection, e))) eventHandled = true;
     if (ctx.deps.interactionManager.update(ctx.deps.createInteractionEvent(InteractionType.CanvasPan, e))) eventHandled = true;
-    if (!eventHandled) applyPortHoverAndCursor(ctx, mouseX, mouseY, getActiveTool, getIsSpacePressed);
+    if (!eventHandled) applyPortHoverAndCursor(ctx, mouseX, mouseY, getActiveTool, getIsSpacePressed, e.altKey);
   }
   return false;
 }
@@ -123,8 +123,9 @@ export function applyPortHoverAndCursor(
   ctx: MouseEventMoveContext,
   mouseX: number,
   mouseY: number,
-  getActiveTool: () => string,
-  getIsSpacePressed: () => boolean
+  getActiveTool: () => ToolType,
+  getIsSpacePressed: () => boolean,
+  altKey = false
 ): void {
   const state = ctx.getState();
   const portHit = ctx.deps.hitTestManager.hitTestPort(mouseX, mouseY);
@@ -145,6 +146,7 @@ export function applyPortHoverAndCursor(
   const bezierHit = ctx.deps.hitTestManager.hitTestBezierControlPoint(mouseX, mouseY);
   const modeHit = ctx.deps.hitTestManager.hitTestParameterMode(mouseX, mouseY);
   const paramHit = ctx.deps.hitTestManager.hitTestParameter(mouseX, mouseY);
+  const nodeBodyHit = !!ctx.deps.hitTestManager.hitTestNode(mouseX, mouseY);
   let isToggle = false;
   if (paramHit && !paramHit.isString && !paramHit.frequencyBand) {
     const node = (ctx.deps.getGraph?.() ?? ctx.deps.graph).nodes.find(n => n.id === paramHit.nodeId);
@@ -166,11 +168,7 @@ export function applyPortHoverAndCursor(
     bezierHit: !!bezierHit,
     modeHit: !!modeHit
   };
-  const cursor = getCursorForHover(
-    getActiveTool() as 'cursor' | 'select' | 'hand',
-    getIsSpacePressed(),
-    hits
-  );
+  const cursor = getCursorForHover(getActiveTool(), getIsSpacePressed(), hits, altKey, nodeBodyHit);
   ctx.deps.canvas.style.cursor = cursor;
 }
 

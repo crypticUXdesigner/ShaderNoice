@@ -16,7 +16,8 @@ export const addNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' }
+    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+      knobPolarity: 'two-sided' }
   },
   mainCode: `$output.out = $input.a + $input.b;`
 };
@@ -33,7 +34,8 @@ export const subtractNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' }
+    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+      knobPolarity: 'two-sided' }
   },
   mainCode: `$output.out = $input.a - $input.b;`
 };
@@ -50,7 +52,8 @@ export const multiplyNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' }
+    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+      knobPolarity: 'two-sided' }
   },
   mainCode: `$output.out = $input.a * $input.b;`
 };
@@ -67,7 +70,8 @@ export const divideNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' }
+    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+      knobPolarity: 'two-sided' }
   },
   mainCode: `$output.out = $input.a / $input.b;`
 };
@@ -84,7 +88,8 @@ export const powerNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    exponent: { type: 'float', default: 2.0, min: -100.0, max: 100.0, step: 0.01, label: 'Exponent' }
+    exponent: { type: 'float', default: 2.0, min: -100.0, max: 100.0, step: 0.01, label: 'Exponent',
+      knobPolarity: 'two-sided' }
   },
   mainCode: `$output.out = pow($input.base, $input.exponent);`
 };
@@ -178,7 +183,8 @@ export const minNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' }
+    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+      knobPolarity: 'two-sided' }
   },
   mainCode: `$output.out = min($input.a, $input.b);`
 };
@@ -195,7 +201,8 @@ export const maxNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' }
+    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+      knobPolarity: 'two-sided' }
   },
   mainCode: `$output.out = max($input.a, $input.b);`
 };
@@ -232,8 +239,10 @@ export const mixNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    a: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'A' },
-    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B' },
+    a: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'A',
+      knobPolarity: 'two-sided' },
+    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+      knobPolarity: 'two-sided' },
     t: { type: 'float', default: 0.5, min: 0.0, max: 1.0, step: 0.01, label: 't' }
   },
   mainCode: `$output.out = mix($input.a, $input.b, $input.t);`

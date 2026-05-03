@@ -13,7 +13,7 @@ export {
 } from './input';
 export { IconSvg, NodeIconSvg } from './icon';
 export { default as MiniGraph } from './MiniGraph.svelte';
-export { Tag, Badge, Message, ErrorDisplay, ErrorAnnouncer, PanelSection, AppSplashScreen } from './display';
+export { Tag, Badge, Message, ErrorAnnouncer, PanelSection, AppSplashScreen } from './display';
 export { Modal, ModalDialog, Popover } from './overlay';
 export { ShortcutRow } from './shortcut';
 export type { ShortcutKeys } from './shortcut';

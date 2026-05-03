@@ -35,48 +35,48 @@ export const lightingShadingNodeSpec: NodeSpec = {
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'X'
-    },
+      label: 'X',
+      knobPolarity: 'two-sided' },
     lightDirY: {
       type: 'float',
       default: 0.5,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Y'
-    },
+      label: 'Y',
+      knobPolarity: 'two-sided' },
     lightDirZ: {
       type: 'float',
       default: 1.0,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Z'
-    },
+      label: 'Z',
+      knobPolarity: 'two-sided' },
     lightPosX: {
       type: 'float',
       default: 2.0,
       min: -5.0,
       max: 5.0,
       step: 0.1,
-      label: 'X'
-    },
+      label: 'X',
+      knobPolarity: 'two-sided' },
     lightPosY: {
       type: 'float',
       default: 2.0,
       min: -5.0,
       max: 5.0,
       step: 0.1,
-      label: 'Y'
-    },
+      label: 'Y',
+      knobPolarity: 'two-sided' },
     lightPosZ: {
       type: 'float',
       default: 3.0,
       min: -5.0,
       max: 5.0,
       step: 0.1,
-      label: 'Pos. Z'
-    },
+      label: 'Pos. Z',
+      knobPolarity: 'two-sided' },
     lightIntensity: {
       type: 'float',
       default: 1.0,

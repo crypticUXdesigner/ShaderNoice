@@ -88,8 +88,8 @@ export const repeatedHexPrismSdfNodeSpec: NodeSpec = {
       label: 'Pos X',
       inputMode: 'override',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     positionY: {
       type: 'float',
       default: 0.0,
@@ -99,8 +99,8 @@ export const repeatedHexPrismSdfNodeSpec: NodeSpec = {
       label: 'Pos Y',
       inputMode: 'override',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     positionZ: {
       type: 'float',
       default: 0.0,
@@ -110,8 +110,8 @@ export const repeatedHexPrismSdfNodeSpec: NodeSpec = {
       label: 'Pos Z',
       inputMode: 'override',
       supportsAnimation: true,
-      supportsAudio: true
-    }
+      supportsAudio: true,
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

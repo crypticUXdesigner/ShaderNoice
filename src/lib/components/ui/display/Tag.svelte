@@ -25,25 +25,24 @@
     ...restProps
   }: Props = $props();
 
-  const { class: _omitClass, ...safeRest } = restProps as Record<string, unknown>;
   const categorySlug = $derived(category ? getCategorySlug(category) : '');
 </script>
 
 {#if interactive}
   <button
     type="button"
-    class="tag {size} {categorySlug ? `category-${categorySlug}` : ''} {className || ''} {_omitClass || ''}"
+    class="tag {size} {categorySlug ? `category-${categorySlug}` : ''} {className || ''}"
     class:interactive
     class:is-selected={selected}
     data-type={type}
     {onclick}
-    {...safeRest}
+    {...restProps}
   >
     {@render children?.()}
   </button>
 {:else}
   <span
-    class="tag {size} {categorySlug ? `category-${categorySlug}` : ''} {className || ''} {_omitClass || ''}"
+    class="tag {size} {categorySlug ? `category-${categorySlug}` : ''} {className || ''}"
     class:is-selected={selected}
     data-type={type}
   >

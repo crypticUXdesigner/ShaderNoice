@@ -30,6 +30,7 @@ import { audioAnalysisStatusStore } from '../lib/stores/audioAnalysisStatusStore
 import { AudioAnalysisCurveSampler } from './audio-analysis/AudioAnalysisCurveSampler';
 import type { AudioAnalysisWorkerCanceled, AudioAnalysisWorkerError, AudioAnalysisWorkerProgress, AudioAnalysisWorkerResult } from './audio-analysis/audioAnalysisWorkerTypes';
 import { buildOfflineAudioAnalysisConfigs } from '../video-export/OfflineAudioProvider';
+import { normalizeUrlForAudioDedupe } from '../utils/normalizeUrlForAudioDedupe';
 
 // Re-export types for backward compatibility
 export type { FrequencyBand, AudioNodeState, AnalyzerNodeState };
@@ -41,9 +42,20 @@ export class AudioManager implements Disposable {
   private frequencyAnalyzer: FrequencyAnalyzer;
   
   private cleanupInterval: number | null = null; // Periodic cleanup interval ID
+
+  /** Coalesce overlapping `loadAudioFile` calls (same node + same source); avoids redundant fetch/decode/UI sync. */
+  private loadAudioFileInflightByKey = new Map<string, Promise<void>>();
   
   /** Current audio setup from panel (for analyzer sync and uniform updates) */
   private audioSetup: AudioSetup | null = null;
+
+  /** Stable identity for overlapping load detection (URLs normalized; Files by name/size/mtime). */
+  private static loadAudioFileDedupeKey(nodeId: string, file: File | string): string {
+    if (file instanceof File) {
+      return `${nodeId}\0file:${file.name}\0${String(file.size)}\0${String(file.lastModified ?? 0)}`;
+    }
+    return `${nodeId}\0url:${normalizeUrlForAudioDedupe(file)}`;
+  }
 
   /**
    * File-backed canonical analysis providers (Phase 2 live): map audio file id → provider that can
@@ -52,7 +64,15 @@ export class AudioManager implements Disposable {
   private offlineProvidersByFileId: Map<string, OfflineAudioProvider> = new Map();
   private curveSamplersByFileId: Map<string, AudioAnalysisCurveSampler> = new Map();
   private offlineBuildGeneration: number = 0;
+  /** RAF id when a debounced offline rebuild is scheduled (coalesces rapid setAudioSetup / load bursts). */
+  private offlineRebuildRafId: number | null = null;
+  /** Fingerprint passed to startWorkerBuildForFiles until it finishes or is superseded. */
+  private offlineRebuildTargetFingerprint: string | null = null;
+  /** Last fingerprint that successfully produced curve samplers for all required files. */
+  private offlineAnalysisFingerprintReady: string | null = null;
   private analysisWorker: Worker | null = null;
+  /** Serializes offline worker builds so `worker.onmessage` and `pending` map are never contested by overlapping flights. */
+  private audioWorkerBuildChain: Promise<void> = Promise.resolve();
   private activeWorkerBuildKeys: string[] = [];
   
   // Track previous uniform values to detect changes
@@ -90,32 +110,52 @@ export class AudioManager implements Disposable {
   setAudioSetup(audioSetup: AudioSetup | null): void {
     this.audioSetup = audioSetup ?? null;
     syncPanelAnalyzers(audioSetup, this.frequencyAnalyzer, this.playbackController);
-    this.rebuildOfflineProviders();
+    this.scheduleOfflineProvidersRebuild();
   }
 
   /**
    * Load audio file for a node (from File object or URL string)
    */
   async loadAudioFile(nodeId: string, file: File | string, options?: { reportLoadFailure?: boolean }): Promise<void> {
+    const key = AudioManager.loadAudioFileDedupeKey(nodeId, file);
+    const inflight = this.loadAudioFileInflightByKey.get(key);
+    if (inflight) {
+      return inflight;
+    }
+
+    const promise = this.runLoadAudioFile(nodeId, file, options).finally(() => {
+      if (this.loadAudioFileInflightByKey.get(key) === promise) {
+        this.loadAudioFileInflightByKey.delete(key);
+      }
+    });
+    this.loadAudioFileInflightByKey.set(key, promise);
+    return promise;
+  }
+
+  private async runLoadAudioFile(
+    nodeId: string,
+    file: File | string,
+    options?: { reportLoadFailure?: boolean }
+  ): Promise<void> {
     // Stop existing playback before loading new file
     this.stopAudio(nodeId);
-    
+
     // Load and decode audio file
     const audioBuffer = await this.loader.loadAudioFile(nodeId, file, options);
-    
+
     // Get audio context and create nodes
     const audioContext = this.contextManager.getContext();
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 4096; // Good resolution for frequency analysis
     // Phase 2: prefer deterministic file-backed analysis curves; avoid opaque analyser smoothing.
     analyser.smoothingTimeConstant = 0;
-    
+
     const gain = audioContext.createGain();
     gain.gain.value = 1.0;
-    
+
     // Create audio node state
     this.playbackController.createAudioNodeState(nodeId, audioBuffer, analyser, gain);
-    this.rebuildOfflineProviders();
+    this.scheduleOfflineProvidersRebuild();
   }
   
   /**
@@ -222,7 +262,7 @@ export class AudioManager implements Disposable {
         audioAnalysisStatusStore.set({ state: 'ready' });
       } else {
         audioAnalysisStatusStore.update((s) =>
-          s.state === 'building' ? s : { state: 'fallback', label: 'Using live preview approximation' }
+          s.state === 'building' ? s : { state: 'fallback', label: 'Live preview until analysis finishes' }
         );
       }
     }
@@ -235,10 +275,42 @@ export class AudioManager implements Disposable {
     }
   }
 
-  private rebuildOfflineProviders(): void {
+  private scheduleOfflineProvidersRebuild(): void {
+    if (typeof window === 'undefined') {
+      this.runOfflineProvidersRebuild();
+      return;
+    }
+    if (this.offlineRebuildRafId != null) return;
+    this.offlineRebuildRafId = window.requestAnimationFrame(() => {
+      this.offlineRebuildRafId = null;
+      this.runOfflineProvidersRebuild();
+    });
+  }
+
+  /** Bands + remappers + loaded buffer fingerprints — skipped rebuild when unchanged and curves already built. */
+  private computeOfflineAnalysisFingerprintForSetup(
+    setup: AudioSetup,
+    audioNodeStates: Map<string, { audioBuffer: AudioBuffer | null }>,
+    fileIdsWithBands: Iterable<string>
+  ): string {
+    const bandDigest = JSON.stringify({ bands: setup.bands, remappers: setup.remappers ?? [] });
+    const ids = [...fileIdsWithBands].sort();
+    const fileParts = ids.map((fileId) => {
+      const buf = audioNodeStates.get(fileId)?.audioBuffer ?? null;
+      if (!buf) return `${fileId}:missing`;
+      return `${fileId}:${buf.sampleRate}:${buf.duration}:${buf.length}:${buf.numberOfChannels}`;
+    });
+    return `${bandDigest}|${fileParts.join(';')}`;
+  }
+
+  private runOfflineProvidersRebuild(): void {
     const setup = this.audioSetup;
     if (!setup) {
+      this.cancelPendingOfflineRebuildSchedule();
       this.offlineProvidersByFileId.clear();
+      this.curveSamplersByFileId.clear();
+      this.offlineAnalysisFingerprintReady = null;
+      this.offlineRebuildTargetFingerprint = null;
       audioAnalysisStatusStore.set({ state: 'idle' });
       return;
     }
@@ -246,11 +318,41 @@ export class AudioManager implements Disposable {
     // Build providers only for file-backed sources that are loaded and referenced by bands.
     const fileIdsWithBands = new Set(setup.bands.map((b) => b.sourceFileId));
     if (fileIdsWithBands.size === 0) {
+      this.cancelPendingOfflineRebuildSchedule();
       this.offlineProvidersByFileId.clear();
+      this.curveSamplersByFileId.clear();
+      this.offlineAnalysisFingerprintReady = null;
+      this.offlineRebuildTargetFingerprint = null;
       audioAnalysisStatusStore.set({ state: 'idle' });
       return;
     }
     const audioNodeStates = this.playbackController.getAllAudioNodeStates();
+    const loadedIds = [...fileIdsWithBands].filter((id) => audioNodeStates.get(id)?.audioBuffer != null);
+    const fingerprint = this.computeOfflineAnalysisFingerprintForSetup(setup, audioNodeStates, fileIdsWithBands);
+
+    if (loadedIds.length === 0) {
+      this.offlineProvidersByFileId.clear();
+      this.curveSamplersByFileId.clear();
+      this.offlineAnalysisFingerprintReady = null;
+      this.offlineRebuildTargetFingerprint = null;
+      audioAnalysisStatusStore.set({ state: 'idle' });
+      return;
+    }
+
+    // Curves already match this setup + buffers — do not clear samplers or restart the worker.
+    if (
+      fingerprint === this.offlineAnalysisFingerprintReady &&
+      loadedIds.every((id) => this.curveSamplersByFileId.has(id)) &&
+      this.curveSamplersByFileId.size === loadedIds.length
+    ) {
+      return;
+    }
+    // A build for this exact fingerprint is already in flight (prevents hundreds of overlapping PCM copies).
+    if (fingerprint === this.offlineRebuildTargetFingerprint) {
+      return;
+    }
+
+    const buildGen = ++this.offlineBuildGeneration;
     const next = new Map<string, OfflineAudioProvider>();
 
     for (const fileId of fileIdsWithBands) {
@@ -267,7 +369,7 @@ export class AudioManager implements Disposable {
           cacheYieldEveryFrames: 240,
           onCacheBuildProgress01: (p01: number) => {
             if (this.offlineBuildGeneration !== buildGen) return;
-            audioAnalysisStatusStore.set({ state: 'building', progress01: p01, label: 'Preparing audio analysis…' });
+            audioAnalysisStatusStore.set({ state: 'building', progress01: p01, label: 'Getting audio ready' });
           },
         })
       );
@@ -275,25 +377,45 @@ export class AudioManager implements Disposable {
 
     this.offlineProvidersByFileId = next;
     this.curveSamplersByFileId.clear();
+    this.offlineAnalysisFingerprintReady = null;
     if (this.offlineProvidersByFileId.size === 0) {
       // We have bands, but no loaded buffers yet; no build is running.
+      this.offlineAnalysisFingerprintReady = null;
+      this.offlineRebuildTargetFingerprint = null;
       audioAnalysisStatusStore.set({ state: 'idle' });
       return;
     }
 
-    const buildGen = ++this.offlineBuildGeneration;
+    this.offlineRebuildTargetFingerprint = fingerprint;
     // Note: progress updates are delivered via each provider's onCacheBuildProgress01 callback.
-    audioAnalysisStatusStore.set({ state: 'building', progress01: 0, label: 'Preparing audio analysis…' });
+    audioAnalysisStatusStore.set({ state: 'building', progress01: 0, label: 'Getting audio ready' });
 
     // Start worker build for the primary file-backed source. (Phase 2 perf)
     // For now, we build one combined curve per file sequentially (keeps UX responsive; can parallelize later).
-    this.startWorkerBuildForFiles(buildGen).catch((err) => {
-      if (this.offlineBuildGeneration !== buildGen) return;
-      audioAnalysisStatusStore.set({ state: 'failed', label: err instanceof Error ? err.message : String(err) });
-    });
+    // MUST be serialized: overlapping async starts replace `worker.onmessage` mid-flight so worker replies
+    // can miss `pending` entries and deadlock on `await gate`, leaving analysis stuck at 0%.
+    const genAtQueue = buildGen;
+    const fingerprintAtQueue = fingerprint;
+    this.audioWorkerBuildChain = this.audioWorkerBuildChain
+      .catch(() => undefined)
+      .then(() => this.startWorkerBuildForFiles(genAtQueue, fingerprintAtQueue))
+      .catch((err) => {
+        if (this.offlineBuildGeneration !== genAtQueue) return;
+        if (this.offlineRebuildTargetFingerprint === fingerprintAtQueue) {
+          this.offlineRebuildTargetFingerprint = null;
+        }
+        audioAnalysisStatusStore.set({ state: 'failed', label: err instanceof Error ? err.message : String(err) });
+      });
   }
 
-  private async startWorkerBuildForFiles(buildGen: number): Promise<void> {
+  private cancelPendingOfflineRebuildSchedule(): void {
+    if (this.offlineRebuildRafId != null && typeof window !== 'undefined') {
+      window.cancelAnimationFrame(this.offlineRebuildRafId);
+      this.offlineRebuildRafId = null;
+    }
+  }
+
+  private async startWorkerBuildForFiles(buildGen: number, targetFingerprint: string): Promise<void> {
     if (this.analysisWorker == null) {
       const { default: WorkerConstructor } = await import('./audio-analysis/audioAnalysisWorker.ts?worker');
       this.analysisWorker = new WorkerConstructor();
@@ -339,7 +461,7 @@ export class AudioManager implements Disposable {
         p.lastProgress01 = msg.progress01;
         const fileIndex = fileIndexById.get(msg.fileId) ?? 0;
         const overall = (Math.max(0, fileIndex) + msg.progress01) / totalFiles;
-        audioAnalysisStatusStore.set({ state: 'building', progress01: overall, label: 'Preparing audio analysis…' });
+        audioAnalysisStatusStore.set({ state: 'building', progress01: overall, label: 'Getting audio ready' });
         return;
       }
 
@@ -382,6 +504,9 @@ export class AudioManager implements Disposable {
       // Always unblock the current sequence so we don't hang. Only show failed UI for the active generation.
       failAllPending(err);
       if (this.offlineBuildGeneration === buildGen) {
+        if (this.offlineRebuildTargetFingerprint === targetFingerprint) {
+          this.offlineRebuildTargetFingerprint = null;
+        }
         audioAnalysisStatusStore.set({ state: 'failed', label: err.message });
       }
     };
@@ -438,6 +563,12 @@ export class AudioManager implements Disposable {
       await gate;
     }
 
+    if (this.offlineBuildGeneration !== buildGen) return;
+
+    this.offlineAnalysisFingerprintReady = targetFingerprint;
+    if (this.offlineRebuildTargetFingerprint === targetFingerprint) {
+      this.offlineRebuildTargetFingerprint = null;
+    }
     audioAnalysisStatusStore.set({ state: 'ready' });
     this.activeWorkerBuildKeys = [];
   }
@@ -668,7 +799,9 @@ export class AudioManager implements Disposable {
   destroy(): void {
     // Stop periodic cleanup
     this.stopPeriodicCleanup();
-    
+    this.cancelPendingOfflineRebuildSchedule();
+    this.loadAudioFileInflightByKey.clear();
+
     // Destroy components in reverse order of creation (dependencies before dependents)
     // FrequencyAnalyzer depends on AudioPlaybackController
     // AudioPlaybackController depends on AudioContextManager

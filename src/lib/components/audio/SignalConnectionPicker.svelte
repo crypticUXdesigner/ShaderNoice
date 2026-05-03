@@ -4,6 +4,7 @@
    * Dropdown/list for "connect to signal" flow: graph outputs + named audio signals.
    * User selects one; connection is created (graph → param or virtual node → param).
    */
+  import type { Action } from 'svelte/action';
   import { Popover, Button, MenuItem } from '../ui';
   import { SearchInput } from '../ui/input';
   import type { NodeGraph } from '../../../data-model/types';
@@ -194,14 +195,23 @@
     }
   }
 
-  $effect(() => {
-    if (open) {
-      searchQuery = '';
-      selectedIndex = -1;
-      // Focus search after render
-      queueMicrotask(() => getSearchInput()?.focus());
+  const syncOpenState: Action<
+    HTMLElement,
+    {
+      open: boolean;
+      onOpen: () => void;
     }
-  });
+  > = (_n, _p) => {
+    let prev = false;
+    return {
+      update(p) {
+        if (p.open && !prev) {
+          p.onOpen();
+        }
+        prev = p.open;
+      },
+    };
+  };
 </script>
 
 <Popover
@@ -213,7 +223,20 @@
   onClose={onClose}
   class="signal-connection-picker {className}"
 >
-  <div class="content" role="menu" tabindex="-1" onkeydown={handleKeydown}>
+  <div
+    class="content"
+    role="menu"
+    tabindex="-1"
+    onkeydown={handleKeydown}
+    use:syncOpenState={{
+      open,
+      onOpen: () => {
+        searchQuery = '';
+        selectedIndex = -1;
+        queueMicrotask(() => getSearchInput()?.focus());
+      },
+    }}
+  >
     <div class="pinned-top">
       <div class="search-row" bind:this={searchRowRef}>
         <SearchInput

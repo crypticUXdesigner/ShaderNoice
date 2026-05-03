@@ -11,7 +11,8 @@ import type { TimelineState } from '../types';
 import type { ErrorHandler } from '../../utils/errorHandling';
 import { globalErrorHandler } from '../../utils/errorHandling';
 import { SyntheticTransport } from '../timeline/SyntheticTransport';
-import { getTracksData, getTrackMp3Url } from '../tracksData';
+import { audiotoolPlaylistLoadSessionMayHydrate } from '../../utils/audiotoolPlaylistLoadHint';
+import { getTracksData, resolvePlaylistTrackMp3UrlWithSource } from '../tracksData';
 
 export type OnPlaylistAdvance = (nextState: { currentIndex: number }) => void;
 
@@ -29,6 +30,8 @@ export interface RuntimePlaybackHandlerDeps {
  */
 export class RuntimePlaybackHandler {
   private deps: RuntimePlaybackHandlerDeps;
+  /** Bumps on each `loadPrimaryAndMaybePlay` so superseded async loads skip callbacks. */
+  private loadPrimaryInvocationId = 0;
 
   constructor(deps: RuntimePlaybackHandlerDeps) {
     this.deps = deps;
@@ -66,7 +69,7 @@ export class RuntimePlaybackHandler {
         handler.report(
           'audio',
           'error',
-          `Failed to play primary audio`,
+          `Could not start playback`,
           { originalError: error instanceof Error ? error : new Error(String(error)), nodeId: primaryId }
         );
       }
@@ -119,7 +122,7 @@ export class RuntimePlaybackHandler {
           handler.report(
             'audio',
             'warning',
-            'Failed to seek audio',
+            'Could not seek audio',
             {
               originalError: error instanceof Error ? error : new Error(String(error)),
               time
@@ -206,7 +209,7 @@ export class RuntimePlaybackHandler {
           handler.report(
             'audio',
             'error',
-            'Failed to play audio',
+            'Could not play audio',
             { originalError: error instanceof Error ? error : new Error(String(error)) }
           );
         }
@@ -225,6 +228,9 @@ export class RuntimePlaybackHandler {
     setAudioSetupOnManager: (setup: AudioSetup | null) => void
   ): Promise<void> {
     if (!primaryId) return;
+    const invocation = ++this.loadPrimaryInvocationId;
+    const isStale = (): boolean => invocation !== this.loadPrimaryInvocationId;
+
     const state = this.deps.audioManager.getAudioNodeState(primaryId);
     if (state?.audioBuffer) {
       if (autoPlayWhenReady) this.playPrimary();
@@ -235,13 +241,19 @@ export class RuntimePlaybackHandler {
     if (primary?.type === 'playlist') {
       getTracksData()
         .then((data) => {
-          const url = getTrackMp3Url(data, primary.trackId);
-          if (url) {
-            return this.deps.audioManager.loadAudioFile(primaryId, url, { reportLoadFailure: true }).then(() => {
+          if (isStale()) return undefined;
+          const resolved = resolvePlaylistTrackMp3UrlWithSource(data, primary.trackId);
+          if (!resolved.url) return undefined;
+          const tentativeCdnWhileSignedIn =
+            resolved.source === 'cdn' && audiotoolPlaylistLoadSessionMayHydrate();
+          const reportLoadFailure = !tentativeCdnWhileSignedIn;
+          return this.deps.audioManager
+            .loadAudioFile(primaryId, resolved.url, { reportLoadFailure })
+            .then(() => {
+              if (isStale()) return;
               setAudioSetupOnManager(audioSetup);
               if (autoPlayWhenReady) this.playPrimary();
             });
-          }
         })
         .catch(() => {});
       return;
@@ -251,6 +263,7 @@ export class RuntimePlaybackHandler {
       if (typeof path === 'string' && path.trim() !== '') {
         const resolved = path.startsWith('/') || path.startsWith('http') ? path : '/' + path;
         this.deps.audioManager.loadAudioFile(primaryId, resolved, { reportLoadFailure: false }).then(() => {
+          if (isStale()) return;
           setAudioSetupOnManager(audioSetup);
           if (autoPlayWhenReady) this.playPrimary();
         }).catch(() => {});
@@ -261,6 +274,7 @@ export class RuntimePlaybackHandler {
     if (file?.filePath && typeof file.filePath === 'string' && file.filePath.trim() !== '') {
       const resolved = file.filePath.startsWith('/') || file.filePath.startsWith('http') ? file.filePath : '/' + file.filePath;
       this.deps.audioManager.loadAudioFile(file.id, resolved, { reportLoadFailure: false }).then(() => {
+        if (isStale()) return;
         setAudioSetupOnManager(audioSetup);
         if (autoPlayWhenReady) this.playPrimary();
       }).catch(() => {});

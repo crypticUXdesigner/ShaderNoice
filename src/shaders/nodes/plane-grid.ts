@@ -67,32 +67,32 @@ export const planeGridNodeSpec: NodeSpec = {
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Norm X'
-    },
+      label: 'Norm X',
+      knobPolarity: 'two-sided' },
     planeNormalY: {
       type: 'float',
       default: 1.0,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Norm Y'
-    },
+      label: 'Norm Y',
+      knobPolarity: 'two-sided' },
     planeNormalZ: {
       type: 'float',
       default: 0.0,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Norm Z'
-    },
+      label: 'Norm Z',
+      knobPolarity: 'two-sided' },
     planeHeight: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Height'
-    }
+      label: 'Height',
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

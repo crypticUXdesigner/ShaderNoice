@@ -64,7 +64,7 @@ export class AudioContextManager extends BaseDisposable {
         handler.report(
           'audio',
           'warning',
-          'Failed to resume AudioContext',
+          'Could not start audio output. Try interacting with the page first.',
           { originalError: error instanceof Error ? error : new Error(String(error)) }
         );
       }
@@ -143,7 +143,7 @@ export class AudioContextManager extends BaseDisposable {
           handler.report(
             'audio',
             'warning',
-            'Failed to resume AudioContext',
+            'Could not start audio output. Try interacting with the page first.',
             {
               originalError: error instanceof Error ? error : new Error(errorMsg)
             }

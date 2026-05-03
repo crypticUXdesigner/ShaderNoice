@@ -7,11 +7,27 @@
   import { fade } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { IconSvg } from '../icon';
+  import AudiotoolMarkSvg from '../icon/AudiotoolMarkSvg.svelte';
+  import Button from '../button/Button.svelte';
+  import Message from './Message.svelte';
 
   interface Props {
+    /** `'checking'` while resolving OAuth/session; `'signin'` shows the Audiotool action when callbacks are wired. */
+    audiotoolPhase?: 'checking' | 'signin';
+    /** Phase `signin`: optional error detail under the subtitle. */
+    audiotoolError?: string | null;
+    /** Phase `signin`: starts redirect to Audiotool consent screen (omit when OAuth gate is inactive). */
+    onAudiotoolSignIn?: () => void;
+    /** Phase `signin`: primary action label (e.g. Retry after a failed init). */
+    audiotoolSignInLabel?: string;
+    /** Phase `signin`: enter the editor without an Audiotool session (optional OAuth gate). */
+    onContinueWithoutAudiotool?: () => void | Promise<void>;
+    /** While editor bootstrap runs after "Continue without signing in", disable actions. */
+    audiotoolBootstrapping?: boolean;
+
     /** When true, initial load finished — user can dismiss. */
-    ready: boolean;
-    onDismiss: () => void;
+    ready?: boolean;
+    onDismiss?: () => void;
     titleShader?: string;
     titleNoice?: string;
     /** `font-weight` for the “Shader” segment (number or CSS value). */
@@ -26,10 +42,23 @@
      * Resolved against site base, e.g. `/ShaderNoice/ShaderNoice-logo.png`
      */
     logoSrc?: string;
+    /**
+     * When set (project hub inside splash), wide layout + interactive panel.
+     * Parent should set {@link preventActivateDismiss} while the hub is actionable.
+     */
+    hub?: import('svelte').Snippet;
+    /** Block backdrop / Escape dismiss (e.g. project hub picking). */
+    preventActivateDismiss?: boolean;
   }
 
   let {
-    ready,
+    audiotoolPhase = 'checking',
+    audiotoolError = null,
+    onAudiotoolSignIn,
+    audiotoolSignInLabel = 'Sign in',
+    onContinueWithoutAudiotool,
+    audiotoolBootstrapping = false,
+    ready = false,
     onDismiss,
     titleShader = 'Shader',
     titleNoice = 'Noice',
@@ -37,7 +66,27 @@
     titleNoiceWeight = 900,
     subtitle = 'Fries GPUs for breakfast.',
     logoSrc,
+    hub,
+    preventActivateDismiss = false,
   }: Props = $props();
+
+  /** Splash dismiss is blocked while resolving OAuth or when Audiotool / continue actions must capture input. */
+  const oauthSplashBlocksDismiss = $derived(
+    audiotoolPhase === 'checking' ||
+      onAudiotoolSignIn != null ||
+      onContinueWithoutAudiotool != null ||
+      audiotoolBootstrapping ||
+      preventActivateDismiss
+  );
+
+  /** When OAuth-phase controls are actionable, constrain pointer-events/cursor vs overlay dismiss. */
+  const oauthSignInChromeVisible = $derived(
+    audiotoolPhase === 'signin' &&
+      (onAudiotoolSignIn != null ||
+        onContinueWithoutAudiotool != null ||
+        audiotoolBootstrapping ||
+        hub != null)
+  );
 
   let logoFailed = $state(false);
 
@@ -70,31 +119,57 @@
   const fadeDuration = $derived(reduceMotion ? 160 : 280);
 
   function handleActivate(): void {
-    if (!ready) return;
+    if (!ready || !onDismiss || oauthSplashBlocksDismiss) return;
     onDismiss();
+  }
+
+  function handleAudiotoolSignInClick(e: MouseEvent): void {
+    e.stopPropagation();
+    if (audiotoolBootstrapping) return;
+    onAudiotoolSignIn?.();
+  }
+
+  function handleContinueWithoutAudiotoolClick(e: MouseEvent): void {
+    e.stopPropagation();
+    if (audiotoolBootstrapping || !onContinueWithoutAudiotool) return;
+    void onContinueWithoutAudiotool();
   }
 
   /** Escape dismisses without moving focus onto the overlay (no focus steal on open). */
   $effect(() => {
-    if (typeof window === 'undefined' || !ready) return;
+    if (typeof window === 'undefined' || oauthSplashBlocksDismiss || !ready || !onDismiss) return;
     function onGlobalKeydown(e: KeyboardEvent): void {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onDismiss();
+        onDismiss?.();
       }
     }
     window.addEventListener('keydown', onGlobalKeydown);
     return () => window.removeEventListener('keydown', onGlobalKeydown);
   });
+
+  const splashAriaBusy = $derived(
+    audiotoolPhase === 'checking' ||
+      audiotoolBootstrapping ||
+      (!ready && onAudiotoolSignIn == null && onContinueWithoutAudiotool == null)
+  );
 </script>
 
 <div
   id="app-splash-root"
   class="app-splash"
-  class:app-splash--ready={ready}
-  role={ready ? 'dialog' : 'status'}
-  aria-modal={ready ? 'true' : undefined}
-  aria-busy={!ready}
+  class:app-splash--ready={ready && !oauthSplashBlocksDismiss}
+  class:app-splash--audiotool={oauthSignInChromeVisible}
+  class:app-splash--hub={hub != null}
+  role={oauthSplashBlocksDismiss || ready ? 'dialog' : 'status'}
+  aria-modal={audiotoolPhase === 'checking' ||
+  onAudiotoolSignIn != null ||
+  onContinueWithoutAudiotool != null ||
+  audiotoolBootstrapping ||
+  ready
+    ? 'true'
+    : undefined}
+  aria-busy={splashAriaBusy}
   aria-labelledby="app-splash-title"
   aria-describedby="app-splash-desc"
   transition:fade={{ duration: fadeDuration, easing: cubicOut }}
@@ -147,13 +222,51 @@
       </span>
       <span class="app-splash__subtitle-text">{subtitle}</span>
     </p>
-    <p class="app-splash__hint" aria-live="polite">
-      {#if ready}
-        Click anywhere…
-      {:else}
-        Loading…
+    {#if audiotoolPhase === 'signin'}
+      {#if audiotoolError?.trim()}
+        <div class="app-splash__auth-alert" role="alert">
+          <Message inline variant="error">
+            <span>{audiotoolError.trim()}</span>
+          </Message>
+        </div>
       {/if}
-    </p>
+      {#if onContinueWithoutAudiotool || onAudiotoolSignIn}
+        <div class="app-splash__actions">
+          {#if onAudiotoolSignIn}
+            <Button
+              variant="primary"
+              size="lg"
+              mode="both"
+              disabled={audiotoolBootstrapping}
+              class="app-splash__signin-btn"
+              onclick={handleAudiotoolSignInClick}
+            >
+              <span class="app-splash__signin-btn-icon" aria-hidden="true">
+                <AudiotoolMarkSvg />
+              </span>
+              <span class="app-splash__signin-btn-label">{audiotoolSignInLabel}</span>
+            </Button>
+          {/if}
+          {#if onContinueWithoutAudiotool}
+            <Button
+              variant="ghost"
+              size="lg"
+              mode="both"
+              disabled={audiotoolBootstrapping}
+              class="app-splash__continue-btn"
+              onclick={handleContinueWithoutAudiotoolClick}
+            >
+              {audiotoolBootstrapping ? 'Starting…' : 'Continue as guest'}
+            </Button>
+          {/if}
+        </div>
+      {/if}
+    {/if}
+    {#if hub}
+      <div class="app-splash__hub-panel">
+        {@render hub()}
+      </div>
+    {/if}
     <span
       class="app-splash__compat"
       role="note"
@@ -190,8 +303,83 @@
     cursor: pointer;
   }
 
+  .app-splash--audiotool {
+    cursor: default;
+  }
+
+  .app-splash--audiotool.app-splash--ready {
+    cursor: default;
+  }
+
   .app-splash--ready:focus-visible {
     box-shadow: inset 0 0 0 2px var(--color-blue-90);
+  }
+
+  .app-splash__auth-alert {
+    margin: var(--pd-sm) 0 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Technical OAuth/API messages: match previous mono handling */
+  .app-splash__auth-alert :global(.message.is-inline.is-error .message-content) {
+    font-size: var(--text-xs);
+    font-family: var(--font-mono);
+    line-height: 1.35;
+  }
+
+  .app-splash__actions {
+    margin-top: var(--pd-4xl);
+    pointer-events: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: var(--pd-md);
+    width: 100%;
+    max-width: 20rem;
+  }
+
+  /**
+   * Leading icon + label centered in the full button width (empty 1fr column mirrors the icon column).
+   */
+  .app-splash__actions :global(button.button.app-splash__signin-btn.both) {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    column-gap: var(--pd-sm);
+    padding: var(--pd-md) var(--pd-lg);
+  }
+
+  .app-splash__actions :global(.app-splash__signin-btn-icon) {
+    grid-column: 1;
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    margin: 0;
+  }
+
+  .app-splash__actions :global(.app-splash__signin-btn-icon .audiotool-mark-svg) {
+    margin-right: 0;
+  }
+
+  .app-splash__actions :global(.app-splash__signin-btn-label) {
+    grid-column: 2;
+    text-align: center;
+    min-width: 0;
+  }
+
+  /**
+   * So clicks anywhere… still targets the splash root handler in intro mode;
+   * audiotool mode uses actionable controls only on the inner action row.
+   */
+  .app-splash--audiotool .app-splash__inner * {
+    pointer-events: none;
+  }
+
+  .app-splash--audiotool .app-splash__actions,
+  .app-splash--audiotool .app-splash__actions * {
+    pointer-events: auto;
   }
 
   .app-splash__inner {
@@ -203,6 +391,21 @@
     gap: var(--pd-xs);
     max-width: min(100%, 28rem);
     pointer-events: none;
+  }
+
+  .app-splash--hub .app-splash__inner {
+    max-width: min(100%, 44rem);
+  }
+
+  /** Hub content is rendered via snippet (child components); targets must be global */
+  .app-splash :global(.app-splash__hub-panel),
+  .app-splash :global(.app-splash__hub-panel *) {
+    pointer-events: auto;
+    cursor: default;
+  }
+
+  .app-splash--hub:not(.app-splash--audiotool) {
+    cursor: default;
   }
 
   /* So clicks anywhere on the overlay hit the root handler (pointer-events is not inherited). */
@@ -477,15 +680,6 @@
   .app-splash__subtitle-text {
     flex: 1;
     min-width: 0;
-  }
-
-  .app-splash__hint {
-    margin: 0;
-    margin-top: var(--pd-2xl);
-    font-size: var(--text-sm);
-    font-weight: 500;
-    color: var(--print-normal);
-    line-height: 1.4;
   }
 
   .app-splash__compat {

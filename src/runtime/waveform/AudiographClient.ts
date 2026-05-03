@@ -41,9 +41,13 @@ const RESOLUTION_TO_PROTO: Record<AudiographResolution, GetAudiographResolution>
 
 function getAudiographBaseUrl(): string {
   try {
-    const env = (import.meta as { env?: { VITE_AUDIOGRAPH_API_URL?: string } }).env;
-    const fromEnv = (env?.VITE_AUDIOGRAPH_API_URL as string)?.trim();
-    return fromEnv && fromEnv !== '' ? fromEnv : DEFAULT_AUDIOGRAPH_BASE_URL;
+    const env = import.meta.env as { VITE_AUDIOGRAPH_API_URL?: string };
+    const fromEnv = env.VITE_AUDIOGRAPH_API_URL?.trim();
+    if (fromEnv) return fromEnv;
+    // Browser → rpc.audiotool.com hits CORS in dev unless the host allows our origin (usually it does not).
+    // Vite proxies `/__audiotool_rpc__` → rpc (see vite.config.ts); production still uses default URL.
+    if (import.meta.env.DEV) return '/__audiotool_rpc__';
+    return DEFAULT_AUDIOGRAPH_BASE_URL;
   } catch {
     return DEFAULT_AUDIOGRAPH_BASE_URL;
   }

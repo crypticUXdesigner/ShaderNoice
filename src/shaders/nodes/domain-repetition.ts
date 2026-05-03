@@ -48,16 +48,16 @@ export const domainRepetitionNodeSpec: NodeSpec = {
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Offset X'
-    },
+      label: 'Offset X',
+      knobPolarity: 'two-sided' },
     offsetY: {
       type: 'float',
       default: 0.0,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Offset Y'
-    }
+      label: 'Offset Y',
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

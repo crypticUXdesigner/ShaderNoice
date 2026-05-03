@@ -27,8 +27,8 @@ export const sunbeamsNodeSpec: NodeSpec = {
       min: -180.0,
       max: 180.0,
       step: 1.0,
-      label: 'Angle'
-    },
+      label: 'Angle',
+      knobPolarity: 'two-sided' },
     spread: {
       type: 'float',
       default: 1.0,

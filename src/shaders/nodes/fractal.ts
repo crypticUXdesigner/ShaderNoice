@@ -51,8 +51,8 @@ export const fractalNodeSpec: NodeSpec = {
       min: -100.0,
       max: 100.0,
       step: 0.05,
-      label: 'Time Offset'
-    },
+      label: 'Time Offset',
+      knobPolarity: 'two-sided' },
     fractalAnimationSpeed: {
       type: 'float',
       default: 1.0,
@@ -67,16 +67,16 @@ export const fractalNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Rotation Speed'
-    },
+      label: 'Rotation Speed',
+      knobPolarity: 'two-sided' },
     fractalLayerPhase: {
       type: 'float',
       default: 0.1,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Layer Phase'
-    }
+      label: 'Layer Phase',
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

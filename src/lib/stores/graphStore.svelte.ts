@@ -26,6 +26,7 @@ import {
 import type { NodeInstance } from '../../data-model/types';
 import type { ParameterInputMode } from '../../types/nodeSpec';
 import type { ToolType } from '../../types/editor';
+import { appToastStore } from './appToastStore';
 
 export type { ToolType };
 
@@ -52,9 +53,15 @@ let timelineState = $state<TimelineState>({
 });
 let activeTool = $state<ToolType>('cursor');
 let isSpacebarPressed = $state(false);
+/** Patch tool: first picked connection id, or null. */
+let patchWireConnectionId = $state<string | null>(null);
+/** Patch tool: node to insert, or null. */
+let patchInsertNodeId = $state<string | null>(null);
 
 /** Optional listener invoked whenever the graph is mutated (for undo integration). Set by App. */
 let graphChangedListener: ((g: NodeGraph) => void) | null = null;
+/** Invoked whenever audioSetup is replaced (autosave/revision helpers). Set by App. */
+let audioChangedListener: (() => void) | null = null;
 
 // --- Derived ---
 
@@ -69,6 +76,7 @@ function setGraphAction(newGraph: NodeGraph): void {
 
 function setAudioSetupAction(newSetup: AudioSetup): void {
   audioSetup = newSetup;
+  audioChangedListener?.();
 }
 
 function updateNodePositionAction(
@@ -131,7 +139,26 @@ function setTimelineStateAction(partial: Partial<TimelineState>): void {
   timelineState = { ...timelineState, ...partial };
 }
 
+function clearPatchPicksAction(): void {
+  patchWireConnectionId = null;
+  patchInsertNodeId = null;
+}
+
+function setPatchWirePickAction(id: string | null): void {
+  patchWireConnectionId = id;
+}
+
+function setPatchInsertNodePickAction(id: string | null): void {
+  patchInsertNodeId = id;
+}
+
 function setActiveToolAction(tool: ToolType): void {
+  if (activeTool === 'patch' && tool !== 'patch') {
+    appToastStore.dismissBySource('patch-tool');
+  }
+  if (tool !== 'patch' || activeTool !== 'patch') {
+    clearPatchPicksAction();
+  }
   activeTool = tool;
 }
 
@@ -145,6 +172,10 @@ function setSpacebarPressedAction(pressed: boolean): void {
  */
 function setGraphChangedListener(fn: ((g: NodeGraph) => void) | null): void {
   graphChangedListener = fn;
+}
+
+function setAudioChangedListener(fn: (() => void) | null): void {
+  audioChangedListener = fn;
 }
 
 /**
@@ -176,6 +207,12 @@ export const graphStore = {
   get isSpacebarPressed(): boolean {
     return isSpacebarPressed;
   },
+  get patchWireConnectionId(): string | null {
+    return patchWireConnectionId;
+  },
+  get patchInsertNodeId(): string | null {
+    return patchInsertNodeId;
+  },
   setGraph: setGraphAction,
   setAudioSetup: setAudioSetupAction,
   updateNodePosition: updateNodePositionAction,
@@ -189,6 +226,10 @@ export const graphStore = {
   updateViewState: updateViewStateAction,
   setTimelineState: setTimelineStateAction,
   setActiveTool: setActiveToolAction,
+  setPatchWirePick: setPatchWirePickAction,
+  setPatchInsertNodePick: setPatchInsertNodePickAction,
+  clearPatchPicks: clearPatchPicksAction,
   setSpacebarPressed: setSpacebarPressedAction,
   setGraphChangedListener,
+  setAudioChangedListener,
 };

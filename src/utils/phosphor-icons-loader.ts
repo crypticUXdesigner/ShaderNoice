@@ -13,10 +13,10 @@ type PhosphorPathNode = ['path', { d: string }];
 type PhosphorIconData = PhosphorPathNode[];
 type PhosphorIconsMap = Record<string, PhosphorIconData>;
 
-// Public assets are served at the site root. Import URLs and fetch once.
-// (Do not reference `/public/...` — Vite warns and may break under `base`.)
-import phosphorNodesRegularUrl from '/phosphor-nodes-regular.json?url';
-import phosphorNodesFillUrl from '/phosphor-nodes-fill.json?url';
+// Resolve via project-relative paths so Vitest/node get real file URLs (root `/...?url`
+// becomes invalid `file:///name` under the test runner).
+import phosphorNodesRegularUrl from '../../public/phosphor-nodes-regular.json?url';
+import phosphorNodesFillUrl from '../../public/phosphor-nodes-fill.json?url';
 
 let phosphorNodesRegularData: PhosphorIconsMap | null = null;
 let phosphorNodesFillData: PhosphorIconsMap | null = null;

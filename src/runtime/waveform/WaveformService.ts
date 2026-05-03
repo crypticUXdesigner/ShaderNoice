@@ -9,7 +9,7 @@ import type { PrimarySource } from '../../data-model/audioSetupTypes';
 import type { WaveformData } from './types';
 import { AudiographClient, SCRUBBER_RESOLUTION } from './AudiographClient';
 import { computeWaveformFromBuffer, DEFAULT_WAVEFORM_LENGTH } from './bufferWaveform';
-import { getTrackDurationSeconds, getTrackMp3Url, getTracksData } from '../tracksData';
+import { getTrackDurationSeconds, getTracksData, resolvePlaylistTrackMp3Url } from '../tracksData';
 
 /** Normalize playlist trackId to API resource name (e.g. tracks/123). */
 function toAudiographResourceName(trackId: string): string {
@@ -87,7 +87,7 @@ export class WaveformService {
     const promise = (async () => {
       try {
         const data = await getTracksData();
-        const mp3Url = getTrackMp3Url(data, toAudiographResourceName(trackId));
+        const mp3Url = resolvePlaylistTrackMp3Url(data, toAudiographResourceName(trackId));
         if (!mp3Url) return EMPTY_WAVEFORM;
 
         const res = await fetch(mp3Url);

@@ -28,8 +28,8 @@ export const rippleNodeSpec: NodeSpec = {
       max: 2.0,
       step: 0.1,
       label: 'Center X',
-      inputMode: 'add'
-    },
+      inputMode: 'add',
+      knobPolarity: 'two-sided' },
     rippleCenterY: {
       type: 'float',
       default: 0.0,
@@ -37,8 +37,8 @@ export const rippleNodeSpec: NodeSpec = {
       max: 2.0,
       step: 0.1,
       label: 'Center Y',
-      inputMode: 'add'
-    },
+      inputMode: 'add',
+      knobPolarity: 'two-sided' },
     rippleMode: {
       type: 'int',
       default: 0,
@@ -69,8 +69,8 @@ export const rippleNodeSpec: NodeSpec = {
       min: -6.28,
       max: 6.28,
       step: 0.05,
-      label: 'Phase'
-    },
+      label: 'Phase',
+      knobPolarity: 'two-sided' },
     rippleTimeSpeed: {
       type: 'float',
       default: 1.0,
@@ -86,8 +86,8 @@ export const rippleNodeSpec: NodeSpec = {
       max: 100.0,
       step: 0.05,
       label: 'Offset',
-      inputMode: 'add'
-    }
+      inputMode: 'add',
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

@@ -1,10 +1,12 @@
 <script lang="ts">
   import { Button, IconSvg, Modal } from '../';
   import type { ButtonVariant } from '../button';
+  import { onDestroy } from 'svelte';
 
   interface Props {
     open?: boolean;
-    onClose?: () => void;
+    /** When omitted with showHeaderClose false, Escape/backdrop do not dismiss (blocking modal). */
+    onClose?: (() => void) | undefined;
     /** Optional CSS class applied to the Modal content element (`.content.frame`). */
     class?: string;
     /** Size preset for the modal frame. */
@@ -14,7 +16,7 @@
     /** Optional id for aria-labelledby / testing hooks. */
     titleId?: string;
 
-    /** When false, hide the top-right close button (Escape/backdrop still close via Modal). */
+    /** When false, hide the top-right close button. If `onClose` is also omitted on Modal, Escape/backdrop cannot dismiss. */
     showHeaderClose?: boolean;
 
     secondaryLabel?: string;
@@ -37,6 +39,10 @@
 
     /** Optional CSS class applied to the scrollable elevated body surface. */
     bodyClass?: string;
+    backdropDismisses?: boolean;
+    escapeDismisses?: boolean;
+    /** Visible header close stays focusable but does not fire when true. */
+    headerCloseDisabled?: boolean;
   }
 
   let {
@@ -58,13 +64,69 @@
     children,
     footer,
     bodyClass = '',
+    backdropDismisses = true,
+    escapeDismisses = true,
+    headerCloseDisabled = false,
   }: Props = $props();
+
+  let bodyScrollEl: HTMLDivElement | null = $state(null);
+  let contentScrollEl: HTMLDivElement | null = $state(null);
+
+  let showFadeTop = $state(false);
+  let showFadeBottom = $state(false);
+
+  function recomputeFades(el: HTMLElement | null): void {
+    if (!el) {
+      showFadeTop = false;
+      showFadeBottom = false;
+      return;
+    }
+
+    const scrollTop = el.scrollTop;
+    const maxScrollTop = el.scrollHeight - el.clientHeight;
+    const eps = 1;
+    showFadeTop = scrollTop > eps;
+    showFadeBottom = scrollTop < maxScrollTop - eps;
+  }
+
+  function handleScroll(): void {
+    const el = bodyScroll === 'content' ? contentScrollEl : bodyScrollEl;
+    recomputeFades(el);
+  }
+
+  let resizeObserver: ResizeObserver | null = null;
+  $effect(() => {
+    if (!open) return;
+
+    const el = bodyScroll === 'content' ? contentScrollEl : bodyScrollEl;
+    if (!el) return;
+
+    // Initial compute after layout settles.
+    requestAnimationFrame(() => recomputeFades(el));
+    requestAnimationFrame(() => recomputeFades(el));
+
+    resizeObserver?.disconnect();
+    resizeObserver = new ResizeObserver(() => recomputeFades(el));
+    resizeObserver.observe(el);
+
+    return () => {
+      resizeObserver?.disconnect();
+      resizeObserver = null;
+    };
+  });
+
+  onDestroy(() => {
+    resizeObserver?.disconnect();
+    resizeObserver = null;
+  });
 </script>
 
 <Modal
   {open}
   onClose={onClose}
   contentClass={`modal-dialog modal-dialog--${variant} ${className || ''}`}
+  backdropDismisses={backdropDismisses}
+  escapeDismisses={escapeDismisses}
 >
   <div class="modal-dialog-shell">
     <header class="modal-dialog-header">
@@ -76,7 +138,10 @@
           mode="both"
           iconPosition="trailing"
           class="modal-dialog-close-btn"
-          onclick={() => onClose?.()}
+          disabled={headerCloseDisabled}
+          onclick={() => {
+            if (!headerCloseDisabled) onClose?.();
+          }}
           aria-label="Close dialog"
         >
           Close
@@ -88,21 +153,48 @@
     <div class="modal-dialog-main">
       <div
         class="modal-dialog-body frame-elevated {bodyClass}"
-        class:scrollbar-styled={bodyScroll === 'body'}
         class:modal-dialog-body--content-scroll={bodyScroll === 'content'}
+        class:modal-dialog-body--body-scroll={bodyScroll === 'body'}
       >
-        {#if bodyTopbar}
-          <div class="modal-dialog-topbar">
-            {@render bodyTopbar()}
-          </div>
-        {/if}
-
         {#if bodyScroll === 'content'}
-          <div class="modal-dialog-scroll scrollbar-styled">
-            {@render children?.()}
+          {#if bodyTopbar}
+            <div class="modal-dialog-topbar">
+              {@render bodyTopbar()}
+            </div>
+          {/if}
+
+          <div
+            class="modal-dialog-scroll-wrap"
+            data-fade-top={showFadeTop}
+            data-fade-bottom={showFadeBottom}
+          >
+            <div
+              class="modal-dialog-scroll scrollbar-styled"
+              bind:this={contentScrollEl}
+              onscroll={handleScroll}
+            >
+              {@render children?.()}
+            </div>
           </div>
         {:else}
-          {@render children?.()}
+          <div
+            class="modal-dialog-body-scroll-wrap"
+            data-fade-top={showFadeTop}
+            data-fade-bottom={showFadeBottom}
+          >
+            <div
+              class="modal-dialog-body-scroll scrollbar-styled"
+              bind:this={bodyScrollEl}
+              onscroll={handleScroll}
+            >
+              {#if bodyTopbar}
+                <div class="modal-dialog-topbar">
+                  {@render bodyTopbar()}
+                </div>
+              {/if}
+              {@render children?.()}
+            </div>
+          </div>
         {/if}
       </div>
     </div>
@@ -205,7 +297,7 @@
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    overflow: auto;
+    overflow: hidden;
     width: 100%;
     box-sizing: border-box;
     border-radius: var(--frame-elevated-radius);
@@ -214,7 +306,11 @@
   }
 
   .modal-dialog-body--content-scroll {
-    overflow: hidden;
+    padding: 0;
+    gap: 0;
+  }
+
+  .modal-dialog-body--body-scroll {
     padding: 0;
     gap: 0;
   }
@@ -227,6 +323,15 @@
     padding: var(--pd-md) var(--pd-xl);
   }
 
+  .modal-dialog-scroll-wrap,
+  .modal-dialog-body-scroll-wrap {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
   .modal-dialog-scroll {
     display: flex;
     flex-direction: column;
@@ -237,6 +342,55 @@
     box-sizing: border-box;
     padding: var(--pd-xl);
     gap: var(--pd-md);
+  }
+
+  .modal-dialog-body-scroll {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    width: 100%;
+    box-sizing: border-box;
+    padding: var(--pd-xl);
+    gap: var(--pd-md);
+  }
+
+  /* Scroll hint fades: indicate more content above/below the viewport. */
+  .modal-dialog-scroll-wrap::before,
+  .modal-dialog-scroll-wrap::after,
+  .modal-dialog-body-scroll-wrap::before,
+  .modal-dialog-body-scroll-wrap::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 18px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 140ms ease;
+  }
+
+  .modal-dialog-scroll-wrap::before,
+  .modal-dialog-body-scroll-wrap::before {
+    top: 0;
+    background: linear-gradient(to bottom, var(--frame-elevated-bg) 0%, rgba(0, 0, 0, 0) 100%);
+  }
+
+  .modal-dialog-scroll-wrap::after,
+  .modal-dialog-body-scroll-wrap::after {
+    bottom: 0;
+    background: linear-gradient(to top, var(--frame-elevated-bg) 0%, rgba(0, 0, 0, 0) 100%);
+  }
+
+  .modal-dialog-scroll-wrap[data-fade-top='true']::before,
+  .modal-dialog-body-scroll-wrap[data-fade-top='true']::before {
+    opacity: 1;
+  }
+
+  .modal-dialog-scroll-wrap[data-fade-bottom='true']::after,
+  .modal-dialog-body-scroll-wrap[data-fade-bottom='true']::after {
+    opacity: 1;
   }
 
   .modal-dialog-footer {

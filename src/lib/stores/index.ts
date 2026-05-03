@@ -9,6 +9,11 @@ export {
   type TimelineState,
 } from './graphStore.svelte';
 
-export { errorStore, errorNotifications } from './errorStore';
+export {
+  appToastStore,
+  APP_TOAST_BURST_MERGE_MS,
+  type AppToast,
+  type ToastVariant,
+} from './appToastStore';
 export { errorAnnouncer, formatErrorForAnnouncer } from './errorAnnouncer';
 export { subscribeParameterValueTick } from './parameterValueTickStore';

@@ -4,36 +4,24 @@ globs: "docs/projects/**/*.md,.cursor/commands/**/*.md,.cursor/skills/**/*.md"
 alwaysApply: false
 ---
 
-# Project Workflow — Work Package Commands
+# Slash workflow
 
-Use this when planning multi-step work, breaking down projects, or reviewing completed work.
+Context: **`AGENTS.md`**, **`core/project-conventions.mdc`** (immutable graph, user-goals, data-model).
 
-**Before running commands**: Ensure `AGENTS.md` and `.cursor/rules/core/project-conventions.mdc` are in context (graph = immutable, user-goals, data-model).
+**Invoke:** `/` in chat → pick command or skill. **Canonical prose** lives in **`.cursor/commands/*.md`**; repeatable runners in **`.cursor/skills/*/SKILL.md`**. Shared task-file rules: **`workpkg-hygiene.mdc`**.
 
-**Project workflow**: In chat, type `/` to see and run project tools. The core project/task workflow lives in **skills** under **`.cursor/skills/`** (define-project, define-tasks, implement-task, review-project). Additional one-off tools may exist as **commands** under **`.cursor/commands/`**. Shared conventions: `.cursor/rules/workflow/workpkg-hygiene.mdc`.
+| Intent | Slash |
+| --- | --- |
+| New multi-step initiative, fuzzy goals | `/define-project` |
+| Goals clear → task files | `/define-tasks` |
+| ShaderToy gap analysis | `/analyze-shadertoy` |
+| Execute one tracked task | `/implement-task` (attach `_OVERVIEW` + task markdown) |
+| CI / Pages green | `/prepare-commit` (`npm run verify:pages`) |
+| Post-project QA pass | `/review-project` |
+| Architecture findings → maybe WPs | `/review-architecture` |
+| Performance findings → maybe WPs | `/review-performance` |
+| Capture investigated bug | `/write-bug` |
+| Close loop on `docs/bug/` report | `/review-bug` |
+| Audit Cursor agent config itself | `/review-agent-tooling` |
 
-## Which command to use
-
-- **Starting a new project?** → `/define-project` (goals unclear) or `/define-tasks` (goals clear).
-- **Analyzing a Shadertoy (or similar) shader?** → `/analyze-shadertoy` (if not replicable with existing nodes → define-project + define-tasks).
-- **Implement one task?** → `/implement-task` (give overview file + task file to agent).
-- **Prepare for commit or PR (CI / Pages green)?** → `/prepare-commit` (see `.cursor/commands/prepare-commit.md`, `npm run verify:pages`).
-- **Tasks complete, want review?** → `/review-project`.
-- **Improve architecture?** → `/review-architecture`.
-- **Improve performance?** → `/review-performance`.
-- **Document an investigated bug?** → `/write-bug`.
-- **Investigate bug report and fix root cause?** → `/review-bug`.
-
-Example: to break a feature into tasks, run `/define-tasks` (after `/define-project` if goals were unclear).
-
-## Command paths
-
-Project workflow skills live in **`.cursor/skills/`**: `define-project`, `define-tasks`, `implement-task`, `review-project`. Other tools live in **`.cursor/commands/`**: `prepare-commit.md`, `review-architecture.md`, `review-performance.md`, `write-bug.md`, `review-bug.md`, `analyze-shadertoy.md`, `workpkg-quick-reference.md`.
-
-## After large refactors or new subsystems
-
-Consider whether `.cursor/rules/` or `docs/` need updates (new rule, glob change, or doc section). Propose them in review or a follow-up; do not expand implementation into broad doc or rules updates.
-
-## Rule maintenance
-
-Periodically review `.cursor/rules/`: remove outdated rules, shorten long ones, and align with current architecture. See `.cursor/rules/writing-rules.mdc` for when to add or change rules.
+After big structural changes: consider new/updated **`docs/`** or **`.cursor/rules/`** entries — propose separately, don’t fold into unrelated implementation PRs unless required.

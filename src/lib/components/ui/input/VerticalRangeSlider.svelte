@@ -24,21 +24,18 @@
     onChange
   }: Props = $props();
 
-  let low = $state(0);
-  let high = $state(1);
   let draggingHandle = $state<'low' | 'high' | null>(null);
+  let dragLow = $state(0);
+  let dragHigh = $state(1);
 
-  $effect(() => {
-    const l = lowValue;
-    const h = highValue;
-    if (allowInverted) {
-      low = l;
-      high = h;
-    } else {
-      low = Math.min(l, h);
-      high = Math.max(l, h);
-    }
-  });
+  const fromProps = $derived.by(() =>
+    allowInverted
+      ? { low: lowValue, high: highValue }
+      : { low: Math.min(lowValue, highValue), high: Math.max(lowValue, highValue) }
+  );
+
+  const low = $derived(draggingHandle !== null ? dragLow : fromProps.low);
+  const high = $derived(draggingHandle !== null ? dragHigh : fromProps.high);
 
   function snapValue(raw: number): number {
     let v = Math.max(min, Math.min(max, raw));
@@ -68,6 +65,8 @@
   function handlePointerDown(handle: 'low' | 'high', e: PointerEvent) {
     if (disabled) return;
     draggingHandle = handle;
+    dragLow = fromProps.low;
+    dragHigh = fromProps.high;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
 
@@ -79,11 +78,11 @@
     const snapped = snapValue(rawValue);
 
     if (draggingHandle === 'low') {
-      low = allowInverted ? snapped : Math.min(snapped, high);
-      onChange?.({ low, high });
+      dragLow = allowInverted ? snapped : Math.min(snapped, dragHigh);
+      onChange?.({ low: dragLow, high: dragHigh });
     } else {
-      high = allowInverted ? snapped : Math.max(snapped, low);
-      onChange?.({ low, high });
+      dragHigh = allowInverted ? snapped : Math.max(snapped, dragLow);
+      onChange?.({ low: dragLow, high: dragHigh });
     }
   }
 

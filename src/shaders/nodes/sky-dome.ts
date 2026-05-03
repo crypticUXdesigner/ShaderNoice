@@ -83,24 +83,24 @@ export const skyDomeNodeSpec: NodeSpec = {
       min: -1.0,
       max: 1.0,
       step: 0.05,
-      label: 'X'
-    },
+      label: 'X',
+      knobPolarity: 'two-sided' },
     sunDirY: {
       type: 'float',
       default: 0.9,
       min: -1.0,
       max: 1.0,
       step: 0.05,
-      label: 'Y'
-    },
+      label: 'Y',
+      knobPolarity: 'two-sided' },
     sunDirZ: {
       type: 'float',
       default: -0.44,
       min: -1.0,
       max: 1.0,
       step: 0.05,
-      label: 'Z'
-    },
+      label: 'Z',
+      knobPolarity: 'two-sided' },
     sunRadius: {
       type: 'float',
       default: 0.02,

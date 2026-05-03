@@ -46,8 +46,8 @@ export const kifsSdfNodeSpec: NodeSpec = {
       step: 0.1,
       label: 'Offset X',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     offsetY: {
       type: 'float',
       default: -2.0,
@@ -56,8 +56,8 @@ export const kifsSdfNodeSpec: NodeSpec = {
       step: 0.1,
       label: 'Offset Y',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     offsetZ: {
       type: 'float',
       default: -0.2,
@@ -66,8 +66,8 @@ export const kifsSdfNodeSpec: NodeSpec = {
       step: 0.1,
       label: 'Offset Z',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     rotationAxisX: {
       type: 'float',
       default: 1.0,
@@ -76,8 +76,8 @@ export const kifsSdfNodeSpec: NodeSpec = {
       step: 0.1,
       label: 'Axis X',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     rotationAxisY: {
       type: 'float',
       default: 4.0,
@@ -86,8 +86,8 @@ export const kifsSdfNodeSpec: NodeSpec = {
       step: 0.1,
       label: 'Axis Y',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     rotationAxisZ: {
       type: 'float',
       default: 2.0,
@@ -96,8 +96,8 @@ export const kifsSdfNodeSpec: NodeSpec = {
       step: 0.1,
       label: 'Axis Z',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     rotationAngle: {
       type: 'float',
       default: 0.0,
@@ -106,8 +106,8 @@ export const kifsSdfNodeSpec: NodeSpec = {
       step: 0.05,
       label: 'Angle',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     iterations: {
       type: 'int',
       default: 16,
@@ -137,8 +137,8 @@ export const kifsSdfNodeSpec: NodeSpec = {
       label: 'Pos X',
       inputMode: 'override',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     positionY: {
       type: 'float',
       default: 0.0,
@@ -148,8 +148,8 @@ export const kifsSdfNodeSpec: NodeSpec = {
       label: 'Pos Y',
       inputMode: 'override',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     positionZ: {
       type: 'float',
       default: 0.0,
@@ -159,8 +159,8 @@ export const kifsSdfNodeSpec: NodeSpec = {
       label: 'Pos Z',
       inputMode: 'override',
       supportsAnimation: true,
-      supportsAudio: true
-    }
+      supportsAudio: true,
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

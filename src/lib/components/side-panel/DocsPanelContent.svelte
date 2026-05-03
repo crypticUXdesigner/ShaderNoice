@@ -18,7 +18,8 @@
   let { nodeSpecs = [], onOpenNodeHelp }: Props = $props();
 
   let searchQuery = $state('');
-  let selectedNodeType = $state<string | null>(null);
+  /** When null, selection falls back to the first doc entry (derived). */
+  let userSelectedNodeType = $state<string | null>(null);
   let helpData = $state<HelpData | null>(null);
 
   onMount(() => {
@@ -51,6 +52,11 @@
     return s.toLowerCase().trim();
   }
 
+  const effectiveSelectedNodeType = $derived.by((): string | null => {
+    if (userSelectedNodeType != null) return userSelectedNodeType;
+    return allEntries.length > 0 ? allEntries[0]!.spec.id : null;
+  });
+
   const filteredEntries = $derived.by((): NodeDocEntry[] => {
     const q = normalize(searchQuery);
     if (q === '') return allEntries;
@@ -65,14 +71,8 @@
     });
   });
 
-  $effect(() => {
-    if (selectedNodeType != null) return;
-    if (allEntries.length === 0) return;
-    selectedNodeType = allEntries[0]!.spec.id;
-  });
-
   function openHelp(nodeType: string) {
-    selectedNodeType = nodeType;
+    userSelectedNodeType = nodeType;
     onOpenNodeHelp?.(nodeType);
   }
 </script>
@@ -101,7 +101,7 @@
   <div class="body">
     <ul class="list" aria-label="Node documentation list">
       {#each filteredEntries as entry (entry.spec.id)}
-        {@const isActive = entry.spec.id === selectedNodeType}
+        {@const isActive = entry.spec.id === effectiveSelectedNodeType}
         <li>
           <DocsPanelItem
             spec={entry.spec}

@@ -43,24 +43,24 @@ export const normalMappingNodeSpec: NodeSpec = {
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'X'
-    },
+      label: 'X',
+      knobPolarity: 'two-sided' },
     normalLightY: {
       type: 'float',
       default: 0.5,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Y'
-    },
+      label: 'Y',
+      knobPolarity: 'two-sided' },
     normalLightZ: {
       type: 'float',
       default: 1.0,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Z'
-    }
+      label: 'Z',
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

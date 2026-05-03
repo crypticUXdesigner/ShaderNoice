@@ -36,8 +36,8 @@ export const etherSdfNodeSpec: NodeSpec = {
       step: 0.001,
       label: 'Rotate XZ',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     rotSpeedXY: {
       type: 'float',
       default: 0.3,
@@ -46,8 +46,8 @@ export const etherSdfNodeSpec: NodeSpec = {
       step: 0.001,
       label: 'Rotate XY',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     scale: {
       type: 'float',
       default: 2.0,
@@ -76,8 +76,8 @@ export const etherSdfNodeSpec: NodeSpec = {
       step: 0.001,
       label: 'Time Offset',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     wobbleSpeed: {
       type: 'float',
       default: 0.7,
@@ -127,8 +127,8 @@ export const etherSdfNodeSpec: NodeSpec = {
       label: 'Pos X',
       inputMode: 'override',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     positionY: {
       type: 'float',
       default: 0.0,
@@ -138,8 +138,8 @@ export const etherSdfNodeSpec: NodeSpec = {
       label: 'Pos Y',
       inputMode: 'override',
       supportsAnimation: true,
-      supportsAudio: true
-    },
+      supportsAudio: true,
+      knobPolarity: 'two-sided' },
     positionZ: {
       type: 'float',
       default: 0.0,
@@ -149,8 +149,8 @@ export const etherSdfNodeSpec: NodeSpec = {
       label: 'Pos Z',
       inputMode: 'override',
       supportsAnimation: true,
-      supportsAudio: true
-    }
+      supportsAudio: true,
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

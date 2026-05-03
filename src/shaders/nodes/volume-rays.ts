@@ -59,16 +59,16 @@ export const volumeRaysNodeSpec: NodeSpec = {
       min: -5.0,
       max: 5.0,
       step: 0.1,
-      label: 'Camera X'
-    },
+      label: 'Camera X',
+      knobPolarity: 'two-sided' },
     cameraPosY: {
       type: 'float',
       default: 0.0,
       min: -5.0,
       max: 5.0,
       step: 0.1,
-      label: 'Camera Y'
-    },
+      label: 'Camera Y',
+      knobPolarity: 'two-sided' },
     cameraPosZ: {
       type: 'float',
       default: 3.0,
@@ -83,16 +83,16 @@ export const volumeRaysNodeSpec: NodeSpec = {
       min: -3.14159,
       max: 3.14159,
       step: 0.01,
-      label: 'Yaw'
-    },
+      label: 'Yaw',
+      knobPolarity: 'two-sided' },
     cameraPitch: {
       type: 'float',
       default: 0.0,
       min: -1.57,
       max: 1.57,
       step: 0.01,
-      label: 'Pitch'
-    },
+      label: 'Pitch',
+      knobPolarity: 'two-sided' },
     cameraFovScale: {
       type: 'float',
       default: 1.0,

@@ -6,7 +6,12 @@
   import TopBarPresetAndExport from './TopBarPresetAndExport.svelte';
   import TopBarViewControls from './TopBarViewControls.svelte';
   import TopBarViewportStatus from './TopBarViewportStatus.svelte';
+  import AudiotoolAccountMenu from './AudiotoolAccountMenu.svelte';
+  import AudiotoolMarkSvg from '../ui/icon/AudiotoolMarkSvg.svelte';
+  import Button from '../ui/button/Button.svelte';
+  import type { Action } from 'svelte/action';
   import type { ViewMode } from '../editor/types';
+  import type { AuthenticatedClient } from '@audiotool/nexus';
 
   interface Props {
     /** Called with the top bar root element so layout can measure height. */
@@ -32,6 +37,15 @@
     onZoomChange?: (zoom: number) => void;
     onHelpClick?: () => void;
     onShortcutsClick?: () => void;
+    /** When set, shows Audiotool OAuth account control (avatar / user icon + sign out). */
+    audiotoolAccount?: {
+      userName: string;
+      onLogout: () => void;
+      rpcClient?: AuthenticatedClient | null;
+      onAudiotoolSessionInvalidated?: () => void;
+    } | null;
+    /** Audiotool configured but disconnected: chrome entry for OAuth redirect. Hidden while splash is up. */
+    audiotoolSignInChrome?: (() => void) | null;
   }
 
   let {
@@ -55,17 +69,25 @@
     onZoomChange,
     onHelpClick,
     onShortcutsClick,
+    audiotoolAccount = null,
+    audiotoolSignInChrome = null,
   }: Props = $props();
 
-  let barEl = $state<HTMLDivElement | undefined>(undefined);
-
-  $effect(() => {
-    if (barEl && barElement) barElement(barEl);
-  });
+  const notifyBarElement: Action<
+    HTMLDivElement,
+    ((el: HTMLDivElement) => void) | undefined
+  > = (node, callback) => {
+    callback?.(node);
+    return {
+      update(next) {
+        next?.(node);
+      },
+    };
+  };
 </script>
 
 <div
-  bind:this={barEl}
+  use:notifyBarElement={barElement}
   class="top-bar"
   style="--top-bar-left-offset: {panelOffset}px;"
 >
@@ -86,6 +108,28 @@
     <TopBarViewControls {viewMode} {setViewMode} />
   </div>
   <div class="top-bar-right">
+    {#if audiotoolAccount}
+      <AudiotoolAccountMenu
+        userName={audiotoolAccount.userName}
+        onLogout={audiotoolAccount.onLogout}
+        rpcClient={audiotoolAccount.rpcClient ?? null}
+        onAudiotoolSessionInvalidated={audiotoolAccount.onAudiotoolSessionInvalidated}
+      />
+    {:else if audiotoolSignInChrome}
+      <div class="top-bar-audiotool-signin">
+        <Button
+          variant="ghost"
+          size="sm"
+          mode="both"
+          class="top-bar-audiotool-signin__btn"
+          title="Sign in to access your Audiotool content"
+          onclick={() => audiotoolSignInChrome?.()}
+        >
+          <AudiotoolMarkSvg />
+          <span class="top-bar-audiotool-signin__label">Connect</span>
+        </Button>
+      </div>
+    {/if}
     <TopBarViewportStatus
       {zoomPercent}
       {fps}
@@ -138,5 +182,22 @@
     display: flex;
     align-items: center;
     gap: var(--pd-md);
+  }
+
+  .top-bar-audiotool-signin {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  :global(button.top-bar-audiotool-signin__btn.ghost:not(:disabled)) {
+    gap: var(--pd-sm);
+    max-width: min(220px, 40vw);
+  }
+
+  .top-bar-audiotool-signin__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>

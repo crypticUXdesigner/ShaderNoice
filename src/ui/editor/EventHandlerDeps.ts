@@ -95,6 +95,7 @@ export interface MouseEventHandlerDepsSource {
   setInteractionState(state: Parameters<MouseEventHandlerDependencies['setInteractionState']>[0]): void;
   setSmartGuides(guides: Parameters<MouseEventHandlerDependencies['setSmartGuides']>[0]): void;
   updateMousePosition(x: number, y: number): void;
+  onRequestAddNodeAtCanvas?: (screenX: number, screenY: number) => void;
 }
 
 /** Shape required from canvas to build wheel handler deps. */
@@ -158,7 +159,8 @@ export function buildMouseEventHandlerDeps(
     getInteractionState: () => source.getInteractionState(),
     setInteractionState: (state) => source.setInteractionState(state),
     setSmartGuides: (guides) => source.setSmartGuides(guides),
-    updateMousePosition: (x, y) => source.updateMousePosition(x, y)
+    updateMousePosition: (x, y) => source.updateMousePosition(x, y),
+    onRequestAddNodeAtCanvas: source.onRequestAddNodeAtCanvas
   };
 }
 

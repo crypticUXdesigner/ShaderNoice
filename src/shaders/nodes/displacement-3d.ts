@@ -84,8 +84,8 @@ export const displacement3dNodeSpec: NodeSpec = {
       min: -100.0,
       max: 100.0,
       step: 0.05,
-      label: 'Time Offset'
-    },
+      label: 'Time Offset',
+      knobPolarity: 'two-sided' },
     positionX: {
       type: 'float',
       default: 0.0,
@@ -93,8 +93,8 @@ export const displacement3dNodeSpec: NodeSpec = {
       max: 10.0,
       step: 0.1,
       label: 'Pos X',
-      inputMode: 'override'
-    },
+      inputMode: 'override',
+      knobPolarity: 'two-sided' },
     positionY: {
       type: 'float',
       default: 0.0,
@@ -102,8 +102,8 @@ export const displacement3dNodeSpec: NodeSpec = {
       max: 10.0,
       step: 0.1,
       label: 'Pos Y',
-      inputMode: 'override'
-    },
+      inputMode: 'override',
+      knobPolarity: 'two-sided' },
     positionZ: {
       type: 'float',
       default: 0.0,
@@ -111,8 +111,8 @@ export const displacement3dNodeSpec: NodeSpec = {
       max: 10.0,
       step: 0.1,
       label: 'Pos Z',
-      inputMode: 'override'
-    }
+      inputMode: 'override',
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

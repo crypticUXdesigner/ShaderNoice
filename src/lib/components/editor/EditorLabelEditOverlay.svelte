@@ -4,6 +4,7 @@
    * Uses the shared Input Svelte component. Backdrop click commits.
    */
   import { tick } from 'svelte';
+  import type { Action } from 'svelte/action';
   import { Input } from '../ui';
 
   interface Props {
@@ -26,22 +27,27 @@
     onCancel,
   }: Props = $props();
 
-  let wrapperEl = $state<HTMLDivElement | null>(null);
   let inputValue = $state('');
 
-  $effect(() => {
-    if (!visible) return;
-    inputValue = label ?? '';
-  });
-
-  $effect(() => {
-    if (!visible || !wrapperEl) return;
-    tick().then(() => {
-      const el = wrapperEl?.querySelector('input');
-      el?.focus();
-      el?.select();
-    });
-  });
+  const syncLabelOverlay: Action<
+    HTMLDivElement,
+    { visible: boolean; label: string | undefined; setInput: (v: string) => void }
+  > = (_node, _p) => {
+    let prevVis = false;
+    return {
+      update(np) {
+        if (np.visible && !prevVis) {
+          np.setInput(np.label ?? '');
+          tick().then(() => {
+            const el = _node.querySelector('input');
+            el?.focus();
+            el?.select();
+          });
+        }
+        prevVis = np.visible;
+      },
+    };
+  };
 
   function handleCommit() {
     const trimmed = inputValue.trim() || undefined;
@@ -71,11 +77,17 @@
     onkeydown={(e) => e.key === 'Escape' && onCancel()}
   ></div>
   <div
-    bind:this={wrapperEl}
     class="canvas-label-edit-overlay"
     style="left: {x}px; top: {y}px; min-width: {minWidth}px;"
     role="dialog"
     aria-label="Edit node label"
+    use:syncLabelOverlay={{
+      visible,
+      label,
+      setInput: (v) => {
+        inputValue = v;
+      },
+    }}
   >
     <Input
       type="text"

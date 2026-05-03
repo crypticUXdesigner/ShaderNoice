@@ -21,16 +21,17 @@
     onChange
   }: Props = $props();
 
-  let low = $state(0);
-  let high = $state(0);
   let draggingHandle = $state<'low' | 'high' | null>(null);
+  let dragLow = $state(0);
+  let dragHigh = $state(0);
 
-  $effect(() => {
-    const l = lowValue;
-    const h = highValue;
-    low = Math.min(l, h);
-    high = Math.max(l, h);
-  });
+  const fromProps = $derived.by(() => ({
+    low: Math.min(lowValue, highValue),
+    high: Math.max(lowValue, highValue),
+  }));
+
+  const low = $derived(draggingHandle !== null ? dragLow : fromProps.low);
+  const high = $derived(draggingHandle !== null ? dragHigh : fromProps.high);
 
   function snapValue(raw: number): number {
     let v = Math.max(min, Math.min(max, raw));
@@ -59,6 +60,8 @@
   function handlePointerDown(handle: 'low' | 'high', e: PointerEvent) {
     if (disabled) return;
     draggingHandle = handle;
+    dragLow = fromProps.low;
+    dragHigh = fromProps.high;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
 
@@ -70,11 +73,11 @@
     const snapped = snapValue(rawValue);
 
     if (draggingHandle === 'low') {
-      low = Math.min(snapped, high);
-      onChange?.({ low, high });
+      dragLow = Math.min(snapped, dragHigh);
+      onChange?.({ low: dragLow, high: dragHigh });
     } else {
-      high = Math.max(snapped, low);
-      onChange?.({ low, high });
+      dragHigh = Math.max(snapped, dragLow);
+      onChange?.({ low: dragLow, high: dragHigh });
     }
   }
 

@@ -31,64 +31,64 @@ export const quadWarpNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Bottom Left X'
-    },
+      label: 'Bottom Left X',
+      knobPolarity: 'two-sided' },
     quadCorner0Y: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Bottom Left Y'
-    },
+      label: 'Bottom Left Y',
+      knobPolarity: 'two-sided' },
     quadCorner1X: {
       type: 'float',
       default: 1.0,
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Bottom Right X'
-    },
+      label: 'Bottom Right X',
+      knobPolarity: 'two-sided' },
     quadCorner1Y: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Bottom Right Y'
-    },
+      label: 'Bottom Right Y',
+      knobPolarity: 'two-sided' },
     quadCorner2X: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Top Left X'
-    },
+      label: 'Top Left X',
+      knobPolarity: 'two-sided' },
     quadCorner2Y: {
       type: 'float',
       default: 1.0,
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Top Left Y'
-    },
+      label: 'Top Left Y',
+      knobPolarity: 'two-sided' },
     quadCorner3X: {
       type: 'float',
       default: 1.0,
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Top Right X'
-    },
+      label: 'Top Right X',
+      knobPolarity: 'two-sided' },
     quadCorner3Y: {
       type: 'float',
       default: 1.0,
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Top Right Y'
-    }
+      label: 'Top Right Y',
+      knobPolarity: 'two-sided' }
   },
   parameterLayout: {
     elements: [

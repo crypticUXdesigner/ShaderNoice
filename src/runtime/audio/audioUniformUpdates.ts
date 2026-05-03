@@ -81,13 +81,29 @@ export function collectAudioUniformUpdates(
     }
   }
 
+  const curveUniformProviders = offlineFileUniforms;
+  const useCurveSampler = !!(curveUniformProviders && curveUniformProviders.size > 0);
+
+  // Canonical-curve uniforms would otherwise skip FrequencyAnalyzer entirely, which leaves panel
+  // analyzers stale: no smoothedBandValues → remap needles hidden, spectrum frozen, virtual-node
+  // live reads null. Refresh FFT→smoothing for UI while shader uniforms come from curves below.
+  if (useCurveSampler) {
+    frequencyAnalyzer.updateFrequencyAnalysis(
+      audioNodeStates,
+      graph ?? undefined,
+      undefined,
+      threshold,
+      false
+    );
+  }
+
   // Preferred live path (Phase 2): when we have a decoded AudioBuffer, sample the same
   // canonical 120 Hz analysis curve used by export and emit those values directly.
   //
   // When provided, offlineFileUniforms should cover all file-backed sources in audioSetup;
-  // in that case, we skip the analyser-driven FrequencyAnalyzer path to avoid duplicates.
-  if (offlineFileUniforms && offlineFileUniforms.size > 0) {
-    for (const [fileId, provider] of offlineFileUniforms.entries()) {
+  // in that case, we skip the analyser-returned uniform branch + panel remap blocks to avoid duplicates.
+  if (useCurveSampler && curveUniformProviders) {
+    for (const [fileId, provider] of curveUniformProviders.entries()) {
       const state = audioNodeStates.get(fileId);
       if (!state?.audioBuffer) continue;
       const uniformUpdates = provider.getUniformUpdatesAtTime(state.currentTime);

@@ -199,5 +199,15 @@ export function getParameterEnumMappings(
     return { 0: 'Concentric', 1: 'Directional' };
   }
 
+  // oscillator-2d - layerCombine (same merge rule on X and Y stacks)
+  if (nodeId === 'oscillator-2d' && paramName === 'layerCombine') {
+    return {
+      0: 'Sum',
+      1: 'Normalized',
+      2: 'Product',
+      3: 'Max |·|',
+    };
+  }
+
   return null;
 }

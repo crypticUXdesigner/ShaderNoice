@@ -70,6 +70,8 @@ export interface MouseEventHandlerDependencies {
   getOnConnectionCreated?: () => MouseEventHandlerDependencies['onConnectionCreated'];
   onNodeMoved?: (nodeId: string, x: number, y: number) => void;
   onNodeSelected?: (nodeId: string | null, multiSelect: boolean) => void;
+  /** Empty-canvas add flow: show picker anchored at screen position. */
+  onRequestAddNodeAtCanvas?: (screenX: number, screenY: number) => void;
   
   // Methods
   attachDocumentListeners: () => void;
@@ -329,7 +331,8 @@ export class MouseEventHandler {
         mouseX,
         mouseY,
         () => this.getActiveTool(),
-        () => this.deps.getIsSpacePressed?.() ?? this.deps.isSpacePressed
+        () => this.deps.getIsSpacePressed?.() ?? this.deps.isSpacePressed,
+        e.altKey
       );
     }
     
@@ -389,7 +392,15 @@ export class MouseEventHandler {
     }
 
     resetInteractionState(this.getMoveContext());
-    this.deps.canvas.style.cursor = (this.deps.getIsSpacePressed?.() ?? this.deps.isSpacePressed) ? 'grab' : 'default';
+    const space = this.deps.getIsSpacePressed?.() ?? this.deps.isSpacePressed;
+    const t = this.getActiveTool();
+    if (space) {
+      this.deps.canvas.style.cursor = 'grab';
+    } else if (t === 'add') {
+      this.deps.canvas.style.cursor = 'crosshair';
+    } else {
+      this.deps.canvas.style.cursor = 'default';
+    }
   }
   
   /**

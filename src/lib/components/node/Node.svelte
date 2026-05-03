@@ -29,6 +29,8 @@
     node: NodeInstance;
     spec: NodeSpec;
     metrics: DomNodeMetrics;
+    /** Palette/add-picker spawn: brief entrance emphasis (CSS). */
+    justLanded?: boolean;
     selected: boolean;
     graph: NodeGraph;
     audioSetup: AudioSetup;
@@ -54,6 +56,7 @@
     node,
     spec,
     metrics,
+    justLanded = false,
     selected,
     graph,
     audioSetup,
@@ -97,9 +100,9 @@
 <!-- svelte-ignore a11y_click_events_have_key_events - Node is a custom region; selection and context menu are handled by parent/canvas; keyboard handled elsewhere -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions - Node is a custom region; selection and context menu are handled by parent/canvas; keyboard handled elsewhere -->
 <div
-  class="node {categorySlug} {isSystemInput ? 'system-input' : ''} {isStructuredPattern ? 'structured' : ''} {isDerivedShape ? 'derived' : ''} {isWarpDistort ? 'warp' : ''} {isFunctionsMath ? 'functions' : ''} {isAdvancedMath ? 'advanced' : ''} {isStylizeEffects ? 'stylize' : ''} {isSdfRaymarcher ? 'raymarcher' : ''} {isShiny ? 'shiny' : ''} {selected ? 'selected' : ''}"
+  class="node {categorySlug} {isSystemInput ? 'system-input' : ''} {isStructuredPattern ? 'structured' : ''} {isDerivedShape ? 'derived' : ''} {isWarpDistort ? 'warp' : ''} {isFunctionsMath ? 'functions' : ''} {isAdvancedMath ? 'advanced' : ''} {isStylizeEffects ? 'stylize' : ''} {isSdfRaymarcher ? 'raymarcher' : ''} {isShiny ? 'shiny' : ''} {justLanded ? 'landed' : ''} {selected ? 'selected' : ''}"
   data-node-id={nodeId}
-  style="transform: translate({node.position.x}px, {node.position.y}px); width: {metrics.width}px; min-height: {metrics.height}px;"
+  style="--node-x: {node.position.x}px; --node-y: {node.position.y}px; transform: translate(var(--node-x), var(--node-y)); width: {metrics.width}px; min-height: {metrics.height}px;"
   role="article"
   aria-label="Node: {label}"
   onclick={handleClick}
@@ -169,6 +172,28 @@
       box-shadow:
         0 0 0 5px var(--node-border-selected),
         var(--node-box-shadow-selected);
+    }
+
+    /* Intro: position via --node-x/--node-y so translate + scale can run on the same element */
+    &.landed {
+      animation: node-land-pop 260ms cubic-bezier(0.22, 1, 0.32, 1) forwards;
+    }
+
+    @keyframes node-land-pop {
+      0% {
+        opacity: 0.55;
+        transform: translate(var(--node-x, 0px), var(--node-y, 0px)) scale(0.86);
+      }
+      100% {
+        opacity: 1;
+        transform: translate(var(--node-x, 0px), var(--node-y, 0px)) scale(1);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      &.landed {
+        animation: none;
+      }
     }
   }
 </style>

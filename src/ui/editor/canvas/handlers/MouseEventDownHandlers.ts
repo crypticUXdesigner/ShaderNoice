@@ -8,6 +8,7 @@ import { InteractionType } from '../../../interactions/InteractionTypes';
 import { isEnumParameter } from '../../../../utils/parameterEnumMappings';
 import { FREQ_MIN, FREQ_MAX } from '../../rendering/layout/elements/FrequencyRangeElement';
 import type { MouseEventMoveContext } from './MouseEventHandlerTypes';
+import { isCursorLikeTool } from '../canvasToolUtils';
 
 export function runMouseDownHandlers(ctx: MouseEventMoveContext, e: MouseEvent): boolean {
   const graph = ctx.deps.getGraph?.() ?? ctx.deps.graph;
@@ -19,15 +20,17 @@ export function runMouseDownHandlers(ctx: MouseEventMoveContext, e: MouseEvent):
   }
   const mouseX = e.clientX;
   const mouseY = e.clientY;
+  const tool = getActiveTool();
+  const cursorLike = isCursorLikeTool(tool);
 
   const connForward = (e as MouseEvent & { _connectionClickForward?: string })._connectionClickForward;
-  if (connForward && ctx.deps.interactionManager && getActiveTool() === 'cursor') {
+  if (connForward && ctx.deps.interactionManager && cursorLike) {
     const event = ctx.deps.createInteractionEvent(InteractionType.NodeSelect, e, connForward);
     if (ctx.deps.interactionManager.start(event)) return true;
   }
 
   const typeLabelHit = ctx.deps.hitTestManager.hitTestTypeLabel(mouseX, mouseY);
-  if (typeLabelHit && !getIsSpacePressed() && getActiveTool() === 'cursor') {
+  if (typeLabelHit && !getIsSpacePressed() && cursorLike) {
     e.preventDefault();
     e.stopPropagation();
     ctx.deps.onTypeLabelClick?.(typeLabelHit.portType, typeLabelHit.screenX, typeLabelHit.screenY, typeLabelHit.typeLabelBounds);
@@ -53,21 +56,21 @@ export function runMouseDownHandlers(ctx: MouseEventMoveContext, e: MouseEvent):
     }
   }
 
-  if (ctx.deps.interactionManager && getActiveTool() === 'select') {
+  if (ctx.deps.interactionManager && tool === 'select') {
     const event = ctx.deps.createInteractionEvent(InteractionType.RectangleSelection, e);
     if (ctx.deps.interactionManager.start(event)) {
       ctx.deps.attachDocumentListeners();
       return true;
     }
   }
-  if (ctx.deps.interactionManager && getActiveTool() === 'hand') {
+  if (ctx.deps.interactionManager && tool === 'hand') {
     const event = ctx.deps.createInteractionEvent(InteractionType.CanvasPan, e);
     if (ctx.deps.interactionManager.start(event)) {
       ctx.deps.attachDocumentListeners();
       return true;
     }
   }
-  if (ctx.deps.interactionManager && getActiveTool() === 'cursor') {
+  if (ctx.deps.interactionManager && cursorLike) {
     const bezierHit = ctx.deps.hitTestManager.hitTestBezierControlPoint(mouseX, mouseY);
     if (bezierHit && !getIsSpacePressed()) {
       const event = ctx.deps.createInteractionEvent(InteractionType.BezierControlDrag, e, bezierHit);
@@ -78,7 +81,7 @@ export function runMouseDownHandlers(ctx: MouseEventMoveContext, e: MouseEvent):
   if (ctx.deps.uiElementManager.isEnumDropdownVisible()) return false;
   if (ctx.deps.uiElementManager.isColorPickerVisible()) return false;
 
-  if (getActiveTool() === 'cursor' && ctx.deps.onParameterChanged) {
+  if (cursorLike && ctx.deps.onParameterChanged) {
     const buttonHit = ctx.deps.hitTestManager.hitTestColorMapRowButtons(mouseX, mouseY);
     if (buttonHit) {
       e.preventDefault();
@@ -109,7 +112,7 @@ export function runMouseDownHandlers(ctx: MouseEventMoveContext, e: MouseEvent):
     }
   }
 
-  if (getActiveTool() === 'cursor' && ctx.deps.handleColorPickerClick) {
+  if (cursorLike && ctx.deps.handleColorPickerClick) {
     const colorPickerHit = ctx.deps.hitTestManager.hitTestColorPicker(mouseX, mouseY);
     if (colorPickerHit) {
       e.preventDefault();
@@ -119,7 +122,7 @@ export function runMouseDownHandlers(ctx: MouseEventMoveContext, e: MouseEvent):
     }
   }
 
-  if (ctx.deps.interactionManager && getActiveTool() === 'cursor') {
+  if (ctx.deps.interactionManager && cursorLike) {
     const paramHit = ctx.deps.hitTestManager.hitTestParameter(mouseX, mouseY);
     if (paramHit && !getIsSpacePressed()) {
       if (paramHit.isString) {
@@ -207,7 +210,7 @@ export function runMouseDownHandlers(ctx: MouseEventMoveContext, e: MouseEvent):
     }
   }
 
-  if (ctx.deps.interactionManager && getActiveTool() === 'cursor') {
+  if (ctx.deps.interactionManager && cursorLike) {
     const portHit = ctx.deps.hitTestManager.hitTestPort(mouseX, mouseY);
     if (portHit) {
       const event = ctx.deps.createInteractionEvent(InteractionType.PortConnect, e, portHit);
@@ -218,7 +221,7 @@ export function runMouseDownHandlers(ctx: MouseEventMoveContext, e: MouseEvent):
     }
   }
 
-  if (ctx.deps.interactionManager && getActiveTool() === 'cursor') {
+  if (ctx.deps.interactionManager && cursorLike) {
     const nodeHit = ctx.deps.hitTestManager.hitTestNode(mouseX, mouseY);
     if (nodeHit && !getIsSpacePressed()) {
       const event = ctx.deps.createInteractionEvent(InteractionType.NodeDrag, e, nodeHit);
@@ -229,7 +232,7 @@ export function runMouseDownHandlers(ctx: MouseEventMoveContext, e: MouseEvent):
     }
   }
 
-  if (ctx.deps.interactionManager && getActiveTool() === 'cursor') {
+  if (ctx.deps.interactionManager && cursorLike) {
     const connHit = ctx.deps.hitTestManager.hitTestConnection(mouseX, mouseY);
     if (connHit) {
       const event = ctx.deps.createInteractionEvent(InteractionType.NodeSelect, e, connHit);
@@ -237,10 +240,23 @@ export function runMouseDownHandlers(ctx: MouseEventMoveContext, e: MouseEvent):
     }
   }
 
-  if (ctx.deps.interactionManager && getActiveTool() === 'cursor') {
+  if (ctx.deps.interactionManager && cursorLike) {
     const isSpacePressed = getIsSpacePressed();
     const isMiddleMouse = e.button === 1;
     const isLeftClickOnEmpty = e.button === 0;
+
+    if (
+      isLeftClickOnEmpty &&
+      !isSpacePressed &&
+      (tool === 'add' || (tool === 'cursor' && e.altKey)) &&
+      ctx.deps.onRequestAddNodeAtCanvas
+    ) {
+      e.preventDefault();
+      e.stopPropagation();
+      ctx.deps.onRequestAddNodeAtCanvas(mouseX, mouseY);
+      return true;
+    }
+
     if (isSpacePressed || isMiddleMouse || isLeftClickOnEmpty) {
       const event = ctx.deps.createInteractionEvent(InteractionType.CanvasPan, e);
       if (ctx.deps.interactionManager.start(event)) {

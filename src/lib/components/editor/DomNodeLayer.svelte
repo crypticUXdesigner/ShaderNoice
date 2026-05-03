@@ -14,6 +14,8 @@
   import type { AudioSetup } from '../../../data-model/audioSetupTypes';
   import type { IAudioManager } from '../../../runtime/types';
   interface Props {
+    /** Node that just spawned from palette / add picker (short entrance motion). */
+    landedNodeId?: string | null;
     graph: NodeGraph;
     nodeSpecs: NodeSpec[];
     audioSetup?: AudioSetup;
@@ -36,6 +38,7 @@
   }
 
   let {
+    landedNodeId = null,
     graph,
     nodeSpecs,
     audioSetup = { files: [], bands: [], remappers: [] },
@@ -198,6 +201,7 @@
           node={node}
           spec={spec}
           metrics={toDomMetrics(metrics)}
+          justLanded={landedNodeId === node.id}
           selected={selectedSet.has(node.id)}
           graph={graph}
           audioSetup={audioSetup}

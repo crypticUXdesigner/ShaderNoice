@@ -35,24 +35,24 @@ export const cylinderConeNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Center X'
-    },
+      label: 'Center X',
+      knobPolarity: 'two-sided' },
     primitiveCenterY: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Center Y'
-    },
+      label: 'Center Y',
+      knobPolarity: 'two-sided' },
     primitiveCenterZ: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Center Z'
-    },
+      label: 'Center Z',
+      knobPolarity: 'two-sided' },
     primitiveSizeX: {
       type: 'float',
       default: 0.5,
@@ -83,24 +83,24 @@ export const cylinderConeNodeSpec: NodeSpec = {
       min: -6.28,
       max: 6.28,
       step: 0.05,
-      label: 'Rotation X'
-    },
+      label: 'Rotation X',
+      knobPolarity: 'two-sided' },
     primitiveRotationY: {
       type: 'float',
       default: 0.0,
       min: -6.28,
       max: 6.28,
       step: 0.05,
-      label: 'Rotation Y'
-    },
+      label: 'Rotation Y',
+      knobPolarity: 'two-sided' },
     primitiveRotationZ: {
       type: 'float',
       default: 0.0,
       min: -6.28,
       max: 6.28,
       step: 0.05,
-      label: 'Rotation Z'
-    },
+      label: 'Rotation Z',
+      knobPolarity: 'two-sided' },
     primitiveGlowIntensity: {
       type: 'float',
       default: 0.5,
@@ -131,48 +131,48 @@ export const cylinderConeNodeSpec: NodeSpec = {
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Direction X'
-    },
+      label: 'Direction X',
+      knobPolarity: 'two-sided' },
     lightDirY: {
       type: 'float',
       default: 0.5,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Direction Y'
-    },
+      label: 'Direction Y',
+      knobPolarity: 'two-sided' },
     lightDirZ: {
       type: 'float',
       default: 1.0,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Direction Z'
-    },
+      label: 'Direction Z',
+      knobPolarity: 'two-sided' },
     lightPosX: {
       type: 'float',
       default: 2.0,
       min: -5.0,
       max: 5.0,
       step: 0.1,
-      label: 'Position X'
-    },
+      label: 'Position X',
+      knobPolarity: 'two-sided' },
     lightPosY: {
       type: 'float',
       default: 2.0,
       min: -5.0,
       max: 5.0,
       step: 0.1,
-      label: 'Position Y'
-    },
+      label: 'Position Y',
+      knobPolarity: 'two-sided' },
     lightPosZ: {
       type: 'float',
       default: 3.0,
       min: -5.0,
       max: 5.0,
       step: 0.1,
-      label: 'Position Z'
-    },
+      label: 'Position Z',
+      knobPolarity: 'two-sided' },
     lightIntensity: {
       type: 'float',
       default: 1.0,

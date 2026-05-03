@@ -4,27 +4,12 @@ globs: "src/runtime/**/*.ts,src/shaders/compilation/**/*.ts,src/shaders/NodeShad
 alwaysApply: false
 ---
 
-# Runtime and Compilation
+# Runtime and compilation
 
-When changing runtime or shader compilation code, keep the graph **read-only** and use data-model types.
+Read-only graph from store/callbacks; **never** assign into `graph`, `graph.nodes`, or `graph.connections`. Use **`src/data-model`** types.
 
-## Do
+Parameter updates flow like the app (`onParameterChange`, etc.); compiler receives graphs that already passed **`validateGraph`** (see serialization rule).
 
-- **Receive the graph** from the store or callbacks; never mutate it. Use data-model types; import from `src/data-model` or re-exports.
-- **Never assign** to `graph`, `graph.nodes`, or `graph.connections`. Runtime and CompilationManager only read the graph; the store is the source of truth.
-- **Parameter flow**: Same pipeline as app (e.g. `onParameterChange` with new graph); runtime-only params from single source (core-architecture 03C).
+After edits: grep/scan for mutations in `src/runtime/**` and `src/shaders/**` (compilation); run `npm run build` + relevant tests.
 
-Example: in a callback, receive `graph` and read from it; do not assign to `graph.nodes` or `graph.connections`.
-
-## Verify
-
-- After changes: ensure no assignments to `graph`, `graph.nodes`, or `graph.connections` in runtime or compilation code. Run `npm run build` and relevant tests.
-
-## Avoid
-
-- Mutating the graph in runtime/compilation. Passing an unchecked graph to the compiler without `validateGraph` first (see data-model serialization rule).
-
-## Reference
-
-- `.cursor/rules/data-model/graph-updates.mdc` — immutability and store.
-- `docs/projects/core-architecture/_OVERVIEW.md` — 01, 03A–04.
+**Refs:** `.cursor/rules/data-model/graph-updates.mdc`, core-architecture _OVERVIEW (§01, §03A–§04).

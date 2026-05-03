@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Action } from 'svelte/action';
   import { Button, Input, Message, ModalDialog, RangeSlider, Tag } from '../ui';
   import Toggle from '../node/parameters/Toggle.svelte';
   import { type Readable } from 'svelte/store';
@@ -147,21 +148,40 @@
   );
   const dialogBodyClass = $derived(step === 'config' ? 'export-panel' : 'export-progress-panel');
 
-  $effect(() => {
-    if (!primary) return;
-    const d = primary.buffer.duration;
-    if (useFullAudio) {
-      rangeStartSeconds = 0;
-      rangeEndSeconds = d;
-      return;
+  const primaryAudioDigest = $derived(
+    primary ? `${primary.nodeId}:${primary.buffer.duration}` : '',
+  );
+
+  const clampExportRangeToPrimary: Action<
+    HTMLElement,
+    {
+      audioDigest: string;
+      durationSeconds: number;
+      useFullAudio: boolean;
+      durationInput: number;
+      getStart: () => number;
+      getEnd: () => number;
+      setStart: (n: number) => void;
+      setEnd: (n: number) => void;
     }
-    // Initialize / clamp range to valid values
-    rangeStartSeconds = Math.max(0, Math.min(d, rangeStartSeconds));
-    rangeEndSeconds = Math.max(rangeStartSeconds, Math.min(d, rangeEndSeconds));
-    // Keep default duration behavior: when range was never touched, use the duration input as initial window.
-    if (rangeStartSeconds === 0 && rangeEndSeconds === DEFAULT_DURATION) {
-      rangeEndSeconds = Math.min(d, duration || DEFAULT_DURATION);
-    }
+  > = (_node, _p) => ({
+    update(p) {
+      void p.audioDigest;
+      const d = p.durationSeconds;
+      if (!Number.isFinite(d) || d <= 0) return;
+      if (p.useFullAudio) {
+        p.setStart(0);
+        p.setEnd(d);
+        return;
+      }
+      let rs = Math.max(0, Math.min(d, p.getStart()));
+      let re = Math.max(rs, Math.min(d, p.getEnd()));
+      if (rs === 0 && re === DEFAULT_DURATION) {
+        re = Math.min(d, p.durationInput || DEFAULT_DURATION);
+      }
+      p.setStart(rs);
+      p.setEnd(re);
+    },
   });
 
   function clampNumber(value: number, min: number, max: number) {
@@ -379,6 +399,24 @@
   footer={step === 'progress' ? progressFooter : undefined}
 >
   {#if step === 'config'}
+    <span
+      class="video-export-range-sync"
+      aria-hidden="true"
+      use:clampExportRangeToPrimary={{
+        audioDigest: primaryAudioDigest,
+        durationSeconds: primary?.buffer.duration ?? 0,
+        useFullAudio,
+        durationInput: duration,
+        getStart: () => rangeStartSeconds,
+        getEnd: () => rangeEndSeconds,
+        setStart: (n) => {
+          rangeStartSeconds = n;
+        },
+        setEnd: (n) => {
+          rangeEndSeconds = n;
+        },
+      }}
+    ></span>
     {#if errorMessage}
       <div class="error" role="alert">{errorMessage}</div>
     {/if}
@@ -713,6 +751,10 @@
 </ModalDialog>
 
 <style>
+  .video-export-range-sync {
+    display: none;
+  }
+
   /* Modal content - :global required for Modal portal */
   /* Shell: panel header → scroll main (one elevated card, full width) → footer on frame bg. */
   :global(.video-export-dialog.content.frame) {

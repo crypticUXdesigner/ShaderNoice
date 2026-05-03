@@ -3,14 +3,16 @@
    * Knob — Rotary knob for float parameters.
    * Uses ValueInput for value display. Replaces canvas KnobParameterRenderer.
    *
-   * Drag Y to rotate; value maps to min–max. Visual parity with canvas knob
-   * (arc 135°→45°, 270° sweep; marker at value position).
+   * Drag Y to rotate; value maps to min–max. Arc 135°→45°, 270° sweep; marker at value.
+   * One-sided: active arc from min to value. Two-sided: active arc from knobCenter to value.
    *
    * CSS tokens: --knob-marker-radius-offset (negative = inside arc), --knob-marker-size,
    * --knob-center-size (0 = hidden), --knob-center-bg (solid color or url(#gradient)),
    * --knob-center-border, --knob-center-filter (e.g. drop-shadow). Center does not rotate with value.
    */
 
+  import type { Action } from 'svelte/action';
+  import type { KnobPolarity } from '../../../../types/nodeSpec';
   import { ValueInput } from '../../ui';
 
   function readKnobToken(el: HTMLElement | null, name: string, fallback: number): number {
@@ -31,6 +33,10 @@
     decimals?: number;
     disabled?: boolean;
     connected?: boolean;
+    /** Arc fill: one-sided (min→value) or two-sided (knobCenter→value). */
+    knobPolarity?: KnobPolarity;
+    /** Neutral value on the arc for two-sided mode (default 0). */
+    knobCenter?: number;
     class?: string;
     onChange?: (value: number) => void;
     onCommit?: (value: number) => void;
@@ -45,6 +51,8 @@
     decimals = 3,
     disabled = false,
     connected = false,
+    knobPolarity = 'one-sided',
+    knobCenter = 0,
     class: className = '',
     onChange,
     onCommit
@@ -53,30 +61,64 @@
   /* When connected, still allow drag/edit — user changes config value; display shows live effective */
   const isReadOnly = $derived(disabled);
 
-  let knobEl = $state<HTMLElement | null>(null);
-  let markerRadiusOffsetPx = $state(0);
-  let markerSizePx = $state(9);
-  let centerSizePx = $state(0);
-  let centerBg = $state('transparent');
-  let centerBorderWidth = $state(0);
-  let centerBorderColor = $state('transparent');
-  let knobSizePx = $state(90);
-  let ringBgWidthPx = $state(9);
-  let ringActiveWidthPx = $state(3);
+  type KnobCssLayout = {
+    markerRadiusOffsetPx: number;
+    markerSizePx: number;
+    centerSizePx: number;
+    centerBg: string;
+    centerBorderWidth: number;
+    centerBorderColor: string;
+    knobSizePx: number;
+    ringBgWidthPx: number;
+    ringActiveWidthPx: number;
+  };
 
-  $effect(() => {
-    const el = knobEl;
-    if (!el) return;
-    markerRadiusOffsetPx = readKnobToken(el, '--knob-marker-radius-offset', 0);
-    markerSizePx = readKnobToken(el, '--knob-marker-size', 9);
-    centerSizePx = readKnobToken(el, '--knob-center-size', 0);
-    knobSizePx = readKnobToken(el, '--knob-size', 90);
-    ringBgWidthPx = readKnobToken(el, '--knob-ring-bg-width', 9);
-    ringActiveWidthPx = readKnobToken(el, '--knob-ring-active-width', 3);
-    centerBg = getComputedStyle(el).getPropertyValue('--knob-center-bg').trim() || 'transparent';
-    centerBorderWidth = readKnobToken(el, '--knob-center-border-width', 0);
-    centerBorderColor = getComputedStyle(el).getPropertyValue('--knob-center-border-color').trim() || 'transparent';
-  });
+  function readKnobLayout(el: HTMLElement): KnobCssLayout {
+    return {
+      markerRadiusOffsetPx: readKnobToken(el, '--knob-marker-radius-offset', 0),
+      markerSizePx: readKnobToken(el, '--knob-marker-size', 9),
+      centerSizePx: readKnobToken(el, '--knob-center-size', 0),
+      knobSizePx: readKnobToken(el, '--knob-size', 90),
+      ringBgWidthPx: readKnobToken(el, '--knob-ring-bg-width', 9),
+      ringActiveWidthPx: readKnobToken(el, '--knob-ring-active-width', 3),
+      centerBg: getComputedStyle(el).getPropertyValue('--knob-center-bg').trim() || 'transparent',
+      centerBorderWidth: readKnobToken(el, '--knob-center-border-width', 0),
+      centerBorderColor: getComputedStyle(el).getPropertyValue('--knob-center-border-color').trim() || 'transparent',
+    };
+  }
+
+  const defaultKnobLayout: KnobCssLayout = {
+    markerRadiusOffsetPx: 0,
+    markerSizePx: 9,
+    centerSizePx: 0,
+    centerBg: 'transparent',
+    centerBorderWidth: 0,
+    centerBorderColor: 'transparent',
+    knobSizePx: 90,
+    ringBgWidthPx: 9,
+    ringActiveWidthPx: 3,
+  };
+
+  let knobLayout = $state<KnobCssLayout>(defaultKnobLayout);
+
+  const knobMeasure: Action<HTMLElement> = (node) => {
+    knobLayout = readKnobLayout(node);
+    const ro = new ResizeObserver(() => {
+      knobLayout = readKnobLayout(node);
+    });
+    ro.observe(node);
+    return { destroy: () => ro.disconnect() };
+  };
+
+  const markerRadiusOffsetPx = $derived(knobLayout.markerRadiusOffsetPx);
+  const markerSizePx = $derived(knobLayout.markerSizePx);
+  const centerSizePx = $derived(knobLayout.centerSizePx);
+  const centerBg = $derived(knobLayout.centerBg);
+  const centerBorderWidth = $derived(knobLayout.centerBorderWidth);
+  const centerBorderColor = $derived(knobLayout.centerBorderColor);
+  const knobSizePx = $derived(knobLayout.knobSizePx);
+  const ringBgWidthPx = $derived(knobLayout.ringBgWidthPx);
+  const ringActiveWidthPx = $derived(knobLayout.ringActiveWidthPx);
 
   const ARC_SWEEP = 270;
   const TOP_START_DEG = 135;
@@ -120,15 +162,34 @@
   const endX45 = $derived(radius * Math.cos(end45Rad));
   const endY45 = $derived(radius * Math.sin(end45Rad));
 
-  const valueArcPath = $derived.by(() => {
-    if (normalized <= 0) return null;
-    const endDeg = (TOP_START_DEG + normalized * ARC_SWEEP) % 360;
-    const endRad = (endDeg * Math.PI) / 180;
-    const endX = radius * Math.cos(endRad);
-    const endY = radius * Math.sin(endRad);
-    const sweepAngle = endDeg >= TOP_START_DEG ? endDeg - TOP_START_DEG : 360 - TOP_START_DEG + endDeg;
+  /** Arc along the knob track from parameter t0 to t1 in [0,1] (min→max). Clockwise sweep flag 1. */
+  function arcPathBetweenT(t0: number, t1: number, r: number): string | null {
+    if (t1 <= t0) return null;
+    const sweepAngle = (t1 - t0) * ARC_SWEEP;
     const largeArc = sweepAngle > 180 ? 1 : 0;
-    return `M ${startX} ${startY} A ${radius} ${radius} 0 ${largeArc} 1 ${endX} ${endY}`;
+    const angleStartDeg = TOP_START_DEG + t0 * ARC_SWEEP;
+    const angleEndDeg = TOP_START_DEG + t1 * ARC_SWEEP;
+    const sr = (angleStartDeg * Math.PI) / 180;
+    const er = (angleEndDeg * Math.PI) / 180;
+    const x0 = r * Math.cos(sr);
+    const y0 = r * Math.sin(sr);
+    const x1 = r * Math.cos(er);
+    const y1 = r * Math.sin(er);
+    return `M ${x0} ${y0} A ${r} ${r} 0 ${largeArc} 1 ${x1} ${y1}`;
+  }
+
+  const valueArcPath = $derived.by(() => {
+    if (range <= 0) return null;
+    if (knobPolarity === 'two-sided') {
+      const c = Math.max(min, Math.min(max, knobCenter));
+      const tCenter = (c - min) / range;
+      const tValue = normalized;
+      const tLo = Math.min(tCenter, tValue);
+      const tHi = Math.max(tCenter, tValue);
+      return arcPathBetweenT(tLo, tHi, radius);
+    }
+    if (normalized <= 0) return null;
+    return arcPathBetweenT(0, normalized, radius);
   });
 
   function handlePointerDown(e: PointerEvent) {
@@ -137,20 +198,23 @@
     const el = e.currentTarget as HTMLElement;
     const pointerId = e.pointerId;
     el.setPointerCapture(pointerId);
-    let startY = e.clientY;
-    let startValue = value;
-    let lastValue = value;
+    let currentY = e.clientY;
+    /** Unsnapped float; small dy values accumulate across pointer moves until step snaps. */
+    let dragAccumulator = value;
+    let lastEmittedSnapped = value;
 
     function handlePointerMove(moveEvent: PointerEvent) {
-      const deltaY = startY - moveEvent.clientY;
+      const dy = currentY - moveEvent.clientY;
+      currentY = moveEvent.clientY;
       const moveRange = max - min;
       const modifier = moveEvent.shiftKey ? 'fine' : (moveEvent.ctrlKey || moveEvent.metaKey ? 'coarse' : 'normal');
       const multipliers = { normal: 1, fine: 0.1, coarse: 10 };
       const sensitivity = BASE_DRAG_SENSITIVITY / multipliers[modifier];
-      const valueDelta = (deltaY / sensitivity) * moveRange;
-      const rawValue = startValue + valueDelta;
-      const newValue = snapValue(rawValue);
-      lastValue = newValue;
+      const valueDelta = (dy / sensitivity) * moveRange;
+      dragAccumulator += valueDelta;
+      dragAccumulator = Math.max(min, Math.min(max, dragAccumulator));
+      const newValue = snapValue(dragAccumulator);
+      lastEmittedSnapped = newValue;
       onChange?.(newValue);
     }
 
@@ -163,7 +227,7 @@
       window.removeEventListener('pointerup', handlePointerUp as EventListener);
       window.removeEventListener('pointercancel', handlePointerUp as EventListener);
       el.removeEventListener('lostpointercapture', handleLostCapture as EventListener);
-      onCommit?.(lastValue);
+      onCommit?.(lastEmittedSnapped);
     }
 
     function handlePointerUp(upEvent: PointerEvent) {
@@ -183,12 +247,7 @@
   }
 </script>
 
-<div
-  bind:this={knobEl}
-  class="knob {className}"
-  class:read-only={isReadOnly}
-  class:connected={connected}
->
+<div use:knobMeasure class="knob {className}" class:read-only={isReadOnly} class:connected={connected}>
   <div
     class="ring"
     role="slider"

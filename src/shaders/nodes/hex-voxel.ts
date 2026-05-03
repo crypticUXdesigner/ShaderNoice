@@ -44,16 +44,16 @@ export const hexVoxelNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.05,
-      label: 'Yaw'
-    },
+      label: 'Yaw',
+      knobPolarity: 'two-sided' },
     rotationSpeedY: {
       type: 'float',
       default: 0.3,
       min: -2.0,
       max: 2.0,
       step: 0.05,
-      label: 'Pitch'
-    },
+      label: 'Pitch',
+      knobPolarity: 'two-sided' },
     timeSpeed: {
       type: 'float',
       default: 1.0,
@@ -68,8 +68,8 @@ export const hexVoxelNodeSpec: NodeSpec = {
       min: -10.0,
       max: 10.0,
       step: 0.1,
-      label: 'Time Offset'
-    },
+      label: 'Time Offset',
+      knobPolarity: 'two-sided' },
     zoom: {
       type: 'float',
       default: 4.0,
@@ -84,16 +84,16 @@ export const hexVoxelNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.05,
-      label: 'Pan X'
-    },
+      label: 'Pan X',
+      knobPolarity: 'two-sided' },
     panY: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.05,
-      label: 'Pan Y'
-    },
+      label: 'Pan Y',
+      knobPolarity: 'two-sided' },
     layerSpacing: {
       type: 'float',
       default: 0.3,
@@ -188,24 +188,24 @@ export const hexVoxelNodeSpec: NodeSpec = {
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Light X'
-    },
+      label: 'Light X',
+      knobPolarity: 'two-sided' },
     lightDirY: {
       type: 'float',
       default: 0.5,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Light Y'
-    },
+      label: 'Light Y',
+      knobPolarity: 'two-sided' },
     lightDirZ: {
       type: 'float',
       default: 1.0,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Light Z'
-    },
+      label: 'Light Z',
+      knobPolarity: 'two-sided' },
     ambient: {
       type: 'float',
       default: 0.4,

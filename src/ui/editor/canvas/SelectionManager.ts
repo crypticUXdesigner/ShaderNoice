@@ -143,6 +143,13 @@ export class SelectionManager {
     this.notifyChange();
   }
 
+  /** Clear only connection selection (nodes unchanged). */
+  clearSelectedConnections(): void {
+    if (this.state.selectedConnectionIds.size === 0) return;
+    this.state.selectedConnectionIds.clear();
+    this.notifyChange();
+  }
+
   /**
    * Get selected node IDs as array
    */

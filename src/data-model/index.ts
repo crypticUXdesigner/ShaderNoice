@@ -13,6 +13,9 @@ export type {
   AudioRemapperEntry,
   AudioSignalId,
   PrimarySource,
+  PlaylistPrimarySource,
+  PlaylistDisplayNameSource,
+  PlaylistTrackPickMeta,
   PlaylistState,
 } from './audioSetupTypes';
 export { getPrimaryFileId } from './audioSetupTypes';
@@ -125,6 +128,11 @@ export type {
   AddConnectionWithValidationResult,
   AddConnectionWithValidationOptions,
 } from './immutableUpdates';
+export {
+  insertNodeIntoConnection,
+  type InsertNodeIntoConnectionResult,
+  type InsertNodeIntoConnectionErrorCode,
+} from './insertNodeIntoConnection';
 export {
   addFile as addAudioFile,
   updateFile as updateAudioFile,

@@ -4,36 +4,29 @@ globs: "docs/projects/**/*.md"
 alwaysApply: false
 ---
 
-# Work Package Hygiene
-
-When creating or editing project task files under `docs/projects/`, follow these so all agents stay aligned.
+# Work package hygiene
 
 ## Naming
 
-- **Format**: `[project-name]-[number][parallel-suffix]-[task-name].md`
-- **Examples**:
-  - `layout-system-01-flexbox-engine.md` — sequential, must complete first
-  - `layout-system-02A-grid-system.md` — parallel with 02B, both depend on 01
-  - `layout-system-02B-header-body.md` — parallel with 02A
-  - `layout-system-03-migration.md` — depends on 01, 02A, 02B
-- **Rules**: Numbers = sequence (01 before 02). Letter suffixes (A, B, C) = parallel workstreams that share the same prerequisite. **Parallel workstreams use the next number after their prerequisite** (e.g. depend on 01 → name them 02A, 02B, not 01A, 01B).
+`[project]-[NN][parallel]-[task-slug].md`
+
+- **Sequential:** `layout-system-01-flexbox-engine.md`
+- **Parallel streams (same prereq):** `layout-system-02A-grid.md` + `layout-system-02B-header-body.md`
+- Letters = parallel batches after the prerequisite number (**02A/B**, never `01A` when dependency is `01`)
 
 ## Structure
 
-- **Single-file project**: One file in `docs/projects/`, e.g. `docs/projects/project-name-01-task.md`
-- **Multi-file project**: Folder `docs/projects/[project-name]/` with `_OVERVIEW.md` plus task files
-- **Structure**: _OVERVIEW.md and task file structure are defined in `.cursor/skills/define-project/SKILL.md` and `.cursor/skills/define-tasks/SKILL.md` (sections and length guidance).
-- **No dependency graph in overview**: Do not add a "Dependency Graph" section or ASCII-art dependency diagram to `_OVERVIEW.md`. Dependencies are already clear from each work package's **Dependencies** field in the Work Packages section.
+- **Single artifact:** optional lone `docs/projects/foo-01-task.md`
+- **Package:** `docs/projects/<project>/_OVERVIEW.md` + numbered tasks (see **`define-project` / `define-tasks`** skills).
+- **_OVERVIEW:** no dependency ASCII art — Dependencies field per work package is enough.
 
-## Completion and progress
+## Completion
 
-- **One completion definition**: State once when to mark ✅ COMPLETE (all tasks + all acceptance criteria + Final Steps done). Do not duplicate in "Definition of Done", "When You're Done", and "Final Steps".
-- **When completing work**: Update `_OVERVIEW.md` progress (status, completion %, notes). Keep the review summary in _OVERVIEW short (date, result, 2–3 bullets); put full reports elsewhere if needed.
-- **When implementing**: Only update `_OVERVIEW.md` progress (status, completion %, notes) and the work package status. Do not add documentation work (README, rules, new doc sections) unless the work package explicitly requires it.
+- Single definition of ✅ done (criteria + Final Steps) — don’t triple it across sections.
+- When finishing: update **`_OVERVIEW`** status / % / short note only; skip extra README/rules unless the WP demands it.
 
-## Scope and dependencies
+## WP fields
 
-- In each work package: state **In Scope**, **Out of Scope**, **Prerequisites**, **Provides**, **Blocks**.
-- For parallel workstreams: note which files/code each touches and how to coordinate if they share code.
+Capture **In / Out scope**, **Prerequisites**, **Provides**, **Blocks**; parallel work → note conflicting files upfront.
 
-Full procedures live in `.cursor/commands/` and `.cursor/skills/` (define-project, define-tasks, implement-task, review-project). See `.cursor/rules/workflow/project-workflow.mdc` for when to use which.
+Routing + commands: **`project-workflow.mdc`** + **`define-*` / `implement-task` skills**.

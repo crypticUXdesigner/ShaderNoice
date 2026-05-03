@@ -27,24 +27,24 @@ export const twistDistortionNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Center X'
-    },
+      label: 'Center X',
+      knobPolarity: 'two-sided' },
     twistCenterY: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Center Y'
-    },
+      label: 'Center Y',
+      knobPolarity: 'two-sided' },
     twistStrength: {
       type: 'float',
       default: 2.0,
       min: -10.0,
       max: 10.0,
       step: 0.1,
-      label: 'Strength'
-    },
+      label: 'Strength',
+      knobPolarity: 'two-sided' },
     twistRadius: {
       type: 'float',
       default: 2.0,
@@ -76,8 +76,8 @@ export const twistDistortionNodeSpec: NodeSpec = {
       max: 100.0,
       step: 0.05,
       label: 'Offset',
-      inputMode: 'add'
-    }
+      inputMode: 'add',
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

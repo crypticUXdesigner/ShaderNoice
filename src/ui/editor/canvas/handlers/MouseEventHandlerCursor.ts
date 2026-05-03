@@ -4,6 +4,7 @@
  */
 
 import type { ToolType } from '../../../../types/editor';
+import { getAddToolAltCursorValue } from '../addToolCursor';
 
 export interface CursorHoverHits {
   paramHit: {
@@ -20,11 +21,15 @@ export interface CursorHoverHits {
 
 /**
  * Returns the canvas cursor string for the current hover state (tool, space, hits).
+ * @param nodeBodyHit — true when the pointer is over a node's body (not necessarily a port/param).
+ *   Used so Alt+Cursor shows the add-node cursor only on empty canvas, not over nodes.
  */
 export function getCursorForHover(
   activeTool: ToolType,
   isSpacePressed: boolean,
-  hits: CursorHoverHits
+  hits: CursorHoverHits,
+  altKey = false,
+  nodeBodyHit = false
 ): string {
   if (hits.bezierHit) return 'move';
   if (hits.modeHit) return 'pointer';
@@ -40,6 +45,12 @@ export function getCursorForHover(
   }
   if (activeTool === 'hand') return 'grab';
   if (activeTool === 'select') return 'crosshair';
+  if (activeTool === 'add') {
+    return getAddToolAltCursorValue();
+  }
+  if (activeTool === 'cursor' && altKey && !nodeBodyHit) {
+    return getAddToolAltCursorValue();
+  }
   if (isSpacePressed) return 'grab';
   return 'default';
 }

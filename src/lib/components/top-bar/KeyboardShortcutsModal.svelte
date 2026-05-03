@@ -4,6 +4,7 @@
    */
   import { ModalDialog, ShortcutRow } from '../ui';
   import type { ShortcutKeys } from '../ui/shortcut/shortcutTypes';
+  import { altOptionKeycapLabel } from '../../../utils/platformKeys';
 
   interface Props {
     open?: boolean;
@@ -19,43 +20,54 @@
     title: string;
     description?: string;
     shortcuts: Array<{ action: string; keys: ShortcutKeys }>;
-  }> = [
-    {
-      title: 'View',
-      shortcuts: [
-        { action: 'View: Node', keys: ['1'] },
-        { action: 'View: Split', keys: ['2'] },
-        { action: 'View: Shader', keys: ['3'] },
-        { action: 'Library', keys: ['Tab'] },
-        { action: 'UI', keys: ['<'] },
-        { action: 'Fullscreen', keys: ['F'] },
-      ],
-    },  
-    {
-      title: 'Playback',
-      shortcuts: [
-        { action: 'Play/Pause', keys: ['Space'] },
+  }> = $derived.by(() => {
+    const altLabel = altOptionKeycapLabel();
+    return [
+      {
+        title: 'View',
+        shortcuts: [
+          { action: 'View: Node', keys: ['1'] },
+          { action: 'View: Split', keys: ['2'] },
+          { action: 'View: Shader', keys: ['3'] },
+          { action: 'Library', keys: ['Tab'] },
+          { action: 'UI', keys: ['<'] },
+          { action: 'Fullscreen', keys: ['F'] },
+        ],
+      },
+      {
+        title: 'Playback',
+        shortcuts: [{ action: 'Play/Pause', keys: ['Space'] }],
+      },
+      {
+        title: 'Tools',
+        shortcuts: [
+          { action: 'Tool: Cursor', keys: ['V'] },
+          { action: 'Tool: Hand', keys: either('H', 'Hold Space') },
+          { action: 'Tool: Select', keys: ['S'] },
+        { action: 'Tool: Add', keys: ['A'] },
+        { action: 'Tool: Patch', keys: ['P'] },
       ],
     },
-    {
-      title: 'Tools',
-      shortcuts: [
-        { action: 'Tool: Cursor', keys: ['V'] },
-        { action: 'Tool: Hand', keys: either('H', 'Hold Space') },
-        { action: 'Tool: Select', keys: ['S'] },
-      ],
-    },
-    {
-      title: 'Node editor',
-      shortcuts: [
-        { action: 'Delete selection', keys: either('Delete', 'Backspace') },
-        { action: 'Copy selection', keys: chord('Ctrl/Cmd', 'C') },
-        { action: 'Paste', keys: chord('Ctrl/Cmd', 'V') },
-        { action: 'Duplicate selection', keys: chord('Ctrl/Cmd', 'D') },
-        { action: 'Pan (hold)', keys: ['Space'] },
-      ],
-    }
-  ];
+      {
+        title: 'Node editor',
+        shortcuts: [
+          { action: 'Delete selection', keys: either('Delete', 'Backspace') },
+          { action: 'Copy selection', keys: chord('Ctrl/Cmd', 'C') },
+          { action: 'Paste', keys: chord('Ctrl/Cmd', 'V') },
+          { action: 'Duplicate selection', keys: chord('Ctrl/Cmd', 'D') },
+          { action: 'Pan (hold)', keys: ['Space'] },
+          { action: 'Add node (empty canvas)', keys: chord(altLabel, 'Click') },
+        ],
+      },
+      {
+        title: 'Parameters',
+        shortcuts: [
+          { action: 'Fine control', keys: chord('Shift', 'Drag') },
+          { action: 'Coarse control', keys: chord('Ctrl/Cmd', 'Drag') },
+        ],
+      },
+    ];
+  });
 </script>
 
 <ModalDialog

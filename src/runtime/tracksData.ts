@@ -3,6 +3,9 @@
  * Provides playlist order (alphabetical by displayName) and track URL by id.
  */
 
+import { getAudiotoolPlaylistTrackPlaybackUrl } from '../utils/audiotoolPlaylistPlaybackUrls';
+import type { PlaylistPrimarySource } from '../data-model/audioSetupTypes';
+
 export interface TrackEntry {
   name: string;
   displayName: string;
@@ -55,6 +58,48 @@ export function getTrackMp3Url(data: TracksDataMap, trackId: string): string | u
   return getTrackById(data, trackId)?.mp3Url;
 }
 
+/** Matches bundled `tracks-data.json` entries and Audiotool’s public CDN layout. */
+const AUDIOTOOL_TRACK_CDN_BASE = 'https://cdn.audiotool.com';
+
+/**
+ * MP3 URL on Audiotool’s CDN for a track resource name (e.g. `tracks/xk9…`).
+ * Used when the track is not listed in bundled `tracks-data.json` (e.g. signed-in user’s published tracks).
+ * May fail at fetch time if the track is private or CDN policy blocks the request (reported via AudioLoader).
+ */
+export function getAudiotoolCdnTrackMp3Url(trackId: string): string | undefined {
+  const id = trackId.trim();
+  if (!id.startsWith('tracks/')) return undefined;
+  const path = id.replace(/^\/+|\/+$/g, '').replace(/\/{2,}/g, '/');
+  return `${AUDIOTOOL_TRACK_CDN_BASE}/${path}/track.mp3`;
+}
+
+export type PlaylistTrackMp3Source = 'bundled' | 'registry' | 'cdn';
+
+/**
+ * Resolve playlist mp3 URL with resolution tier (bundled catalog → session registry → heuristic CDN).
+ */
+export function resolvePlaylistTrackMp3UrlWithSource(
+  data: TracksDataMap,
+  trackId: string
+): { url: string; source: PlaylistTrackMp3Source } | { url: undefined; source: 'none' } {
+  const bundled = getTrackMp3Url(data, trackId);
+  if (bundled) return { url: bundled, source: 'bundled' };
+  const reg = getAudiotoolPlaylistTrackPlaybackUrl(trackId);
+  if (reg) return { url: reg, source: 'registry' };
+  const cdn = getAudiotoolCdnTrackMp3Url(trackId);
+  if (cdn) return { url: cdn, source: 'cdn' };
+  return { url: undefined, source: 'none' };
+}
+
+/**
+ * Resolve a URL suitable for `AudioLoader` (full file: mp3/wav/ogg — not HLS).
+ * Order: bundled `tracks-data.json` → URLs from Audiotool Track API (registry) → legacy CDN path (often 404 for newer tracks).
+ */
+export function resolvePlaylistTrackMp3Url(data: TracksDataMap, trackId: string): string | undefined {
+  const r = resolvePlaylistTrackMp3UrlWithSource(data, trackId);
+  return r.url;
+}
+
 /**
  * Parse playDuration string (e.g. "123.45s" or "0.010s") to seconds. Returns undefined if missing or invalid.
  */
@@ -84,4 +129,26 @@ export function getPlaylistOrder(data: TracksDataMap): string[] {
     const nameB = (data[b]?.displayName ?? data[b]?.name ?? b).toLowerCase();
     return nameA.localeCompare(nameB);
   });
+}
+
+/** Primary playlist entry inferred from bundled `tracks-data` (display metadata for reload/offline labeling). */
+export function playlistPrimaryFromBundledCatalog(trackId: string, data: TracksDataMap): PlaylistPrimarySource {
+  const entry = data[trackId];
+  const dn =
+    typeof entry?.displayName === 'string'
+      ? entry.displayName.trim()
+      : typeof entry?.name === 'string'
+        ? entry.name.trim()
+        : '';
+  const now = new Date().toISOString();
+  if (dn.length > 0) {
+    return {
+      type: 'playlist',
+      trackId,
+      displayName: dn,
+      displayNameSource: 'bundled',
+      displayNameUpdatedAt: now,
+    };
+  }
+  return { type: 'playlist', trackId };
 }

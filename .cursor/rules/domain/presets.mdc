@@ -6,22 +6,12 @@ alwaysApply: false
 
 # Presets
 
-Presets are JSON files in `src/presets/`. They must follow the **SerializedGraphFile** format so load/save and preset download stay compatible.
+JSON under **`src/presets/`** as **SerializedGraphFile**: required `format` (`shadernoice-node-graph` or legacy `shader-composer-node-graph`), **`formatVersion: "2.0"`**, **`graph`**; optional **`audioSetup`**.
 
-## Format
+Filenames: **kebab-case**, descriptive (UI derives display title).
 
-- **Required**: `format: "shadernoice-node-graph"` (legacy loads: `shader-composer-node-graph`), `formatVersion: "2.0"`, `graph` (id, name, version, nodes, connections, viewState).
-- **Optional**: `audioSetup` (files, bands, remappers). Omit for presets without audio; legacy presets without it are still supported.
-- Example shape: see `src/presets/README.md` or an existing preset in `src/presets/`.
+Adding JSON only — discovery is directory-based unless tooling changes.
 
-## Naming
+If you alter the **serialized shape**, update **`serialization.ts`** + migrations + **`src/presets/README.md`**. Load/save stays on the single serialization path (`.cursor/rules/data-model/serialization.mdc`).
 
-- Preset **filenames**: descriptive, **kebab-case** (e.g. `sphere-shader.json`, `colorful-noise.json`). The UI turns kebab-case into a display name (e.g. "Sphere Shader").
-
-## When adding or changing presets
-
-- Create or edit `.json` in `src/presets/`; no code change is needed for the preset to appear in the dropdown (presets are loaded from that directory).
-- If you change the **serialization format** (e.g. new top-level or graph fields), update `src/data-model/serialization.ts` and any migration logic; keep `SerializedGraphFile` and the README in sync.
-- **Preset load/save** must use the same path as data-model serialization. See `.cursor/rules/data-model/serialization.mdc` for the single serialization path and validation.
-
-Reference: `src/presets/README.md`.
+**Ref:** `src/presets/README.md`.

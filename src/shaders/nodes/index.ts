@@ -14,6 +14,7 @@ import {
   constantVec4NodeSpec
 } from './input-nodes';
 import { mixedWaveSignalNodeSpec } from './mixed-wave-signal';
+import { oscillator2dNodeSpec } from './oscillator-2d';
 import { orbitCameraNodeSpec } from './orbit-camera';
 import { lookAtCameraNodeSpec } from './look-at-camera';
 import {
@@ -178,6 +179,7 @@ export const nodeSystemSpecs: NodeSpec[] = [
   constantVec3NodeSpec,
   constantVec4NodeSpec,
   mixedWaveSignalNodeSpec,
+  oscillator2dNodeSpec,
   orbitCameraNodeSpec,
   lookAtCameraNodeSpec,
   oklchColorNodeSpec,

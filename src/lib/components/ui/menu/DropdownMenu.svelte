@@ -82,13 +82,30 @@
     if (!effectiveOpen || !menuEl) {
       return { x: rawX, y: rawY, useStartAlign: false };
     }
+    const anchorRect = anchor?.getBoundingClientRect() ?? null;
+    const gap = 4;
+    const anchorX = anchorRect
+      ? effectiveAlign === 'start'
+        ? anchorRect.left
+        : anchorRect.left + anchorRect.width / 2
+      : null;
+    const anchorY = anchorRect
+      ? effectiveAlignY === 'center'
+        ? anchorRect.top + anchorRect.height / 2
+        : effectiveOpenAbove
+          ? anchorRect.top - gap
+          : anchorRect.bottom + gap
+      : null;
     const measureEl = menuEl.parentElement ?? menuEl;
     const rect = measureEl.getBoundingClientRect();
-    const x = isDeclarative || isControlledItems ? xProp : rawX;
-    const y = isDeclarative || isControlledItems ? yProp : rawY;
+    const x =
+      (isDeclarative || isControlledItems) && anchorX !== null ? anchorX : isDeclarative || isControlledItems ? xProp : rawX;
+    const y =
+      (isDeclarative || isControlledItems) && anchorY !== null ? anchorY : isDeclarative || isControlledItems ? yProp : rawY;
 
-    let menuLeft = x;
-    let menuTop: number;
+    // We position the popover using top/left with no transforms.
+    let menuLeft = effectiveAlign === 'center' ? x - rect.width / 2 : x;
+    let menuTop: number = y;
     let useStartAlign = false;
 
     if (effectiveAnchorToSelected) {
@@ -103,71 +120,45 @@
       }
       menuLeft = x - rect.width / 2;
       useStartAlign = true;
-
-      if (menuTop < viewportPadding) {
-        menuTop = viewportPadding;
-      }
-      if (menuTop + rect.height > window.innerHeight - viewportPadding) {
-        menuTop = window.innerHeight - rect.height - viewportPadding;
-      }
-      if (menuLeft < viewportPadding) {
-        menuLeft = viewportPadding;
-      }
-      if (menuLeft + rect.width > window.innerWidth - viewportPadding) {
-        menuLeft = window.innerWidth - rect.width - viewportPadding;
-      }
     } else if (effectiveAlignY === 'center') {
-      menuTop = y;
-      const menuTopEdge = menuTop - rect.height / 2;
-      const menuBottomEdge = menuTop + rect.height / 2;
-      if (menuTopEdge < viewportPadding) {
-        menuTop = viewportPadding + rect.height / 2;
-      }
-      if (menuBottomEdge > window.innerHeight - viewportPadding) {
-        menuTop = window.innerHeight - viewportPadding - rect.height / 2;
-      }
+      menuTop = y - rect.height / 2;
     } else if (effectiveOpenAbove) {
-      menuTop = y - rect.height - viewportPadding;
+      menuTop = y - rect.height;
     } else {
       menuTop = y;
-      const spaceBelow = window.innerHeight - (menuTop + rect.height);
-      const spaceAbove = menuTop;
-      if (spaceBelow < 0 && spaceAbove >= rect.height) {
-        menuTop = y - rect.height - viewportPadding;
-      } else if (spaceBelow < 0) {
-        menuTop = Math.max(viewportPadding, window.innerHeight - rect.height - viewportPadding);
-      }
     }
-    if (!effectiveAnchorToSelected && effectiveAlignY !== 'center' && menuTop < viewportPadding) {
-      menuTop = viewportPadding;
-    }
-    if (!effectiveAnchorToSelected) {
-      if (effectiveAlign === 'center') {
-        if (rect.right > window.innerWidth - viewportPadding) {
-          menuLeft = window.innerWidth - rect.width / 2 - viewportPadding;
-        }
-        if (rect.left < viewportPadding) {
-          menuLeft = viewportPadding + rect.width / 2;
-        }
-      } else {
-        if (rect.right > window.innerWidth - viewportPadding) {
-          menuLeft = window.innerWidth - rect.width - viewportPadding;
-        }
-        if (menuLeft < viewportPadding) {
-          menuLeft = viewportPadding;
-        }
-      }
-    }
+
+    // Clamp to viewport (top-left coordinate system).
+    menuTop = Math.max(viewportPadding, Math.min(menuTop, window.innerHeight - rect.height - viewportPadding));
+    menuLeft = Math.max(viewportPadding, Math.min(menuLeft, window.innerWidth - rect.width - viewportPadding));
+
     return { x: menuLeft, y: menuTop, useStartAlign: useStartAlign || false };
   });
 
   const position = $derived(
     effectiveOpen && menuEl
       ? { x: computedPosition.x, y: computedPosition.y }
-      : { x: isDeclarative || isControlledItems ? xProp : rawX, y: isDeclarative || isControlledItems ? yProp : rawY }
+      : {
+          x:
+            isDeclarative || isControlledItems
+              ? (() => {
+                  const r = anchor?.getBoundingClientRect() ?? null;
+                  if (!r) return xProp;
+                  return effectiveAlign === 'start' ? r.left : r.left + r.width / 2;
+                })()
+              : rawX,
+          y:
+            isDeclarative || isControlledItems
+              ? (() => {
+                  const r = anchor?.getBoundingClientRect() ?? null;
+                  if (!r) return yProp;
+                  return effectiveOpenAbove ? r.top : r.bottom;
+                })()
+              : rawY
+        }
   );
-  const popoverAlign = $derived(computedPosition.useStartAlign ? 'start' : effectiveAlign);
-  const popoverAlignY = $derived(computedPosition.useStartAlign ? 'start' : effectiveAlignY);
+  const popoverAlign = 'start';
+  const popoverAlignY = 'start';
 
   export function show(x: number, y: number, items: DropdownMenuItem[], options?: { openAbove?: boolean; align?: 'start' | 'center'; alignY?: 'start' | 'center'; anchorToSelected?: boolean }): void {
     rawX = x;
@@ -205,16 +196,17 @@
 {#if effectiveOpen}
   <Popover
     open={effectiveOpen}
-    anchor={isDeclarative ? anchor : null}
+    anchor={null}
+    triggerElement={anchor}
     x={position.x}
     y={position.y}
-    openAbove={effectiveOpenAbove}
+    openAbove={false}
     align={popoverAlign}
     alignY={popoverAlignY}
     onClose={handleClose}
     class="dropdown-menu menu-wrapper is-visible {className}"
   >
-    <div bind:this={menuEl} class="menu-wrapper-inner" role="menu">
+    <div bind:this={menuEl} class="menu-wrapper-inner scrollbar-styled" role="menu">
       {#if contentSnippet}
         {@render contentSnippet()}
       {:else}

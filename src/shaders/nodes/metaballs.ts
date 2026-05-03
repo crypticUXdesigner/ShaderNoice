@@ -59,24 +59,24 @@ export const metaballsNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Center X'
-    },
+      label: 'Center X',
+      knobPolarity: 'two-sided' },
     centerY: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Center Y'
-    },
+      label: 'Center Y',
+      knobPolarity: 'two-sided' },
     centerZ: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Z'
-    },
+      label: 'Z',
+      knobPolarity: 'two-sided' },
     timeSpeed: {
       type: 'float',
       default: 0.5,
@@ -91,8 +91,8 @@ export const metaballsNodeSpec: NodeSpec = {
       min: -10.0,
       max: 10.0,
       step: 0.1,
-      label: 'Offset'
-    },
+      label: 'Offset',
+      knobPolarity: 'two-sided' },
     raymarchSteps: {
       type: 'int',
       default: 64,

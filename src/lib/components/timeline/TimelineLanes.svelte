@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Action } from 'svelte/action';
   import { Button, IconSvg, NodeIconSvg } from '../ui';
   import { automationLaneHasEvaluableRegions } from '../../../utils/automationEvaluator';
   import { getAutomationHoldSpanTimeRanges } from './timelineAutomationHoldSpans';
@@ -65,19 +66,17 @@
     footerRight,
   }: Props = $props();
 
-  let trackColumnEl: HTMLDivElement | null = $state(null);
-  let lanesContainerEl: HTMLDivElement | null = $state(null);
-  let playheadClipEl: HTMLDivElement | null = $state(null);
-
-  $effect(() => {
-    onTrackColumnEl?.(trackColumnEl);
-  });
-  $effect(() => {
-    onLanesContainerEl?.(lanesContainerEl);
-  });
-  $effect(() => {
-    onPlayheadClipEl?.(playheadClipEl);
-  });
+  const notifyDiv: Action<
+    HTMLDivElement,
+    ((el: HTMLDivElement | null) => void) | undefined
+  > = (node, cb) => {
+    cb?.(node);
+    return {
+      update(next) {
+        next?.(node);
+      },
+    };
+  };
 </script>
 
 <div class="timeline-shell">
@@ -123,8 +122,8 @@
       {/each}
     </div>
 
-    <div bind:this={trackColumnEl} class="lanes-tracks-wrap">
-      <div bind:this={lanesContainerEl} class="lanes-inner">
+    <div use:notifyDiv={onTrackColumnEl} class="lanes-tracks-wrap">
+      <div use:notifyDiv={onLanesContainerEl} class="lanes-inner">
         {#each laneVMs as vm (vm.lane.id)}
           <div class="lane-row" data-lane-id={vm.lane.id}>
             <div class="track-wrap">
@@ -207,7 +206,7 @@
           </div>
         {/each}
         {#if showPlayhead}
-          <div bind:this={playheadClipEl} class="playhead-clip" aria-hidden="true">
+          <div use:notifyDiv={onPlayheadClipEl} class="playhead-clip" aria-hidden="true">
             <div
               class="playhead-handle"
               class:is-dragging={playheadDragging}

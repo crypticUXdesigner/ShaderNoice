@@ -6,8 +6,9 @@ export type IconName =
   | 'grip-vertical'
   | 'grip-horizontal'
   | 'x'
-  | 'rotate-cw'
+  | 'circle-notch'
   | 'plus'
+  | 'plus-square'
   | 'google-chrome-logo'
   | 'sparkles'
   | 'eye'
@@ -21,6 +22,7 @@ export type IconName =
   | 'play'
   | 'pause'
   | 'mouse-pointer'
+  | 'cursor-text'
   | 'hand'
   | 'lasso'
   | 'menu'
@@ -42,6 +44,7 @@ export type IconName =
   | 'arrows-minimize'
   | 'copy'
   | 'download-simple'
+  | 'upload-simple'
   | 'photo'
   | 'image-square'
   | 'video'
@@ -72,15 +75,19 @@ export type IconName =
   | 'skip-forward'
   | 'swap'
   | 'arrows-in-line-vertical'
-  | 'dots-nine';
+  | 'dots-nine'
+  | 'palette'
+  | 'user'
+  | 'sign-out';
 
 /** IconName → Phosphor icon name (kebab-case) */
 export const iconNameMap: Record<IconName, string> = {
   'grip-vertical': 'dots-six-vertical',
   'grip-horizontal': 'dots-six',
   'x': 'x',
-  'rotate-cw': 'arrow-clockwise',
+  'circle-notch': 'circle-notch',
   'plus': 'plus',
+  'plus-square': 'plus-square',
   'google-chrome-logo': 'google-chrome-logo',
   'sparkles': 'sparkle',
   'eye': 'eye',
@@ -94,6 +101,7 @@ export const iconNameMap: Record<IconName, string> = {
   'play': 'play',
   'pause': 'pause',
   'mouse-pointer': 'cursor-click',
+  'cursor-text': 'cursor-text',
   'hand': 'hand-pointing',
   'lasso': 'selection',
   'menu': 'list',
@@ -116,6 +124,7 @@ export const iconNameMap: Record<IconName, string> = {
   'arrows-minimize': 'arrows-in',
   'copy': 'copy',
   'download-simple': 'download-simple',
+  'upload-simple': 'upload-simple',
   'photo': 'image',
   'image-square': 'image-square',
   'video': 'video',
@@ -146,4 +155,7 @@ export const iconNameMap: Record<IconName, string> = {
   'swap': 'swap',
   'arrows-in-line-vertical': 'arrows-in-line-vertical',
   'dots-nine': 'dots-nine',
+  'palette': 'palette',
+  'user': 'user',
+  'sign-out': 'sign-out',
 };

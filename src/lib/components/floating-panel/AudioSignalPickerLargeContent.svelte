@@ -20,6 +20,7 @@
   } from '../../../data-model';
   import { getVirtualNodeId } from '../../../utils/virtualNodes';
   import { subscribeParameterValueTick } from '../../stores/parameterValueTickStore';
+  import type { Action } from 'svelte/action';
 
   let {
     audioSetup,
@@ -90,35 +91,34 @@
       : remappers
   );
 
-  /** Keep selection valid: clear when there are no bands or the selected band was removed. */
+  /** Band list drives selection: empty list, removed band, new band, and one-time initialBandId from compact opener. */
+  const prevBandIdsRef = { current: new Set<string>() };
   $effect(() => {
+    const bid = initialBandId ?? null;
+    const currentIds = new Set(bands.map((b) => b.id));
+
     if (bands.length === 0) {
       selectedBandId = null;
       lastAppliedInitialBandId = null;
-    } else if (selectedBandId != null && !bands.some((b) => b.id === selectedBandId)) {
+      prevBandIdsRef.current = currentIds;
+      return;
+    }
+
+    if (bid && bands.some((b) => b.id === bid) && lastAppliedInitialBandId !== bid) {
+      lastAppliedInitialBandId = bid;
+      selectedBandId = bid;
+    }
+
+    if (selectedBandId != null && !currentIds.has(selectedBandId)) {
       selectedBandId = null;
     }
-  });
 
-  /** When a band is created (count increases by one), select the new band. Use a plain ref so updating it doesn't re-trigger the effect. */
-  const prevBandIdsRef = { current: new Set<string>() };
-  $effect(() => {
-    const currentIds = new Set(bands.map((b) => b.id));
     const prev = prevBandIdsRef.current;
     if (currentIds.size === prev.size + 1) {
       const newId = [...currentIds].find((id) => !prev.has(id));
       if (newId != null) selectedBandId = newId;
     }
     prevBandIdsRef.current = currentIds;
-  });
-
-  /** When opened from compact with a specific band, pre-select it once (do not overwrite user selection later). */
-  $effect(() => {
-    const bid = initialBandId ?? null;
-    if (!bid || !bands.some((b) => b.id === bid)) return;
-    if (lastAppliedInitialBandId === bid) return;
-    lastAppliedInitialBandId = bid;
-    selectedBandId = bid;
   });
 
   function toggleBandSelection(bandId: string) {
@@ -153,11 +153,6 @@
       selectedRemapperIds = new Set();
     }
   }
-
-  $effect(() => {
-    registerDeleteHandler?.(deleteSelected);
-    return () => registerDeleteHandler?.(null);
-  });
 
   function handleBandChange(bandId: string, updater: (b: AudioBandEntry) => AudioBandEntry) {
     onAudioSetupChange?.(updateAudioBand(audioSetup, bandId, updater));
@@ -197,32 +192,48 @@
 
   /** Document-level Del/Backspace so it works reliably (focus may be on band/remapper card; portal can affect bubbling). */
   const INPUT_LIKE_SELECTOR = 'input, textarea, select, [contenteditable="true"]';
-  let largeContentRoot = $state<HTMLDivElement | null>(null);
-  const deleteSelectedRef = { current: () => {} };
 
-  $effect(() => {
-    deleteSelectedRef.current = deleteSelected;
-  });
+  const registerDeleteBridge: Action<
+    HTMLDivElement,
+    {
+      register: NonNullable<LargeSlotProps['registerDeleteHandler']> | undefined;
+      getDelete: () => () => void;
+    }
+  > = (_node, init) => {
+    let lastReg = init.register;
+    init.register?.(init.getDelete());
+    return {
+      update(next) {
+        lastReg = next.register;
+        next.register?.(next.getDelete());
+      },
+      destroy() {
+        lastReg?.(null);
+      },
+    };
+  };
 
-  function onDocKeydown(e: KeyboardEvent) {
-    if (e.key !== 'Delete' && e.key !== 'Backspace') return;
-    const target = e.target instanceof Node ? e.target : null;
-    if (!target || !largeContentRoot?.contains(target)) return;
-    if (target instanceof Element && target.closest(INPUT_LIKE_SELECTOR)) return;
-    deleteSelectedRef.current();
-    e.preventDefault();
-    e.stopPropagation();
-  }
-
-  $effect(() => {
-    const root = largeContentRoot;
-    if (!root) return;
+  const docDeleteCapture: Action<HTMLDivElement, Record<string, never>> = (root) => {
+    function onDocKeydown(e: KeyboardEvent) {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const target = e.target instanceof Node ? e.target : null;
+      if (!target || !root.contains(target)) return;
+      if (target instanceof Element && target.closest(INPUT_LIKE_SELECTOR)) return;
+      deleteSelected();
+      e.preventDefault();
+      e.stopPropagation();
+    }
     document.addEventListener('keydown', onDocKeydown, true);
     return () => document.removeEventListener('keydown', onDocKeydown, true);
-  });
+  };
 </script>
 
-<div class="large" bind:this={largeContentRoot} role="group">
+<div
+  class="large"
+  role="group"
+  use:registerDeleteBridge={{ register: registerDeleteHandler, getDelete: () => deleteSelected }}
+  use:docDeleteCapture
+>
   <div class="columns" role="group" aria-label="Audio signal picker: bands and remappers">
     <div
       class="left"

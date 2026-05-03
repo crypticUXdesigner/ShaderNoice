@@ -32,16 +32,16 @@ export const bloomSphereNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Bloom X'
-    },
+      label: 'Bloom X',
+      knobPolarity: 'two-sided' },
     bloomCenterY: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Bloom Y'
-    },
+      label: 'Bloom Y',
+      knobPolarity: 'two-sided' },
     sphereRadius: {
       type: 'float',
       default: 1.0,
@@ -82,8 +82,8 @@ export const bloomSphereNodeSpec: NodeSpec = {
       min: -12.57,
       max: 12.57,
       step: 0.01,
-      label: 'Wave phase'
-    },
+      label: 'Wave phase',
+      knobPolarity: 'two-sided' },
     waveDetuneFreq: {
       type: 'float',
       default: 2.0,
@@ -114,8 +114,8 @@ export const bloomSphereNodeSpec: NodeSpec = {
       min: -4.0,
       max: 4.0,
       step: 0.01,
-      label: 'Spin speed'
-    },
+      label: 'Spin speed',
+      knobPolarity: 'two-sided' },
     waveAmplitude: {
       type: 'float',
       default: 0.12,

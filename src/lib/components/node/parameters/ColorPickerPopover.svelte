@@ -29,22 +29,20 @@
     onClose,
   }: Props = $props();
 
-  let h = $state(0);
-  let s = $state(1);
-  let v = $state(1);
+  let localH = $state(0);
+  let localS = $state(1);
+  let localV = $state(1);
   let svCanvasEl = $state<HTMLCanvasElement | null>(null);
   let hueCanvasEl = $state<HTMLCanvasElement | null>(null);
   let draggingSv = $state(false);
   let draggingHue = $state(false);
 
-  $effect(() => {
-    if (visible && value) {
-      const hsv = oklchToHsvForPicker(value.l, value.c, value.h);
-      h = hsv.h;
-      s = hsv.s;
-      v = hsv.v;
-    }
-  });
+  const propHsv = $derived.by(() => oklchToHsvForPicker(value.l, value.c, value.h));
+  const picking = $derived(draggingSv || draggingHue);
+
+  const h = $derived(picking ? localH : propHsv.h);
+  const s = $derived(picking ? localS : propHsv.s);
+  const v = $derived(picking ? localV : propHsv.v);
 
   function updateFromHSV() {
     const oklch = hsvSrgbToOklch(h, s, v);
@@ -91,6 +89,8 @@
 
   function handleSvPointerDown(e: MouseEvent) {
     draggingSv = true;
+    localS = propHsv.s;
+    localV = propHsv.v;
     handleSvMove(e);
   }
 
@@ -99,13 +99,14 @@
     const rect = svCanvasEl.getBoundingClientRect();
     const xNorm = (e.clientX - rect.left) / rect.width;
     const yNorm = (e.clientY - rect.top) / rect.height;
-    s = Math.max(0, Math.min(1, xNorm));
-    v = 1 - Math.max(0, Math.min(1, yNorm));
+    localS = Math.max(0, Math.min(1, xNorm));
+    localV = 1 - Math.max(0, Math.min(1, yNorm));
     updateFromHSV();
   }
 
   function handleHuePointerDown(e: MouseEvent) {
     draggingHue = true;
+    localH = propHsv.h;
     handleHueMove(e);
   }
 
@@ -113,7 +114,7 @@
     if (!hueCanvasEl) return;
     const rect = hueCanvasEl.getBoundingClientRect();
     const xNorm = (e.clientX - rect.left) / rect.width;
-    h = Math.max(0, Math.min(360, xNorm * 360));
+    localH = Math.max(0, Math.min(360, xNorm * 360));
     updateFromHSV();
     redrawSVCanvas();
   }

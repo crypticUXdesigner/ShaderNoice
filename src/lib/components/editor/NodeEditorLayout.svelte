@@ -3,18 +3,21 @@
    * Node Editor Layout - Svelte 5 Migration WP 04A
    * Split view with resizable divider, corner widget, preset dropdown, zoom, help, panel toggle.
    */
-  import { Message } from '../ui';
   import { TopBar, KeyboardShortcutsModal } from '../top-bar';
   import { SidePanel } from '../side-panel';
   import VerticalResizeHandle from './VerticalResizeHandle.svelte';
   import PreviewContainer from './PreviewContainer.svelte';
   import ConfirmPresetImportModal from './ConfirmPresetImportModal.svelte';
-  import PresetPickerDialog from './PresetPickerDialog.svelte';
-  import { portal } from '../../actions/portal';
+  import LoadProjectDialog from './LoadProjectDialog.svelte';
+  import AppToastStack from './AppToastStack.svelte';
   import { audioAnalysisStatusStore } from '../../stores/audioAnalysisStatusStore';
-  import { getGraph } from '../../stores';
+  import { appToastStore, getGraph } from '../../stores';
   import { globalErrorHandler } from '../../../utils/errorHandling';
   import type { ViewMode, LayoutCallbacks } from './types';
+  import type { AuthenticatedClient } from '@audiotool/nexus';
+  import type { ProjectAvatarFields } from '../../storage/projectAvatar';
+  import type { ProjectMeta } from '../../storage/projectRepository';
+  import type { HubSelection } from '../../storage/projectSessionTypes';
 
   interface Props {
     preview?: import('svelte').Snippet<[]>;
@@ -27,11 +30,39 @@
     selectedPreset?: string | null;
     /** Primary track key so bottom bar re-renders when track changes (waveform scrubber). */
     primaryTrackKey?: string | null;
+    /** True once WebGL runtime exists (blocking project gate dismissed). */
+    runtimeBootstrapped?: boolean;
+    /** Full-screen picker must stay open until the user selects a hub row. */
+    projectGateBlocking?: boolean;
+    hubProjects?: ProjectMeta[];
+    hubPresets?: Array<{ name: string; displayName: string }>;
+    hubLastOpenedProjectId?: string | null;
+    /** Single highlighted project row in the load picker (active session vs URL / last-opened on gate). */
+    hubPickerHighlightedProjectId?: string | null;
+    hubStorageWarning?: string | null;
+    hubBusy?: boolean;
+    onHubPick?: (selection: HubSelection) => Promise<void>;
+    onHubDuplicate?: (projectId: string) => void;
+    onHubDelete?: (projectId: string) => void;
+    onHubRename?: (projectId: string, nextDisplayName: string) => void;
+    onHubAppearanceChange?: (projectId: string, next: ProjectAvatarFields) => void;
+    onHubImportJson?: (json: string) => void;
     isPanelVisible?: boolean;
     zoom?: number;
     fps?: number;
     /** When false, top bar disables video export and shows WebCodecs message. */
     isVideoExportSupported?: boolean;
+    /** User project has local edits not yet written to IndexedDB (debounced autosave may still run). */
+    autosavePersistPending?: boolean;
+    /** Logged-in Audiotool user (avatar + sign out) in the top bar when OAuth is enabled. */
+    audiotoolAccount?: {
+      userName: string;
+      onLogout: () => void;
+      rpcClient?: AuthenticatedClient | null;
+      onAudiotoolSessionInvalidated?: () => void;
+    } | null;
+    /** When disconnected, OAuth is configured and splash is dismissed: sign-in control in the top bar. */
+    audiotoolSignInChrome?: (() => void) | null;
   }
 
   let {
@@ -44,10 +75,27 @@
     presetList = [],
     selectedPreset = null,
     primaryTrackKey = null,
+    runtimeBootstrapped = false,
+    projectGateBlocking = false,
+    hubProjects = [],
+    hubPresets = [],
+    hubLastOpenedProjectId = null,
+    hubPickerHighlightedProjectId = null,
+    hubStorageWarning = null,
+    hubBusy = false,
+    onHubPick,
+    onHubDuplicate = () => {},
+    onHubDelete = () => {},
+    onHubRename = () => {},
+    onHubAppearanceChange = () => {},
+    onHubImportJson = () => {},
     isPanelVisible = true,
     zoom = 1.0,
     fps = 0,
     isVideoExportSupported = true,
+    autosavePersistPending = false,
+    audiotoolAccount = null,
+    audiotoolSignInChrome = null,
   }: Props = $props();
 
   const SAFE_DISTANCE = 16;
@@ -57,7 +105,9 @@
   // State
   let containerEl = $state<HTMLDivElement | undefined>(undefined);
   let buttonContainerEl = $state<HTMLDivElement | undefined>(undefined);
-  let presetDialogOpen = $state(false);
+  /** User opened from top bar (“Load preset”); combined with parent's project gate blocking. */
+  let loadPickerUserOpened = $state(false);
+  const loadProjectDialogOpen = $derived(projectGateBlocking || loadPickerUserOpened);
 
   let viewMode = $state<ViewMode>('node');
   let activeTab = $state<'nodes' | 'docs'>('nodes');
@@ -77,18 +127,6 @@
   let resizeMoveRafId = 0;
   let latestMoveEvent = null as MouseEvent | null;
 
-  /** Matches Message flip-out duration so we clear content after non-stacked exit. */
-  const MESSAGE_FLIP_OUT_MS = 240;
-  /** Keeps stacked layout stable while success slot height eases shut (audio toast moves down smoothly). */
-  const TOAST_STACK_SLOT_COLLAPSE_MS = 300;
-
-  let toastVisible = $state(false);
-  let toastMessage = $state('');
-  let toastVariant = $state<'success' | 'error' | 'info'>('success');
-  /** Drives max-height transition on placeholder under the audio toast when success hides. */
-  let toastStackSlotCollapsed = $state(false);
-  /** True once preset toast hid while audio was visible; keeps collapse slot until message clears even if audio ends mid-animation. */
-  let toastExitSlotLatched = $state(false);
   let presetLoading = $state(false);
   let shortcutsModalOpen = $state(false);
   /** When set, show "Import preset?" confirmation modal; confirm runs import with this JSON. */
@@ -113,86 +151,9 @@
   const rawPanelOffset = $derived(isPanelVisible ? panelWidth : 0);
   const panelOffset = $derived(isUiHidden ? 0 : rawPanelOffset);
 
-  const audioAnalysisToast = $derived.by((): {
-    show: boolean;
-    variant: 'info' | 'error';
-    label: string;
-    percent?: number;
-  } => {
-    const status = $audioAnalysisStatusStore;
-    if (status.state === 'building') {
-      const label = status.label?.trim() || 'Preparing audio analysis';
-      const percent = Math.max(0, Math.min(100, Math.round((status.progress01 ?? 0) * 100)));
-      return { show: true, variant: 'info', label, percent };
-    }
-    if (status.state === 'fallback') {
-      const label = status.label?.trim() || 'Audio analysis fallback';
-      return { show: true, variant: 'info', label };
-    }
-    if (status.state === 'failed') {
-      const label = status.label?.trim() || 'Audio analysis failed';
-      return { show: true, variant: 'error', label };
-    }
-    return { show: false, variant: 'info', label: '' };
-  });
-
-  $effect(() => {
-    if (!toastMessage) {
-      toastExitSlotLatched = false;
-      return;
-    }
-    if (toastVisible) {
-      toastExitSlotLatched = false;
-      return;
-    }
-    if (audioAnalysisToast.show) {
-      toastExitSlotLatched = true;
-    }
-  });
-
-  const showToastStackExitSlot = $derived(
-    !!(toastMessage && !toastVisible && (audioAnalysisToast.show || toastExitSlotLatched))
-  );
-
-  /** After hide, clear message once exit animation finishes (collapse slot if audio toast is stacked; else flip-out cadence). */
-  $effect(() => {
-    if (!toastMessage || toastVisible) return;
-    const delay = audioAnalysisToast.show ? TOAST_STACK_SLOT_COLLAPSE_MS : MESSAGE_FLIP_OUT_MS;
-    const id = window.setTimeout(() => {
-      toastMessage = '';
-    }, delay);
-    return () => window.clearTimeout(id);
-  });
-
-  $effect(() => {
-    if (!showToastStackExitSlot) {
-      toastStackSlotCollapsed = false;
-      return;
-    }
-    toastStackSlotCollapsed = false;
-    let raf1 = 0;
-    let raf2 = 0;
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        toastStackSlotCollapsed = true;
-      });
-    });
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-    };
-  });
-
-  // Show toast helper
-  function showToast(message: string, type: 'success' | 'error' | 'info') {
-    toastMessage = message;
-    toastVariant = type;
-    toastVisible = true;
-    if (type === 'success' || type === 'info') {
-      setTimeout(() => {
-        toastVisible = false;
-      }, 3000);
-    }
+  function pushToast(message: string, type: 'success' | 'error' | 'info'): void {
+    const variant = type === 'success' ? 'success' : type === 'info' ? 'info' : 'error';
+    appToastStore.addToast({ variant, message, copyText: message });
   }
 
   function isUserCancelled(err: unknown): boolean {
@@ -201,10 +162,6 @@
       return err.message === 'Cancelled' || err.message === 'Export cancelled' || err.message === 'Export canceled';
     }
     return false;
-  }
-
-  function dismissToast() {
-    toastVisible = false;
   }
 
   // View mode
@@ -229,7 +186,7 @@
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (isTypingTarget(e.target)) return;
       if (shortcutsModalOpen || pendingImportJson !== null) return;
-      if (presetDialogOpen) return;
+      if (loadProjectDialogOpen) return;
 
       if (e.key === 'Tab') {
         e.preventDefault();
@@ -240,7 +197,7 @@
       if (e.key === '<') {
         e.preventDefault();
         isUiHidden = !isUiHidden;
-        presetDialogOpen = false;
+        loadPickerUserOpened = false;
         return;
       }
 
@@ -346,22 +303,20 @@
   function handleDownloadPreset() {
     try {
       callbacks.onDownloadPreset?.();
-      showToast('Graph downloaded as JSON', 'success');
+      pushToast('Graph downloaded as JSON.', 'success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to download graph';
-      showToast(msg, 'error');
-      globalErrorHandler.report('runtime', 'error', 'Failed to download graph', { originalError: err instanceof Error ? err : new Error(msg) });
+      globalErrorHandler.report('runtime', 'error', 'Could not download graph.', { originalError: err instanceof Error ? err : new Error(msg) });
     }
   }
 
   async function handleExport() {
     try {
       await callbacks.onExport?.();
-      showToast('Image exported successfully!', 'success');
+      pushToast('Image exported.', 'success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to export image';
-      showToast(msg, 'error');
-      globalErrorHandler.report('runtime', 'error', 'Failed to export image', { originalError: err instanceof Error ? err : new Error(msg) });
+      globalErrorHandler.report('runtime', 'error', 'Could not export image.', { originalError: err instanceof Error ? err : new Error(msg) });
     }
   }
 
@@ -369,41 +324,25 @@
     try {
       const status = $audioAnalysisStatusStore;
       if (status.state === 'building' || status.state === 'fallback') {
-        showToast('Live audio is still preparing — export uses deterministic analysis.', 'info');
+        pushToast('Still prepping live audio. Video export uses the full offline analysis.', 'info');
       }
       await callbacks.onVideoExport?.();
-      showToast('Video exported successfully!', 'success');
+      pushToast('Video exported.', 'success');
     } catch (err) {
       if (isUserCancelled(err)) {
-        showToast('Video export cancelled', 'info');
+        pushToast('Video export canceled.', 'info');
         return;
       }
       const msg = err instanceof Error ? err.message : 'Failed to export video';
-      showToast(msg, 'error');
       globalErrorHandler.report('runtime', 'error', msg, { originalError: err instanceof Error ? err : new Error(msg) });
     }
   }
 
-  async function handleLoadPreset(presetName: string) {
-    presetDialogOpen = false;
-    await doLoadPreset(presetName);
+  async function handleModalHubPick(selection: HubSelection): Promise<void> {
+    if (!onHubPick) return;
+    await onHubPick(selection);
+    loadPickerUserOpened = false;
   }
-
-  async function doLoadPreset(presetName: string) {
-    try {
-      presetLoading = true;
-      await callbacks.onLoadPreset?.(presetName);
-      showToast(`Loaded preset: ${presetName}`, 'success');
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to load preset';
-      showToast(msg, 'error');
-      globalErrorHandler.report('runtime', 'error', 'Failed to load preset', { originalError: err instanceof Error ? err : new Error(msg) });
-    } finally {
-      presetLoading = false;
-    }
-  }
-
-  let presetFileInputEl = $state<HTMLInputElement | undefined>(undefined);
 
   async function handleImportPresetFile(e: Event) {
     const input = e.target as HTMLInputElement;
@@ -425,18 +364,17 @@
       presetLoading = true;
       pendingImportJson = null;
       await callbacks.onImportPresetFromFile(json);
-      showToast('Preset imported', 'success');
+      pushToast('Preset imported.', 'success');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Import failed';
-      showToast(msg, 'error');
-      globalErrorHandler.report('runtime', 'error', 'Import preset failed', { originalError: err instanceof Error ? err : new Error(msg) });
+      globalErrorHandler.report('runtime', 'error', msg, { originalError: err instanceof Error ? err : new Error(msg) });
     } finally {
       presetLoading = false;
     }
   }
 
   function handlePresetClick(_e: MouseEvent) {
-    presetDialogOpen = true;
+    loadPickerUserOpened = true;
   }
 
   let containerWidth = $state(0);
@@ -464,9 +402,14 @@
     return { onZoomChange: callbacks.onZoomChange } as unknown as Record<string, never>;
   });
 
-  const presetLabel = $derived(
-    selectedPreset ? (presetList.find((p) => p.name === selectedPreset)?.displayName ?? selectedPreset) : 'None'
-  );
+  const presetLabel = $derived.by(() => {
+    if (!runtimeBootstrapped) return 'Pick a project…';
+    if (selectedPreset) {
+      return presetList.find((p) => p.name === selectedPreset)?.displayName ?? selectedPreset;
+    }
+    const gn = getGraph()?.name?.trim();
+    return gn && gn.length > 0 ? gn : 'Local project';
+  });
 
   const zoomPercent = $derived(Math.round(zoom * 100));
 </script>
@@ -484,7 +427,7 @@
   <TopBar
     barElement={(el) => (buttonContainerEl = el)}
     presetLabel={presetLabel}
-    presetLoading={presetLoading}
+    presetLoading={presetLoading || hubBusy}
     viewMode={viewMode}
     setViewMode={setViewMode}
     zoomPercent={zoomPercent}
@@ -502,6 +445,8 @@
     {...topBarZoomChangeProps}
     onHelpClick={callbacks.onHelpClick}
     onShortcutsClick={() => (shortcutsModalOpen = true)}
+    {audiotoolAccount}
+    audiotoolSignInChrome={audiotoolSignInChrome}
   />
 
   <KeyboardShortcutsModal open={shortcutsModalOpen} onClose={() => (shortcutsModalOpen = false)} />
@@ -512,24 +457,29 @@
     onConfirm={() => pendingImportJson != null && doImportPreset(pendingImportJson)}
   />
 
-  <PresetPickerDialog
-    open={presetDialogOpen}
-    presetList={presetList}
-    selectedPreset={selectedPreset}
+  <LoadProjectDialog
+    open={loadProjectDialogOpen}
+    dismissible={!projectGateBlocking}
     presetLoading={presetLoading}
-    onClose={() => (presetDialogOpen = false)}
-    onSelectPreset={(name) => handleLoadPreset(name)}
-    onImportFromFile={() => {
-      presetDialogOpen = false;
-      presetFileInputEl?.click();
-    }}
+    hubProjects={hubProjects}
+    hubPresets={hubPresets}
+    hubLastOpenedProjectId={hubLastOpenedProjectId}
+    hubPickerHighlightedProjectId={hubPickerHighlightedProjectId}
+    hubStorageWarning={hubStorageWarning}
+    hubBusy={hubBusy}
+    onClose={() => (loadPickerUserOpened = false)}
+    onHubPick={(s) => void handleModalHubPick(s)}
+    onHubDuplicate={onHubDuplicate}
+    onHubDelete={onHubDelete}
+    onHubRename={onHubRename}
+    onHubAppearanceChange={onHubAppearanceChange}
+    onHubImportJson={onHubImportJson}
   />
 
   <input
     type="file"
     accept=".json,application/json"
     style="position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none;"
-    bind:this={presetFileInputEl}
     onchange={handleImportPresetFile}
     aria-label="Import preset from file"
   />
@@ -603,63 +553,12 @@
   {/if}
 </div>
 
-{#if audioAnalysisToast.show || toastMessage}
-  <div use:portal class="toast-stack" role="status" aria-live="polite">
-    {#if toastMessage}
-      {#if toastVisible}
-        <Message stacked visible={toastVisible} variant={toastVariant} onclose={dismissToast}>
-          <span>{toastMessage}</span>
-        </Message>
-      {:else if showToastStackExitSlot}
-        <div
-          class="toast-stack-exit-slot"
-          class:is-collapsed={toastStackSlotCollapsed}
-          aria-hidden="true"
-        ></div>
-      {/if}
-    {/if}
-    {#if audioAnalysisToast.show}
-      <Message stacked visible={true} variant={audioAnalysisToast.variant}>
-        <span>
-          <span>{audioAnalysisToast.label}</span>
-          {#if audioAnalysisToast.percent !== undefined}
-            <span aria-hidden="true"> {audioAnalysisToast.percent}%</span>
-          {/if}
-        </span>
-      </Message>
-    {/if}
-  </div>
-{/if}
+<AppToastStack
+  autosavePersistPending={autosavePersistPending}
+  toastAlignInsetLeft={panelOffset}
+/>
 
 <style>
-  /* Stack preset / action toasts with audio analysis (success at bottom, audio above). */
-  .toast-stack {
-    position: fixed;
-    inset: 0;
-    z-index: 10000;
-    pointer-events: none;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column-reverse;
-    align-items: center;
-    justify-content: flex-start;
-    gap: var(--pd-sm);
-    padding-bottom: calc(var(--bottom-bar-height) + var(--pd-md));
-  }
-
-  .toast-stack-exit-slot {
-    width: min(var(--message-max-width), 100%);
-    flex-shrink: 0;
-    max-height: min(40vh, 12rem);
-    overflow: hidden;
-    transition: max-height 0.28s cubic-bezier(0.33, 1, 0.68, 1);
-    pointer-events: none;
-  }
-
-  .toast-stack-exit-slot.is-collapsed {
-    max-height: 0;
-  }
-
   /* Panel-affected layout: animate in sync with node panel slide (0.3s ease) */
   .node-editor-layout {
     overflow: visible;

@@ -11,7 +11,7 @@ export const driveHomeLightsNodeSpec: NodeSpec = {
   displayName: 'Drive Home Lights',
   description:
     'Bokeh-style night drive lights: street lights, headlights, tail/brake lights, and environment lights in one node, plus a two-color OKLCH sky tint along the ray. Darkness toward the horizon follows ray elevation (like the original); the two colors only shape the gradient within the lit sky. Connect ro/rd from Look-at Camera and time. Reference: Shadertoy The Drive Home.',
-  icon: 'car',
+  icon: 'headlights',
   inputs: [
     { name: 'ro', type: 'vec3', label: 'Ray origin' },
     { name: 'rd', type: 'vec3', label: 'Ray direction' },

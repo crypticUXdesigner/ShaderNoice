@@ -4,15 +4,20 @@ globs: "**/*.ts,**/*.svelte"
 alwaysApply: false
 ---
 
-# TypeScript Standards
+# TypeScript
 
-**Strict** TypeScript (`strict: true`) in `.ts`, `.svelte.ts` stores, and `<script lang="ts">`.
+Strict (`strict: true`) in `.ts`, `.svelte.ts`, `<script lang="ts">`.
 
-## Strictness and types
+- **No `any`** — use `unknown` + narrow (`typeof` / `instanceof` / guards).
+- **Minimal `as`** — prefer narrowing, generics; comment non-obvious asserts.
+- **Exported / public APIs:** explicit return types.
+- **`satisfies`**, discriminated unions, **`import type`** where appropriate.
+- **Errors:** name caught errors; no empty `catch`; rethrow with `{ cause: err }` (see error-handling rule).
+- **null/undefined:** prefer **`undefined`** for optional; **`null`** only for JSON/API contracts; `?.` / `??`; `x == null` when both absent.
 
-- **No `any`**: Use `unknown`; narrow with guards / `typeof` / `instanceof` before use.
-- **Minimal `as`**: Prefer narrowing, generics, better types; comment non-obvious asserts.
-- **Explicit return types** on exported functions and public methods.
+**Imports:** named exports; `_param` for intentionally unused.
+
+Svelte-specific: `.cursor/rules/frontend/svelte-standards.mdc`.
 
 ```ts
 function idFromPayload(payload: unknown): string | undefined {
@@ -21,31 +26,3 @@ function idFromPayload(payload: unknown): string | undefined {
   }
 }
 ```
-
-## Inference vs explicit
-
-- **Infer** locals, `$derived`, simple props.
-- **Explicit** parameters and exported/public return types when inference is `any` or too loose.
-
-## Modern patterns
-
-- **`satisfies`** for shape validation without widening.
-- **Discriminated unions** for variants.
-- **`import type`** for type-only imports.
-
-## Error handling
-
-- Name caught errors; no empty `catch`. **Rethrow with cause**: `new Error('msg', { cause: err })` (user-facing reporting: `.cursor/rules/core/error-handling.mdc`).
-
-## Null vs undefined
-
-- Prefer **`undefined`** for optional/absent in TS and at boundaries.
-- **`null`** only for JSON/serialization, documented contracts, or external APIs.
-- Optional props: `prop?: T`. Use `?.` / `??`; `x == null` for both null/undefined; `x === undefined` when you mean absent only.
-
-## Imports and unused
-
-- Prefer named exports; `import type` for types.
-- **`_name`** for intentionally unused parameters (`noUnusedParameters`).
-
-For Svelte scripts, also follow `.cursor/rules/frontend/svelte-standards.mdc`. Task review bar: `.cursor/skills/review-project/SKILL.md`.

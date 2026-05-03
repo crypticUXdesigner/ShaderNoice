@@ -141,6 +141,8 @@ export class NodeEditorCanvas {
   private onPaste?: () => void;
   private onDuplicateSelected?: () => void;
   private hasClipboard?: () => boolean;
+  /** Fired from mouse handler when user triggers add-node on empty canvas (Add tool or Alt+click in Cursor). */
+  onRequestAddNodeAtCanvas?: (screenX: number, screenY: number) => void;
   private audioManager?: IAudioManager;
   private effectiveValueUpdateRunner!: EffectiveValueUpdateRunner;
 
@@ -651,6 +653,31 @@ export class NodeEditorCanvas {
    */
   public setSelectionFromDOM(nodeIds: string[]): void {
     this.selectionManager.selectNodes(nodeIds, true);
+    this.renderingOrchestrator.requestRender();
+  }
+
+  /**
+   * Select a connection from external UI (e.g. Patch tool cable pick). Matches normal connection-click visuals.
+   */
+  public setConnectionSelectionFromDOM(connectionId: string): void {
+    const prev = this.selectionManager.getState();
+    if (prev.selectedNodeIds.size > 0) {
+      this.renderState.markNodesDirty(Array.from(prev.selectedNodeIds));
+    }
+    if (prev.selectedConnectionIds.size > 0) {
+      this.renderState.markConnectionsDirty(Array.from(prev.selectedConnectionIds));
+    }
+    this.selectionManager.selectConnection(connectionId, false);
+    this.renderState.markConnectionsDirty([connectionId]);
+    this.renderingOrchestrator.requestRender();
+  }
+
+  /** Clear connection highlight only (e.g. leaving Patch tool). */
+  public clearConnectionSelectionFromDOM(): void {
+    const prev = this.selectionManager.getState().selectedConnectionIds;
+    if (prev.size === 0) return;
+    this.renderState.markConnectionsDirty(Array.from(prev));
+    this.selectionManager.clearSelectedConnections();
     this.renderingOrchestrator.requestRender();
   }
 

@@ -48,24 +48,24 @@ export const boxTorusSdfNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'X'
-    },
+      label: 'X',
+      knobPolarity: 'two-sided' },
     primitiveCenterY: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Y'
-    },
+      label: 'Y',
+      knobPolarity: 'two-sided' },
     primitiveCenterZ: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Z'
-    },
+      label: 'Z',
+      knobPolarity: 'two-sided' },
     primitiveSizeX: {
       type: 'float',
       default: 1.0,
@@ -96,24 +96,24 @@ export const boxTorusSdfNodeSpec: NodeSpec = {
       min: -6.28,
       max: 6.28,
       step: 0.05,
-      label: 'Rotation X'
-    },
+      label: 'Rotation X',
+      knobPolarity: 'two-sided' },
     primitiveRotationY: {
       type: 'float',
       default: 0.0,
       min: -6.28,
       max: 6.28,
       step: 0.05,
-      label: 'Rotation Y'
-    },
+      label: 'Rotation Y',
+      knobPolarity: 'two-sided' },
     primitiveRotationZ: {
       type: 'float',
       default: 0.0,
       min: -6.28,
       max: 6.28,
       step: 0.05,
-      label: 'Rotation Z'
-    },
+      label: 'Rotation Z',
+      knobPolarity: 'two-sided' },
     primitiveGlowIntensity: {
       type: 'float',
       default: 0.5,
@@ -144,48 +144,48 @@ export const boxTorusSdfNodeSpec: NodeSpec = {
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Dir X'
-    },
+      label: 'Dir X',
+      knobPolarity: 'two-sided' },
     lightDirY: {
       type: 'float',
       default: 0.5,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Dir Y'
-    },
+      label: 'Dir Y',
+      knobPolarity: 'two-sided' },
     lightDirZ: {
       type: 'float',
       default: 1.0,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Dir Z'
-    },
+      label: 'Dir Z',
+      knobPolarity: 'two-sided' },
     lightPosX: {
       type: 'float',
       default: 2.0,
       min: -5.0,
       max: 5.0,
       step: 0.1,
-      label: 'Pos X'
-    },
+      label: 'Pos X',
+      knobPolarity: 'two-sided' },
     lightPosY: {
       type: 'float',
       default: 2.0,
       min: -5.0,
       max: 5.0,
       step: 0.1,
-      label: 'Pos Y'
-    },
+      label: 'Pos Y',
+      knobPolarity: 'two-sided' },
     lightPosZ: {
       type: 'float',
       default: 3.0,
       min: -5.0,
       max: 5.0,
       step: 0.1,
-      label: 'Pos Z'
-    },
+      label: 'Pos Z',
+      knobPolarity: 'two-sided' },
     lightIntensity: {
       type: 'float',
       default: 1.0,
@@ -264,24 +264,24 @@ export const boxTorusSdfNodeSpec: NodeSpec = {
       min: -10.0,
       max: 10.0,
       step: 0.1,
-      label: 'Ro X'
-    },
+      label: 'Ro X',
+      knobPolarity: 'two-sided' },
     cameraRoY: {
       type: 'float',
       default: 0.0,
       min: -10.0,
       max: 10.0,
       step: 0.1,
-      label: 'Ro Y'
-    },
+      label: 'Ro Y',
+      knobPolarity: 'two-sided' },
     cameraRoZ: {
       type: 'float',
       default: 3.0,
       min: -10.0,
       max: 10.0,
       step: 0.1,
-      label: 'Ro Z'
-    }
+      label: 'Ro Z',
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

@@ -30,48 +30,48 @@ export const lookAtCameraNodeSpec: NodeSpec = {
       min: -20.0,
       max: 20.0,
       step: 0.1,
-      label: 'Position X'
-    },
+      label: 'Position X',
+      knobPolarity: 'two-sided' },
     posY: {
       type: 'float',
       default: 0.15,
       min: -20.0,
       max: 20.0,
       step: 0.1,
-      label: 'Position Y'
-    },
+      label: 'Position Y',
+      knobPolarity: 'two-sided' },
     posZ: {
       type: 'float',
       default: 0.0,
       min: -20.0,
       max: 20.0,
       step: 0.1,
-      label: 'Position Z'
-    },
+      label: 'Position Z',
+      knobPolarity: 'two-sided' },
     lookatX: {
       type: 'float',
       default: 0.3,
       min: -20.0,
       max: 20.0,
       step: 0.1,
-      label: 'Lookat X'
-    },
+      label: 'Lookat X',
+      knobPolarity: 'two-sided' },
     lookatY: {
       type: 'float',
       default: 0.15,
       min: -20.0,
       max: 20.0,
       step: 0.1,
-      label: 'Lookat Y'
-    },
+      label: 'Lookat Y',
+      knobPolarity: 'two-sided' },
     lookatZ: {
       type: 'float',
       default: 1.0,
       min: -20.0,
       max: 20.0,
       step: 0.1,
-      label: 'Lookat Z'
-    },
+      label: 'Lookat Z',
+      knobPolarity: 'two-sided' },
     zoom: {
       type: 'float',
       default: 2.0,

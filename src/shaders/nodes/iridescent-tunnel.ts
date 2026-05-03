@@ -75,8 +75,8 @@ export const iridescentTunnelNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.05,
-      label: 'Rotate'
-    },
+      label: 'Rotate',
+      knobPolarity: 'two-sided' },
     raymarchSteps: {
       type: 'int',
       default: 64,

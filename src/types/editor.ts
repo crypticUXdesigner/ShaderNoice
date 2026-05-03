@@ -3,8 +3,8 @@
  * and ui (canvas engine). This module must not import from lib or ui.
  */
 
-/** Canvas tool: cursor, hand, or lasso select. */
-export type ToolType = 'cursor' | 'hand' | 'select';
+/** Canvas tool: cursor, hand, lasso select, add node (Alt+click), or patch into a wire. */
+export type ToolType = 'cursor' | 'hand' | 'select' | 'add' | 'patch';
 
 /** Single item in a dropdown/menu used by canvas overlays (enum dropdown, etc.). */
 export interface DropdownMenuItem {

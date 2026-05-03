@@ -89,8 +89,8 @@ export const reactionDiffusionNodeSpec: NodeSpec = {
       min: -100.0,
       max: 100.0,
       step: 0.05,
-      label: 'Time Offset'
-    },
+      label: 'Time Offset',
+      knobPolarity: 'two-sided' },
     intensity: {
       type: 'float',
       default: 1.0,

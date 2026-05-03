@@ -34,7 +34,8 @@
   let wrapperEl: HTMLDivElement | undefined = $state();
   let lockedWidthPx: number | undefined = $state();
 
-  const DRAG_SENSITIVITY = 100; // pixels for full range
+  /** Same base as Knob: modifiers divide/multiply effective sensitivity. */
+  const BASE_DRAG_SENSITIVITY = 100;
 
   function snapValue(raw: number): number {
     let v = Math.max(min, Math.min(max, raw));
@@ -65,17 +66,27 @@
     const el = e.currentTarget as HTMLElement;
     const pointerId = e.pointerId;
     el.setPointerCapture(pointerId);
-    let startY = e.clientY;
-    let startValue = value;
-    let lastValue = value;
+    let currentY = e.clientY;
+    /** Unsnapped float; small dy values accumulate across pointer moves until step snaps. */
+    let dragAccumulator = value;
+    let lastEmittedSnapped = value;
 
     function handlePointerMove(moveEvent: PointerEvent) {
-      const deltaY = startY - moveEvent.clientY;
+      const dy = currentY - moveEvent.clientY;
+      currentY = moveEvent.clientY;
       const range = max - min;
-      const valueDelta = (deltaY / DRAG_SENSITIVITY) * range;
-      const rawValue = startValue + valueDelta;
-      const newValue = snapValue(rawValue);
-      lastValue = newValue;
+      const modifier = moveEvent.shiftKey
+        ? 'fine'
+        : moveEvent.ctrlKey || moveEvent.metaKey
+          ? 'coarse'
+          : 'normal';
+      const multipliers = { normal: 1, fine: 0.1, coarse: 10 };
+      const sensitivity = BASE_DRAG_SENSITIVITY / multipliers[modifier];
+      const valueDelta = (dy / sensitivity) * range;
+      dragAccumulator += valueDelta;
+      dragAccumulator = Math.max(min, Math.min(max, dragAccumulator));
+      const newValue = snapValue(dragAccumulator);
+      lastEmittedSnapped = newValue;
       onChange?.(newValue);
     }
 
@@ -88,7 +99,7 @@
       window.removeEventListener('pointerup', handlePointerUp as EventListener);
       window.removeEventListener('pointercancel', handlePointerUp as EventListener);
       el.removeEventListener('lostpointercapture', handleLostCapture as EventListener);
-      onCommit?.(lastValue);
+      onCommit?.(lastEmittedSnapped);
     }
 
     function handlePointerUp(upEvent: PointerEvent) {

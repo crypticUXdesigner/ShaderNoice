@@ -153,6 +153,35 @@ describe('NodeShaderCompiler', () => {
     });
   });
 
+  describe('box-torus-sdf', () => {
+    it('compiles UV → Primitives → color-map → final-output without mangling else-if into if_node_*', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const graph: NodeGraph = {
+        id: 'graph-box-torus',
+        name: 'Box torus',
+        version: '2.0',
+        nodes: [
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-bt', type: 'box-torus-sdf', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-cm', type: 'color-map', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-bt', targetPort: 'in' },
+          { id: 'c2', sourceNodeId: 'n-bt', sourcePort: 'out', targetNodeId: 'n-cm', targetPort: 'in' },
+          { id: 'c3', sourceNodeId: 'n-cm', sourcePort: 'out', targetNodeId: 'n-out', targetPort: 'in' },
+        ],
+      };
+
+      const result = compiler.compile(graph);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).not.toMatch(/\bif_node_/);
+      expect(result.shaderCode).toContain('else if');
+    });
+  });
+
   describe('mixed-wave-signal input node', () => {
     it('compiles mixed-wave-signal → color-map → final-output', () => {
       const nodeSpecsMap = buildNodeSpecsMap();
@@ -188,6 +217,97 @@ describe('NodeShaderCompiler', () => {
 
       expect(result.metadata.errors).toHaveLength(0);
       expect(result.shaderCode.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('oscillator-2d input node', () => {
+    it('compiles UV → Vortex driven by oscillator x/y → length → color-map → final-output', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const uvId = 'n-uv';
+      const oscId = 'n-osc';
+      const vortexId = 'n-vortex';
+      const lenId = 'n-len';
+      const cmId = 'n-cm';
+      const outId = 'n-out';
+
+      const graph: NodeGraph = {
+        id: 'graph-osc2d',
+        name: 'Oscillator 2D test',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: oscId, type: 'oscillator-2d', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: vortexId,
+            type: 'vortex',
+            position: { x: 0, y: 0 },
+            parameters: {
+              vortexCenterX: 0.0,
+              vortexCenterY: 0.0,
+              vortexStrength: 0.5,
+              vortexRadius: 2.0,
+              vortexFalloff: 1.5,
+              vortexTimeSpeed: 0.0,
+            },
+          },
+          { id: lenId, type: 'length', position: { x: 0, y: 0 }, parameters: {} },
+          { id: cmId, type: 'color-map', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c0', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: vortexId, targetPort: 'in' },
+          { id: 'cpx', sourceNodeId: oscId, sourcePort: 'x', targetNodeId: vortexId, targetParameter: 'vortexCenterX' },
+          { id: 'cpy', sourceNodeId: oscId, sourcePort: 'y', targetNodeId: vortexId, targetParameter: 'vortexCenterY' },
+          { id: 'c1', sourceNodeId: vortexId, sourcePort: 'out', targetNodeId: lenId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: lenId, sourcePort: 'out', targetNodeId: cmId, targetPort: 'in' },
+          { id: 'c3', sourceNodeId: cmId, sourcePort: 'out', targetNodeId: outId, targetPort: 'in' },
+        ],
+      };
+
+      const result = compiler.compile(graph);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode.length).toBeGreaterThan(0);
+      expect(result.shaderCode).toContain(expectedOutputVariableName(oscId, 'x'));
+      expect(result.shaderCode).toContain(expectedOutputVariableName(oscId, 'y'));
+      expect(result.shaderCode).toContain('osc2dRawX');
+      expect(result.shaderCode).toContain('osc2dTheta');
+      expect(result.shaderCode).toContain('osc2d_combine_axis');
+    });
+
+    it('includes layer merge helper when Layer mix is Product', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const oscId = 'n-osc';
+      const cmId = 'n-cm';
+      const outId = 'n-out';
+
+      const graph: NodeGraph = {
+        id: 'graph-osc2d-mode',
+        name: 'Oscillator 2D mode test',
+        version: '2.0',
+        nodes: [
+          {
+            id: oscId,
+            type: 'oscillator-2d',
+            position: { x: 0, y: 0 },
+            parameters: { layerCombine: 2 },
+          },
+          { id: cmId, type: 'color-map', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c0', sourceNodeId: oscId, sourcePort: 'x', targetNodeId: cmId, targetPort: 'in' },
+          { id: 'c1', sourceNodeId: cmId, sourcePort: 'out', targetNodeId: outId, targetPort: 'in' },
+        ],
+      };
+
+      const result = compiler.compile(graph);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('osc2d_combine_axis');
+      expect(result.shaderCode).toContain('if (mode == 2)');
     });
   });
 
@@ -664,7 +784,7 @@ describe('NodeShaderCompiler', () => {
       const audioSetup: AudioSetup = {
         files: [],
         bands: [
-          { id: 'band-1', name: 'B1', sourceFileId: 'f1', frequencyBands: [[0, 1000]], smoothing: 0.8, fftSize: 4096 },
+          { id: 'band-1', name: 'B1', sourceFileId: 'f1', frequencyBands: [[0, 1000]], smoothingHalfLifeSeconds: 1 / 120, fftSize: 4096 },
         ],
         remappers: [
           { id: remapperId, name: 'R1', bandId: 'band-1', inMin: 0, inMax: 1, outMin: 0, outMax: 1 },

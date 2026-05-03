@@ -35,8 +35,10 @@ export const displaceNodeSpec: NodeSpec = {
       step: 0.01,
       label: 'Scale'
     },
-    offsetX: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.01, label: 'Offset X' },
-    offsetY: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.01, label: 'Offset Y' }
+    offsetX: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.01, label: 'Offset X',
+      knobPolarity: 'two-sided' },
+    offsetY: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.01, label: 'Offset Y',
+      knobPolarity: 'two-sided' }
   },
   parameterLayout: {
     elements: [

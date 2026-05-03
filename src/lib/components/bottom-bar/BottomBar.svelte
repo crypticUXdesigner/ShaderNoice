@@ -7,6 +7,8 @@
   import type { ToolType } from '../../stores';
   import type { AudioSetup } from '../../../data-model/audioSetupTypes';
   import type { WaveformData } from '../../../runtime';
+  import type { AuthenticatedClient } from '@audiotool/nexus';
+  import type { PlaylistTrackPickMeta } from '../../../data-model/audioSetupTypes';
   import BottomBarPlaybackControls from './BottomBarPlaybackControls.svelte';
   import BottomBarScrubber from './BottomBarScrubber.svelte';
   import BottomBarToolSelector from './BottomBarToolSelector.svelte';
@@ -15,6 +17,8 @@
     isPlaying: boolean;
     currentTime: number;
     duration: number;
+    /** When true, primary audio has a decoded buffer (see runtime TimelineState). */
+    hasAudio?: boolean;
   }
 
   interface Props {
@@ -23,8 +27,6 @@
     onPlayToggle?: () => void;
     loopCurrentTrack?: boolean;
     onLoopToggle?: () => void;
-    onSkipBack?: () => void;
-    onSkipForward?: () => void;
     onTimeChange?: (time: number) => void;
     onToolChange?: (tool: ToolType) => void;
     onTimelinePanelOpen?: () => void;
@@ -34,8 +36,14 @@
     /** If provided, scrubber uses this as fallback. */
     getTrackKey?: () => string | undefined;
     getPrimaryAudioFileNodeId?: () => string | undefined;
-    onSelectTrack?: (trackId: string) => void;
+    onSelectTrack?: (trackId: string, pickMeta?: PlaylistTrackPickMeta) => void | Promise<void>;
     onAudioFileSelected?: (nodeId: string, file: File) => Promise<void>;
+    /** Optional Audiotool OAuth session for listing user tracks in LoadTrackDialog. */
+    audiotoolRpcClient?: AuthenticatedClient | null;
+    /** OAuth user name (handle) for user-scoped APIs. */
+    audiotoolUserName?: string | null;
+    /** Called when RPC indicates OAuth bearer is invalid (expired/revoked). */
+    onAudiotoolSessionInvalidated?: () => void;
     timelinePanel?: import('svelte').Snippet<[]>;
     curveEditorSlot?: import('svelte').Snippet<[]>;
   }
@@ -46,8 +54,6 @@
     onPlayToggle,
     loopCurrentTrack = false,
     onLoopToggle,
-    onSkipBack,
-    onSkipForward,
     onTimeChange,
     onToolChange,
     onTimelinePanelOpen,
@@ -57,6 +63,9 @@
     getPrimaryAudioFileNodeId,
     onSelectTrack,
     onAudioFileSelected,
+    audiotoolRpcClient = null,
+    audiotoolUserName = null,
+    onAudiotoolSessionInvalidated,
     timelinePanel,
     curveEditorSlot,
   }: Props = $props();
@@ -68,6 +77,8 @@
   let isTimelinePanelOpen = $state(false);
   let isSpacebarPressed = $state(false);
   let isPlaying = $state(false);
+  /** Bumps when decoded primary audio attaches so the scrubber re-fetches waveform (reload race). */
+  let playbackWaveformToken = $state('0:0.000');
   const SPACE_PRESS_THRESHOLD = 200;
   let spacebarPressTime: number | null = null;
 
@@ -81,12 +92,20 @@
   const activeTool = $derived(graphStore.activeTool);
   const effectiveTool = $derived(isSpacebarPressed ? 'hand' : activeTool);
 
-  // Poll play state for BottomBarPlaybackControls
+  const scrubberTrackKey = $derived.by(() => {
+    const base = primaryTrackKey ?? currentKey ?? '';
+    return `${base}|${playbackWaveformToken}`;
+  });
+
+  // Poll play state for BottomBarPlaybackControls + waveform reload token when MP3 decodes
   $effect(() => {
     if (!getState) return;
     const interval = setInterval(() => {
       const state = getState();
       isPlaying = state?.isPlaying ?? false;
+      const has = state?.hasAudio === true;
+      const dur = state?.duration ?? 0;
+      playbackWaveformToken = `${has ? 1 : 0}:${dur.toFixed(3)}`;
     }, 100);
     return () => clearInterval(interval);
   });
@@ -123,6 +142,12 @@
         } else if (e.key === 's' || e.key === 'S') {
           e.preventDefault();
           handleToolClick('select');
+        } else if (e.key === 'a' || e.key === 'A') {
+          e.preventDefault();
+          handleToolClick('add');
+        } else if (e.key === 'p' || e.key === 'P') {
+          e.preventDefault();
+          handleToolClick('patch');
         }
       }
     }
@@ -181,11 +206,12 @@
         loopCurrentTrack={loopCurrentTrack}
         onPlayToggle={onPlayToggle}
         onLoopToggle={onLoopToggle}
-        onSkipBack={onSkipBack}
-        onSkipForward={onSkipForward}
         getPrimaryAudioFileNodeId={getPrimaryAudioFileNodeId}
         onSelectTrack={onSelectTrack}
         onAudioFileSelected={onAudioFileSelected}
+        audiotoolRpcClient={audiotoolRpcClient}
+        audiotoolUserName={audiotoolUserName ?? undefined}
+        onAudiotoolSessionInvalidated={onAudiotoolSessionInvalidated}
       />
     </div>
 
@@ -205,7 +231,7 @@
       </div>
 
       <BottomBarScrubber
-        trackKey={primaryTrackKey ?? currentKey}
+        trackKey={scrubberTrackKey}
         getTrackKey={getTrackKey}
         getState={getState}
         getWaveformForPrimary={getWaveformForPrimary}
@@ -367,7 +393,7 @@
       flex-direction: column;
     }
 
-    &:has(.curve-slot:not(:empty)) .curve-slot .curve-editor {
+    &:has(.curve-slot:not(:empty)) .curve-slot :global(.curve-editor) {
       flex: 1;
       min-height: 0;
       overflow: hidden;

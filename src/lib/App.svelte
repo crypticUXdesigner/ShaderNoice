@@ -4,7 +4,7 @@
    * Root component: runtime, compiler, graph store, layout, bottom bar, node panel,
    * timeline, curve editor, canvas wrapper, error display, overlays.
    */
-  import { onMount, tick } from 'svelte';
+  import { onMount, tick, untrack } from 'svelte';
   import { loadPhosphorIconData } from '../utils/phosphor-icons-loader';
   import { NodeShaderCompiler } from '../shaders/NodeShaderCompiler';
   import { createRuntimeManager } from '../runtime/factories';
@@ -12,8 +12,7 @@
   import { WaveformService } from '../runtime';
   import { WebGLContextError } from '../runtime/errors';
   import { nodeSystemSpecs } from '../shaders/nodes/index';
-  import { createEmptyGraph } from '../data-model/utils';
-  import { listPresets, loadPreset, loadPresetFromJson, downloadGraphAsJsonFile } from '../utils/presetManager';
+  import { listPresets, loadPresetFromJson, downloadGraphAsJsonFile } from '../utils/presetManager';
   import { toValidationSpecs } from '../utils/nodeSpecUtils';
   import { exportImage } from '../utils/export';
   import { runVideoExportFlow, isSupported as isVideoExportSupported } from '../video-export';
@@ -32,13 +31,25 @@
     setLoopCurrentTrack,
     retargetBandsToPrimary,
   } from '../data-model';
-  import { getTracksData, getPlaylistOrder } from '../runtime/tracksData';
+  import {
+    getTracksData,
+    getPlaylistOrder,
+    resolvePlaylistTrackMp3Url,
+    playlistPrimaryFromBundledCatalog,
+  } from '../runtime/tracksData';
+  import {
+    fetchAudiotoolTrackViaGetTrack,
+    withAudiotoolUserSession,
+    type AudiotoolGetTrackParsed,
+  } from '../utils/audiotoolSessionRpc';
+  import { registerAudiotoolPlaylistTrackPlaybackUrl } from '../utils/audiotoolPlaylistPlaybackUrls';
+  import { setAudiotoolTrackDisplayNameCache } from '../utils/audiotoolTrackTitleCache';
   import type { NodeGraph } from '../data-model/types';
-  import type { AudioSetup } from '../data-model';
+  import type { AudioSetup, PlaylistPrimarySource, PlaylistTrackPickMeta } from '../data-model';
   import type { NodeSpec } from '../types';
   import { UndoRedoManager } from '../ui/editor';
-  import { errorStore, errorAnnouncer, formatErrorForAnnouncer } from './stores';
-  import { ErrorDisplay, ErrorAnnouncer, AppSplashScreen } from './components/ui';
+  import { appToastStore, errorAnnouncer, formatErrorForAnnouncer } from './stores';
+  import { ErrorAnnouncer, AppSplashScreen } from './components/ui';
   import { getHelpContent } from '../utils/ContextualHelpManager';
   import type { HelpContent } from '../utils/ContextualHelpManager';
 
@@ -52,17 +63,109 @@
   import EditorLabelEditOverlay from './components/editor/EditorLabelEditOverlay.svelte';
   import { HelpCallout, NodeRightClickMenu, ColorPickerPopover, AudioSignalPicker } from './components';
   import { getStoredPosition, setStoredPosition } from './components/floating-panel';
-  import { DropdownMenu } from './components/ui';
+  import { Button, DropdownMenu, ModalDialog } from './components/ui';
   import type { DropdownMenuItem } from './components/ui';
   import type { NodeEditorCanvasWrapperAPI } from './components/editor/NodeEditorCanvasWrapper.types';
   import type { CanvasOverlayBridge, SignalSelectPayload } from './CanvasOverlayBridge';
 
   import { graphStore } from './stores';
   import { isAppSplashEnabled } from '../utils/appSplash';
+  import {
+    createUserProjectFromValidatedJson,
+    resolveHubSelectionToGraph,
+    type HubResolveResult,
+  } from './appHubResolve';
+  import {
+    deleteProjectAtomic,
+    duplicateProjectAtomic,
+    getProjectPayload,
+    listProjectMeta,
+    readAppMeta,
+    saveProjectPayloadAtomic,
+    updateProjectAppearanceAtomic,
+    type ProjectMeta,
+  } from './storage/projectRepository';
+  import type { ProjectAvatarFields } from './storage/projectAvatar';
+  import type { ActiveSession, HubSelection } from './storage/projectSessionTypes';
+  import { serializeGraph } from '../data-model/serialization';
+  import {
+    audiotoolSplashAudiotoolPhase,
+    createInitialAudiotoolConnection,
+    reduceAudiotoolConnection,
+    type AudiotoolConnectionEvent,
+  } from '../utils/audiotoolConnectionModel';
+  import { resolveAudiotoolSignInChromeAction } from '../utils/audiotoolChromeSignIn';
+  import { isAudiotoolOAuthConfigured, initAudiotoolBrowserAuth } from '../utils/audiotoolBrowserAuth';
+  import { setAudiotoolPlaylistLoadSessionAvailable } from '../utils/audiotoolPlaylistLoadHint';
+
   const splashFeatureEnabled = isAppSplashEnabled();
-  let splashOverlayVisible = $state(splashFeatureEnabled);
-  /** Initial load finished; splash may still be visible until the user dismisses it. */
+  const useAudiotoolGate = isAudiotoolOAuthConfigured();
+  const initialSplashVisible = splashFeatureEnabled || useAudiotoolGate;
+
+  let splashOverlayVisible = $state(initialSplashVisible);
+  /** Initial load finished; intro splash may still be visible until the user dismisses it. */
   let splashReadyForDismiss = $state(false);
+  /** Reduced Audiotool OAuth chrome + splash (see `reduceAudiotoolConnection`). */
+  let atConn = $state(createInitialAudiotoolConnection(useAudiotoolGate));
+  /** In-app modal: pick local project / preset before bootstrap or after Projects home */
+  let projectGateBlocking = $state(false);
+  let hubBusy = $state(false);
+  let hubProjects = $state<ProjectMeta[]>([]);
+  let hubStorageWarning = $state<string | null>(null);
+  /** `?project=` deep link — highlight in hub only */
+  let deepLinkProjectId = $state<string | null>(null);
+  /** True after consuming an invalid/dead deep link attempt (prevents repeats). Valid links clear id on success instead. */
+  let urlDeepLinkAttemptedInvalid = $state(false);
+  let urlHighlightProjectId = $state<string | null>(null);
+  let hubLastOpenedProjectId = $state<string | null>(null);
+  let activeSession = $state<ActiveSession>({ kind: 'none' });
+
+  let localRevision = $state(0);
+  let persistedRevision = $state(0);
+  let hydrating = $state(false);
+  /** `onMount` assigns — runs first WebGL bootstrap from hub pick (or repeat after return to hub). */
+  let runEditorBootstrapFromHubRef: ((sel: HubSelection) => Promise<void>) | null = null;
+  let lastAppMetaWarningKey = $state<string | null>(null);
+  let autosaveDebounceHandle = 0;
+  let autosaveClampHandle = 0;
+  /** Last wall-clock flush of `persistedRevision` to IndexedDB (clamp + idle semantics). */
+  let lastSuccessfulPersistAt = $state(0);
+  /** Invalidates in-flight Audiotool GetTrack hydrations when primary track or session changes. */
+  let audiotoolTrackHydrateGeneration = 0;
+
+  /** §5.7 — IndexedDB refused save before leaving Projects / hub */
+  let leaveSaveBlockedOpen = $state(false);
+
+  const isUserProjectDirty = $derived(
+    activeSession.kind === 'userProject' &&
+      localRevision !== persistedRevision &&
+      !hydrating
+  );
+
+  function dispatchAt(event: AudiotoolConnectionEvent): void {
+    atConn = reduceAudiotoolConnection(atConn, event);
+  }
+
+  /** Lets runtime suppress spurious CDN load errors while GetTrack fills the playback URL registry. */
+  $effect(() => {
+    setAudiotoolPlaylistLoadSessionAvailable(atConn.session != null);
+    return () => setAudiotoolPlaylistLoadSessionAvailable(false);
+  });
+
+  async function reconnectAudiotoolLoginAfterDisconnect(): Promise<void> {
+    if (!useAudiotoolGate) return;
+    try {
+      const auth = await initAudiotoolBrowserAuth();
+      if (auth.status === 'unauthenticated') {
+        const login = (): void => {
+          auth.login();
+        };
+        dispatchAt({ type: 'DISCONNECTED_LOGIN_RESTORED', login });
+      }
+    } catch {
+      // Top bar sign-in may stay unavailable until reload; editor continues to work.
+    }
+  }
 
   const nodeSpecs: NodeSpec[] = nodeSystemSpecs;
   let hasInitialFit = false;
@@ -121,21 +224,85 @@
     const rm = runtimeManager;
     if (!rm) return;
     rm.setOnPlaylistAdvance((nextState) => {
-      const prevPrimaryId = getPrimaryFileId(graphStore.audioSetup);
-      let setup = graphStore.audioSetup;
-      const order = setup?.playlistState?.order ?? [];
-      const trackId = order[nextState.currentIndex];
-      if (trackId == null) return;
-      setup = setPlaylistCurrentIndex(setup, nextState.currentIndex);
-      setup = setPrimarySource(setup, { type: 'playlist', trackId });
-      const newPrimaryId = getPrimaryFileId(setup);
-      setup = retargetBandsToPrimary(setup, prevPrimaryId, newPrimaryId);
-      graphStore.setAudioSetup(setup);
-      runtimeDispatcher?.setAudioSetup(setup, { autoPlayWhenReady: true });
-      runtimeDispatcher?.playPrimary();
+      void (async () => {
+        const data = await getTracksData();
+        const live = graphStore.audioSetup;
+        const order = live?.playlistState?.order ?? [];
+        const trackId = order[nextState.currentIndex];
+        if (trackId == null) return;
+        const prevPrimaryId = getPrimaryFileId(live);
+        let setup = live;
+        setup = setPlaylistCurrentIndex(setup, nextState.currentIndex);
+        setup = setPrimarySource(setup, playlistPrimaryFromBundledCatalog(trackId, data));
+        const newPrimaryId = getPrimaryFileId(setup);
+        setup = retargetBandsToPrimary(setup, prevPrimaryId, newPrimaryId);
+        graphStore.setAudioSetup(setup);
+        runtimeDispatcher?.setAudioSetup(setup, { autoPlayWhenReady: true });
+        runtimeDispatcher?.playPrimary();
+      })();
     });
     return () => rm.setOnPlaylistAdvance(undefined);
   });
+
+  /** `tracks/*` playlist id only — excludes display-metadata updates so hydration does not loop on graph saves. */
+  const audiotoolPlaylistHydrateTrackId = $derived.by(() => {
+    const primary = graphStore.audioSetup.primarySource;
+    if (primary?.type !== 'playlist') return null;
+    const tid = primary.trackId.trim();
+    return tid.startsWith('tracks/') ? tid : null;
+  });
+
+  /** Background hydrate: Audiotool GetTrack refreshes playback URL registry + persisted display title outside bundled catalog. */
+  $effect(() => {
+    const session = atConn.session;
+    const trackId = audiotoolPlaylistHydrateTrackId;
+    if (!trackId || !session) return;
+
+    const gen = ++audiotoolTrackHydrateGeneration;
+
+    void (async () => {
+      const data = await getTracksData();
+      if (gen !== audiotoolTrackHydrateGeneration) return;
+      const bundledEntry = data[trackId];
+      const bundledTitle =
+        bundledEntry?.displayName?.trim() ?? (typeof bundledEntry?.name === 'string' ? bundledEntry.name.trim() : '');
+      if (bundledTitle.length > 0) return;
+
+      const res = await withAudiotoolUserSession(session, (client) => fetchAudiotoolTrackViaGetTrack(client, trackId));
+      if (gen !== audiotoolTrackHydrateGeneration) return;
+      if (!res.ok || !res.value) return;
+
+      const { playbackUrl, displayName: apiName } = res.value;
+      if (playbackUrl) registerAudiotoolPlaylistTrackPlaybackUrl(trackId, playbackUrl);
+      const dn = apiName?.trim();
+      if (dn?.length) setAudiotoolTrackDisplayNameCache(trackId, dn);
+
+      untrack(() => {
+        const cur = graphStore.audioSetup.primarySource;
+        if (cur?.type !== 'playlist' || cur.trackId.trim() !== trackId) return;
+
+        let setup = graphStore.audioSetup;
+        let graphChanged = false;
+
+        if (dn?.length && cur.displayName !== dn) {
+          const merged: PlaylistPrimarySource = {
+            ...cur,
+            trackId,
+            displayName: dn,
+            displayNameSource: 'audiotool',
+            displayNameUpdatedAt: new Date().toISOString(),
+          };
+          setup = setPrimarySource(setup, merged);
+          graphChanged = true;
+        }
+
+        if (graphChanged) graphStore.setAudioSetup(setup);
+        if (playbackUrl !== undefined || (dn?.length ?? 0) > 0)
+          runtimeDispatcher?.setAudioSetup(graphChanged ? setup : graphStore.audioSetup);
+      });
+    })();
+  });
+
   const nodeSpecsMap = new Map<string, NodeSpec>(nodeSpecs.map((s) => [s.id, s]));
 
   let previewMount: HTMLDivElement;
@@ -143,7 +310,7 @@
   let runtimeManager = $state<Awaited<ReturnType<typeof createRuntimeManager>> | null>(null);
   let runtimeDispatcher = $state<RuntimeMessageDispatcher | null>(null);
   let waveformService = $state<WaveformService | null>(null);
-  let undoRedoManager: UndoRedoManager;
+  let undoRedoManager!: UndoRedoManager;
   let canvasApi = $state<NodeEditorCanvasWrapperAPI | null>(null);
 
   /** API exposed by BottomBar via bind:this (exported functions). */
@@ -188,6 +355,15 @@
 
   /** Primary track key for waveform scrubber; derived in App so layout re-renders on track change. */
   const primaryTrackKey = $derived(getPrimaryFileId(graphStore.audioSetup));
+
+  /** One highlighted project row in Load project: active local project while editing; on gate, URL target then last-opened. */
+  const hubPickerHighlightedProjectId = $derived.by((): string | null => {
+    if (runtimeManager !== null) {
+      if (activeSession.kind === 'userProject') return activeSession.projectId;
+      return null;
+    }
+    return urlHighlightProjectId ?? hubLastOpenedProjectId ?? null;
+  });
 
   /* Canvas overlay state (for color picker, enum dropdown) */
   let canvasColorPickerVisible = $state(false);
@@ -366,27 +542,6 @@
     };
   }
 
-  async function loadInitialPreset(): Promise<NodeGraph> {
-    try {
-      const list = await listPresets();
-      presets = list;
-      const selected = list.find((p) => p.name === 'new') ?? list[0];
-      if (!selected) return createEmptyGraph('Untitled');
-      const result = await loadPreset(selected.name, toValidationSpecs(nodeSpecs));
-      if (!result.graph) {
-        if (result.errors.length > 0) console.warn('[App] Preset validation:', result.errors);
-        return createEmptyGraph('Untitled');
-      }
-      selectedPreset = selected.name;
-      const remapped = remapGraphIds(result.graph);
-      graphStore.setAudioSetup(result.audioSetup ?? { files: [], bands: [], remappers: [] });
-      return remapped;
-    } catch (err) {
-      console.warn('[App] Failed to load preset:', err);
-      return createEmptyGraph('Untitled');
-    }
-  }
-
   async function applyStartingTrack(
     audioSetup: AudioSetup,
     startingTrackId: string
@@ -394,56 +549,15 @@
     const data = await getTracksData();
     const order = getPlaylistOrder(data);
     let setup = setPlaylistOrder(audioSetup, order);
-    setup = setPrimarySource(setup, { type: 'playlist', trackId: startingTrackId });
+    setup = setPrimarySource(setup, playlistPrimaryFromBundledCatalog(startingTrackId, data));
     const idx = order.indexOf(startingTrackId);
     setup = setPlaylistCurrentIndex(setup, idx >= 0 ? idx : 0);
     return setup;
   }
 
-  async function handleLoadPreset(presetName: string): Promise<void> {
-    const result = await loadPreset(presetName, toValidationSpecs(nodeSpecs));
-    if (!result.graph) {
-      throw new Error(result.errors[0] ?? `Failed to load preset: ${presetName}`);
-    }
-    const remapped = remapGraphIds(result.graph);
-    let audioSetup = result.audioSetup ?? { files: [], bands: [], remappers: [] };
-    if (result.startingTrackId) {
-      audioSetup = await applyStartingTrack(audioSetup, result.startingTrackId);
-    }
-    selectedPreset = presetName;
-    undoRedoManager.clear();
-    graphStore.setGraph(remapped);
-    graphStore.setAudioSetup(audioSetup);
-    if (runtimeDispatcher) {
-      await runtimeDispatcher.setAudioSetup(audioSetup);
-      await runtimeDispatcher.loadGraph(remapped);
-    }
-    if (remapped.nodes.length > 0) {
-      setTimeout(() => canvasApi?.fitToView(), 0);
-    }
-  }
-
   async function handleImportPresetFromFile(json: string): Promise<void> {
-    const result = await loadPresetFromJson(json, toValidationSpecs(nodeSpecs));
-    if (!result.graph) {
-      throw new Error(result.errors[0] ?? 'Invalid preset file');
-    }
-    const remapped = remapGraphIds(result.graph);
-    let audioSetup = result.audioSetup ?? { files: [], bands: [], remappers: [] };
-    if (result.startingTrackId) {
-      audioSetup = await applyStartingTrack(audioSetup, result.startingTrackId);
-    }
-    selectedPreset = null;
-    undoRedoManager.clear();
-    graphStore.setGraph(remapped);
-    graphStore.setAudioSetup(audioSetup);
-    if (runtimeDispatcher) {
-      await runtimeDispatcher.setAudioSetup(audioSetup);
-      await runtimeDispatcher.loadGraph(remapped);
-    }
-    if (remapped.nodes.length > 0) {
-      setTimeout(() => canvasApi?.fitToView(), 0);
-    }
+    if (!runtimeDispatcher || !compiler) return;
+    await importFileAsNewLocalProject(json);
   }
 
   function handleDownloadPreset(): void {
@@ -480,6 +594,525 @@
       compiler: compiler!,
       getPrimaryAudio,
     });
+  }
+
+  function finalizeSplashAfterEditorBootstrapLoaded(): void {
+    projectGateBlocking = false;
+    if (splashFeatureEnabled && !useAudiotoolGate) {
+      splashReadyForDismiss = true;
+    }
+    if (useAudiotoolGate) {
+      splashOverlayVisible = false;
+    }
+  }
+
+  async function ensurePresetsAndHubLoaded(): Promise<void> {
+    if (presets.length === 0) {
+      presets = await listPresets();
+    }
+    await refreshHubProjectList();
+  }
+
+  async function applyResolvedHubToRuntime(resolved: HubResolveResult): Promise<void> {
+    hydrating = true;
+    undoRedoManager.clear();
+    graphStore.setGraph(resolved.graph);
+    graphStore.setAudioSetup(resolved.audioSetup);
+    activeSession = resolved.activeSession;
+    selectedPreset = resolved.selectedPreset;
+    hydrating = false;
+    undoRedoManager.pushState(graphStore.graph);
+    localRevision = 0;
+    persistedRevision = 0;
+    lastSuccessfulPersistAt = Date.now();
+    appToastStore.dismissBySource('autosave');
+    if (!runtimeDispatcher) return;
+    // Audio setup is synced via $effect when graphStore.audioSetup updates.
+    await runtimeDispatcher.loadGraph(graphStore.graph);
+    if (resolved.graph.nodes.length > 0) {
+      setTimeout(() => canvasApi?.fitToView(), 150);
+    }
+  }
+
+  function parseUrlProjectId(): string | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const id = new URLSearchParams(window.location.search).get('project')?.trim();
+      return id || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function stripProjectQueryFromUrl(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const u = new URL(window.location.href);
+      if (!u.searchParams.has('project')) return;
+      u.searchParams.delete('project');
+      const qs = u.searchParams.toString();
+      history.replaceState(null, '', `${u.pathname}${qs ? `?${qs}` : ''}${u.hash}`);
+    } catch {
+      // ignore
+    }
+  }
+
+  function queueAutosaveFlush(): void {
+    const fn = (): void => {
+      void flushAutosaveNow().catch(() => {});
+    };
+    const ric = window.requestIdleCallback;
+    if (typeof ric === 'function') {
+      ric(fn, { timeout: 2200 });
+    } else {
+      window.setTimeout(fn, 0);
+    }
+  }
+
+  async function teardownToProjectsSplash(): Promise<void> {
+    stopAnimation();
+    intersectionObserver?.disconnect();
+    intersectionObserver = null;
+    safeDestroy(runtimeManager);
+    runtimeManager = null;
+    runtimeDispatcher = null;
+    waveformService = null;
+    compiler = null;
+    graphStore.setGraphChangedListener(null);
+    graphStore.setAudioChangedListener(null);
+    canvasApi = null;
+    hasInitialFit = false;
+    activeSession = { kind: 'none' };
+    localRevision = 0;
+    persistedRevision = 0;
+    lastSuccessfulPersistAt = Date.now();
+    previewMount?.replaceChildren();
+    splashOverlayVisible = false;
+    projectGateBlocking = true;
+    splashReadyForDismiss = false;
+    leaveSaveBlockedOpen = false;
+    await refreshHubProjectList();
+  }
+
+  async function tryOpenDeepLinkedProjectOnce(): Promise<void> {
+    const id = deepLinkProjectId;
+    if (!id || hubBusy || !runEditorBootstrapFromHubRef || runtimeManager !== null || urlDeepLinkAttemptedInvalid) return;
+    const exists = hubProjects.some((p) => p.projectId === id);
+    if (!exists) {
+      urlDeepLinkAttemptedInvalid = true;
+      globalErrorHandler.report(
+        'validation',
+        'warning',
+        'That project is not in saved projects on this device. Open Projects and choose one.'
+      );
+      stripProjectQueryFromUrl();
+      deepLinkProjectId = null;
+      urlHighlightProjectId = null;
+      return;
+    }
+    hubBusy = true;
+    try {
+      await runEditorBootstrapFromHubRef({ kind: 'userProject', projectId: id });
+      stripProjectQueryFromUrl();
+      deepLinkProjectId = null;
+      urlHighlightProjectId = null;
+    } catch {
+      globalErrorHandler.report(
+        'unexpected',
+        'error',
+        'We could not open that link. Pick the project from Projects instead.'
+      );
+    } finally {
+      hubBusy = false;
+    }
+  }
+
+  async function refreshHubProjectList(): Promise<void> {
+    try {
+      hubProjects = await listProjectMeta();
+    } catch {
+      hubStorageWarning =
+        'Could not read saved projects here. Your list may be incomplete. Download your graph as JSON from the editor to keep a backup.';
+      hubProjects = [];
+      return;
+    }
+    let appMeta;
+    try {
+      appMeta = await readAppMeta();
+    } catch {
+      hubStorageWarning =
+        'Could not read app preferences (like last opened project). Pick a project from the list.';
+      appMeta = undefined;
+    }
+    hubLastOpenedProjectId = appMeta?.lastOpenedProjectId ?? null;
+    if (appMeta?.lastOpenedProjectId) {
+      const hit = hubProjects.some((p) => p.projectId === appMeta!.lastOpenedProjectId);
+      if (!hit) {
+        const key = `missing:${appMeta.lastOpenedProjectId}`;
+        if (lastAppMetaWarningKey !== key) {
+          lastAppMetaWarningKey = key;
+          globalErrorHandler.report(
+            'unexpected',
+            'warning',
+            'Your last opened project is no longer in the list. Choose another project below.'
+          );
+        }
+      }
+    }
+  }
+
+  async function handleContinueWithoutAudiotool(): Promise<void> {
+    try {
+      await ensurePresetsAndHubLoaded();
+    } catch {
+      globalErrorHandler.report('unexpected', 'error', 'Could not load presets or projects. Try again.');
+      return;
+    }
+    splashOverlayVisible = false;
+    await tick();
+    await tryOpenDeepLinkedProjectOnce();
+    if (!runtimeManager) projectGateBlocking = true;
+  }
+
+  async function handleHubPick(selection: HubSelection): Promise<void> {
+    if (hubBusy || !runEditorBootstrapFromHubRef) return;
+    hubBusy = true;
+    hubStorageWarning = null;
+    try {
+      if (runtimeManager !== null) {
+        const resolved = await resolveHubSelectionToGraph(
+          selection,
+          toValidationSpecs(nodeSpecs),
+          remapGraphIds,
+          applyStartingTrack
+        );
+        await applyResolvedHubToRuntime(resolved);
+        await refreshHubProjectList();
+        finalizeSplashAfterEditorBootstrapLoaded();
+      } else {
+        await runEditorBootstrapFromHubRef(selection);
+        // Bootstrapping from the blocking hub can create new local projects (new/fork/import).
+        // Refresh the in-memory meta list so reopening the picker immediately shows the new row.
+        await refreshHubProjectList();
+      }
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : 'Could not open the editor. Try another project or refresh the page.';
+      hubStorageWarning = msg;
+      globalErrorHandler.report('unexpected', 'error', msg);
+    } finally {
+      hubBusy = false;
+    }
+  }
+
+  async function handleHubDelete(projectId: string): Promise<void> {
+    try {
+      await deleteProjectAtomic(projectId);
+      await refreshHubProjectList();
+    } catch (e) {
+      globalErrorHandler.report(
+        'unexpected',
+        'error',
+        e instanceof Error ? e.message : 'Could not delete project'
+      );
+    }
+  }
+
+  async function handleHubDuplicate(projectId: string): Promise<void> {
+    try {
+      const iso = new Date().toISOString();
+      await duplicateProjectAtomic({
+        sourceProjectId: projectId,
+        newProjectId: generateUUID(),
+        createdAtISO: iso,
+        lastModifiedISO: iso,
+      });
+      await refreshHubProjectList();
+    } catch (e) {
+      globalErrorHandler.report(
+        'unexpected',
+        'error',
+        e instanceof Error ? e.message : 'Could not duplicate project'
+      );
+    }
+  }
+
+  async function handleHubAppearanceChange(projectId: string, next: ProjectAvatarFields): Promise<void> {
+    try {
+      await updateProjectAppearanceAtomic({
+        projectId,
+        avatarNodeIcon: next.avatarNodeIcon,
+        avatarBgToken: next.avatarBgToken,
+        avatarIconColorToken: next.avatarIconColorToken,
+        lastModifiedISO: new Date().toISOString(),
+      });
+      await refreshHubProjectList();
+    } catch (e) {
+      globalErrorHandler.report(
+        'unexpected',
+        'error',
+        e instanceof Error ? e.message : 'Could not update project appearance'
+      );
+    }
+  }
+
+  async function handleHubRename(projectId: string, rawDisplayName: string): Promise<void> {
+    try {
+      const displayName =
+        rawDisplayName.trim().slice(0, 256) ||
+        hubProjects.find((p) => p.projectId === projectId)?.displayName.trim() ||
+        'Untitled';
+      const row = await getProjectPayload(projectId);
+      if (!row?.json) throw new Error('Project not found');
+      const parsed = await loadPresetFromJson(row.json, toValidationSpecs(nodeSpecs));
+      if (!parsed.graph) {
+        throw new Error(parsed.errors[0] ?? 'Could not load project data');
+      }
+      const updatedGraph = { ...parsed.graph, name: displayName };
+      const audioSetup = parsed.audioSetup ?? { files: [], bands: [], remappers: [] };
+      const json = serializeGraph(updatedGraph, false, audioSetup, {
+        startingTrackId: parsed.startingTrackId,
+      });
+      const iso = new Date().toISOString();
+      await saveProjectPayloadAtomic({
+        projectId,
+        json,
+        displayName,
+        lastModifiedISO: iso,
+      });
+      await refreshHubProjectList();
+      if (activeSession.kind === 'userProject' && activeSession.projectId === projectId) {
+        hydrating = true;
+        graphStore.setGraph({ ...graphStore.graph, name: displayName });
+        hydrating = false;
+      }
+    } catch (e) {
+      globalErrorHandler.report(
+        'unexpected',
+        'error',
+        e instanceof Error ? e.message : 'Could not rename project'
+      );
+    }
+  }
+
+  async function handleHubImportJson(json: string): Promise<void> {
+    if (hubBusy || !runEditorBootstrapFromHubRef) return;
+    try {
+      await createUserProjectFromValidatedJson(
+        toValidationSpecs(nodeSpecs),
+        remapGraphIds,
+        applyStartingTrack,
+        json
+      );
+    } catch (e) {
+      globalErrorHandler.report(
+        'validation',
+        'error',
+        e instanceof Error ? e.message : 'That file is not valid graph JSON'
+      );
+      return;
+    }
+    await refreshHubProjectList();
+    const list = await listProjectMeta();
+    const last = await readAppMeta();
+    const pid = last?.lastOpenedProjectId;
+    if (!pid || !list.some((p) => p.projectId === pid)) {
+      globalErrorHandler.report(
+        'validation',
+        'error',
+        'Your import is saved, but we could not open it automatically. Open it from Projects.'
+      );
+      return;
+    }
+    hubBusy = true;
+    try {
+      if (runtimeManager !== null) {
+        const resolved = await resolveHubSelectionToGraph(
+          { kind: 'userProject', projectId: pid },
+          toValidationSpecs(nodeSpecs),
+          remapGraphIds,
+          applyStartingTrack
+        );
+        await applyResolvedHubToRuntime(resolved);
+        finalizeSplashAfterEditorBootstrapLoaded();
+      } else {
+        await runEditorBootstrapFromHubRef({ kind: 'userProject', projectId: pid });
+      }
+    } finally {
+      hubBusy = false;
+    }
+  }
+
+  /** Import from top bar while editor running: new local row + hydrate in place */
+  async function importFileAsNewLocalProject(json: string): Promise<void> {
+    try {
+      const { projectId } = await createUserProjectFromValidatedJson(
+        toValidationSpecs(nodeSpecs),
+        remapGraphIds,
+        applyStartingTrack,
+        json
+      );
+      const row = await getProjectPayload(projectId);
+      if (!row) throw new Error('Import write failed');
+      const result = await loadPresetFromJson(row.json, toValidationSpecs(nodeSpecs));
+      if (!result.graph) throw new Error(result.errors[0] ?? 'Invalid file');
+      let audioSetup = result.audioSetup ?? { files: [], bands: [], remappers: [] };
+      if (result.startingTrackId) {
+        audioSetup = await applyStartingTrack(audioSetup, result.startingTrackId);
+      }
+      const graph = result.graph;
+      hydrating = true;
+      undoRedoManager.clear();
+      graphStore.setGraph(graph);
+      graphStore.setAudioSetup(audioSetup);
+      activeSession = { kind: 'userProject', projectId };
+      selectedPreset = null;
+      hydrating = false;
+      undoRedoManager.pushState(graphStore.graph);
+      localRevision = 0;
+      persistedRevision = 0;
+      lastSuccessfulPersistAt = Date.now();
+      appToastStore.dismissBySource('autosave');
+      if (runtimeDispatcher) {
+        // Audio setup is synced via $effect when graphStore.audioSetup updates.
+        await runtimeDispatcher.loadGraph(graph);
+      }
+      if (graph.nodes.length > 0) {
+        setTimeout(() => canvasApi?.fitToView(), 0);
+      }
+      await refreshHubProjectList();
+    } catch (e) {
+      globalErrorHandler.report(
+        'validation',
+        'error',
+        e instanceof Error ? e.message : 'Import failed.'
+      );
+    }
+  }
+
+  async function onLeaveSaveBlockedRetry(): Promise<void> {
+    appToastStore.dismissBySource('autosave');
+    try {
+      await flushAutosaveNow();
+      if (localRevision === persistedRevision) {
+        leaveSaveBlockedOpen = false;
+        await teardownToProjectsSplash();
+      }
+    } catch {
+      // modal stays open; toast from flushAutosaveNow
+    }
+  }
+
+  function onLeaveSaveBlockedDownloadAndContinue(): void {
+    downloadGraphAsJsonFile(graphStore.graph, graphStore.audioSetup);
+    leaveSaveBlockedOpen = false;
+    void teardownToProjectsSplash();
+  }
+
+  function onLeaveSaveBlockedCancel(): void {
+    leaveSaveBlockedOpen = false;
+  }
+
+  async function flushAutosaveNow(): Promise<void> {
+    if (activeSession.kind !== 'userProject') return;
+    if (localRevision === persistedRevision) return;
+    try {
+      const json = serializeGraph(graphStore.graph, true, graphStore.audioSetup, {
+        startingTrackId:
+          graphStore.audioSetup.primarySource?.type === 'playlist'
+            ? graphStore.audioSetup.primarySource.trackId
+            : undefined,
+      });
+      await saveProjectPayloadAtomic({
+        projectId: activeSession.projectId,
+        json,
+        displayName: graphStore.graph.name.trim() || 'Untitled',
+        lastModifiedISO: new Date().toISOString(),
+      });
+      persistedRevision = localRevision;
+      lastSuccessfulPersistAt = Date.now();
+      appToastStore.dismissBySource('autosave');
+      await refreshHubProjectList();
+    } catch (e) {
+      const detail = e instanceof Error ? e.message : String(e);
+      appToastStore.addToast({
+        variant: 'error',
+        message: `Could not save (${detail}). Download your graph as JSON to keep a backup.`,
+        copyText: `IndexedDB save failed.\n${detail}`,
+        source: 'autosave',
+      });
+      console.error('[autosave]', e);
+      throw e;
+    }
+  }
+
+  /** Debounced + clamped IndexedDB autosave (`requestIdleCallback` when available; §5 timing). */
+  $effect(() => {
+    void graphStore.audioSetup;
+    void lastSuccessfulPersistAt;
+    const rev = localRevision;
+    void rev;
+    if (hydrating || activeSession.kind !== 'userProject') {
+      clearTimeout(autosaveDebounceHandle);
+      clearTimeout(autosaveClampHandle);
+      autosaveDebounceHandle = 0;
+      autosaveClampHandle = 0;
+      return;
+    }
+    if (localRevision === persistedRevision) {
+      clearTimeout(autosaveClampHandle);
+      autosaveClampHandle = 0;
+      return;
+    }
+
+    clearTimeout(autosaveDebounceHandle);
+    autosaveDebounceHandle = window.setTimeout(() => {
+      queueAutosaveFlush();
+      autosaveDebounceHandle = 0;
+    }, 520);
+
+    const elapsedSincePersist = Date.now() - lastSuccessfulPersistAt;
+    const clampWait = Math.max(0, 3200 - elapsedSincePersist);
+    clearTimeout(autosaveClampHandle);
+    autosaveClampHandle = window.setTimeout(() => {
+      if (
+        activeSession.kind === 'userProject' &&
+        localRevision !== persistedRevision
+      ) {
+        queueAutosaveFlush();
+      }
+      autosaveClampHandle = 0;
+    }, clampWait);
+
+    return () => {
+      clearTimeout(autosaveDebounceHandle);
+      clearTimeout(autosaveClampHandle);
+      autosaveDebounceHandle = 0;
+      autosaveClampHandle = 0;
+    };
+  });
+
+  function handleAudiotoolLogout(): void {
+    const session = atConn.session;
+    dispatchAt({ type: 'LOGOUT_AND_CLEAR_SESSION' });
+    try {
+      session?.logout();
+    } catch {
+      // ignore
+    }
+    void reconnectAudiotoolLoginAfterDisconnect();
+  }
+
+  function handleAudiotoolSessionRpcInvalidated(): void {
+    const session = atConn.session;
+    dispatchAt({ type: 'SESSION_INVALIDATED_BY_SERVER' });
+    try {
+      session?.logout();
+    } catch {
+      // ignore
+    }
+    globalErrorHandler.report('network', 'warning', 'You were signed out of Audiotool. Sign in again to use account features.');
+    void reconnectAudiotoolLoginAfterDisconnect();
   }
 
   function startAnimation(): void {
@@ -520,19 +1153,16 @@
 
   onMount(() => {
     let cancelled = false;
+    let docListenersAttached = false;
 
-    (async () => {
-      await loadPhosphorIconData();
-      await tick();
+    async function runEditorBootstrapFromHub(selection: HubSelection): Promise<void> {
+      const resolved = await resolveHubSelectionToGraph(
+        selection,
+        toValidationSpecs(nodeSpecs),
+        remapGraphIds,
+        applyStartingTrack
+      );
       if (cancelled) return;
-
-      globalErrorHandler.onError((err: import('../utils/errorHandling').AppError) => {
-        // Only show warning/error in toasts; info is for console (e.g. "Already loading audio... skipping duplicate load")
-        if (err.severity !== 'info') {
-          errorStore.add(err);
-          errorAnnouncer.announce(formatErrorForAnnouncer(err));
-        }
-      });
 
       const comp = new NodeShaderCompiler(nodeSpecsMap);
       compiler = comp;
@@ -541,9 +1171,9 @@
       if (!mount) {
         console.error('[App] Preview mount not found');
         splashOverlayVisible = false;
-        return;
+        throw new Error('Preview mount not found');
       }
-      if (cancelled) return;
+      mount.replaceChildren();
 
       const previewCanvas = document.createElement('canvas');
       previewCanvas.style.cssText = 'width: 100%; height: 100%; display: block;';
@@ -558,16 +1188,18 @@
         padding: 24px; text-align: center; color: var(--text-muted, #888);
         font-size: 14px; line-height: 1.5;
       `;
-        msg.textContent = 'WebGL2 is not available here. Try a normal (non‑incognito) window, enable hardware acceleration in browser settings, or use Chrome/Firefox/Edge.';
+        msg.textContent =
+          'WebGL2 is not available here. Try a normal window (not private browsing), turn on hardware acceleration in your browser settings, or use Chrome, Firefox, or Edge.';
         mount.appendChild(msg);
         globalErrorHandler.reportError(
-          ErrorUtils.webglError('WebGL2 not supported.', { originalError: err })
+          ErrorUtils.webglError('WebGL2 is not available in this browser.', { originalError: err })
         );
       };
 
       let rm: Awaited<ReturnType<typeof createRuntimeManager>>;
       try {
         rm = await createRuntimeManager(previewCanvas, comp, globalErrorHandler, nodeSpecsMap);
+        if (cancelled) return;
         runtimeManager = rm;
         runtimeDispatcher = new RuntimeMessageDispatcher(rm);
         waveformService = new WaveformService({
@@ -581,7 +1213,7 @@
       } catch (err) {
         if (err instanceof WebGLContextError) {
           showWebGLUnsupported(err);
-          return;
+          throw err;
         }
         splashOverlayVisible = false;
         throw err;
@@ -592,25 +1224,34 @@
       rm.setOnAppContextRestored(() => startAnimation());
 
       undoRedoManager = new UndoRedoManager();
-      graphStore.setGraphChangedListener((g) => undoRedoManager.pushState(g));
-
-      const initialGraph = await loadInitialPreset();
-      if (cancelled) return;
-      graphStore.setGraph(initialGraph);
-      runtimeDispatcher?.setAudioSetup(graphStore.audioSetup);
-      await runtimeDispatcher?.loadGraph(initialGraph);
-      if (cancelled) return;
-
-      if (splashFeatureEnabled) {
-        splashReadyForDismiss = true;
-      }
-
-      document.addEventListener('visibilitychange', () => {
-        isVisible = !document.hidden;
-        if (!isVisible) stopAnimation();
-        else startAnimation();
+      graphStore.setGraphChangedListener((g) => {
+        if (hydrating) return;
+        undoRedoManager.pushState(g);
+        localRevision++;
+      });
+      graphStore.setAudioChangedListener(() => {
+        if (hydrating) return;
+        localRevision++;
       });
 
+      await applyResolvedHubToRuntime(resolved);
+      if (cancelled) return;
+
+      if (!docListenersAttached) {
+        docListenersAttached = true;
+        document.addEventListener('visibilitychange', () => {
+          isVisible = !document.hidden;
+          if (!isVisible) {
+            stopAnimation();
+            void flushAutosaveNow().catch(() => {});
+          } else startAnimation();
+        });
+        window.addEventListener('pagehide', () => {
+          void flushAutosaveNow().catch(() => {});
+        });
+      }
+
+      intersectionObserver?.disconnect();
       intersectionObserver = new IntersectionObserver((entries) => {
         const iv = entries[0].isIntersecting;
         isVisible = iv && !document.hidden;
@@ -620,12 +1261,81 @@
       intersectionObserver.observe(previewCanvas);
 
       startAnimation();
+      finalizeSplashAfterEditorBootstrapLoaded();
+    }
+
+    runEditorBootstrapFromHubRef = runEditorBootstrapFromHub;
+
+    (async () => {
+      await loadPhosphorIconData();
+      await tick();
+      if (cancelled) return;
+      deepLinkProjectId = parseUrlProjectId();
+      urlHighlightProjectId = deepLinkProjectId;
+
+      globalErrorHandler.onError((err: import('../utils/errorHandling').AppError) => {
+        appToastStore.addFromAppError(err);
+        if (err.severity === 'error' || err.severity === 'warning') {
+          errorAnnouncer.announce(formatErrorForAnnouncer(err));
+        }
+      });
+
+      if (useAudiotoolGate) {
+        dispatchAt({ type: 'AUTH_CHECKING' });
+        try {
+          const auth = await initAudiotoolBrowserAuth();
+          if (cancelled) return;
+          if (auth.status === 'unauthenticated') {
+            const login = (): void => {
+              auth.login();
+            };
+            dispatchAt({
+              type: 'AUTH_UNAUTHENTICATED',
+              login,
+              oauthErrorDetail: auth.error?.message ?? null,
+            });
+            setAudiotoolPlaylistLoadSessionAvailable(false);
+            return;
+          }
+          dispatchAt({ type: 'AUTH_CONNECTED', session: auth });
+          setAudiotoolPlaylistLoadSessionAvailable(true);
+        } catch (err) {
+          if (cancelled) return;
+          const message =
+            err instanceof Error ? err.message : 'Audiotool sign-in unavailable';
+          dispatchAt({
+            type: 'AUTH_INIT_FAILED',
+            message,
+            retryReload: (): void => {
+              window.location.reload();
+            },
+          });
+          return;
+        }
+      }
+
+      try {
+        await ensurePresetsAndHubLoaded();
+        await tick();
+        if (cancelled) return;
+        await tryOpenDeepLinkedProjectOnce();
+        if (cancelled) return;
+        if (!runtimeManager) {
+          splashOverlayVisible = false;
+          projectGateBlocking = true;
+        }
+      } catch (err) {
+        console.error('[App] Hub preload failed:', err);
+        globalErrorHandler.report('unexpected', 'error', 'Could not load Projects. Refresh the page and try again.');
+      }
     })();
 
     return () => {
       cancelled = true;
+      runEditorBootstrapFromHubRef = null;
       stopAnimation();
       intersectionObserver?.disconnect();
+      intersectionObserver = null;
       safeDestroy(runtimeManager);
       runtimeManager = null;
       waveformService = null;
@@ -696,19 +1406,80 @@
 <div class="app-root" style="position: fixed; inset: 0; overflow: hidden; background: var(--layout-bg, #1a1a1a);">
   {#if splashOverlayVisible}
     <AppSplashScreen
+      audiotoolPhase={audiotoolSplashAudiotoolPhase(atConn)}
+      audiotoolError={atConn.oauthErrorDetail}
+      onAudiotoolSignIn={atConn.splashPrimaryAction ?? undefined}
+      audiotoolSignInLabel={atConn.splashSignInLabel}
+      onContinueWithoutAudiotool={useAudiotoolGate && atConn.phase === 'disconnected'
+        ? handleContinueWithoutAudiotool
+        : undefined}
+      audiotoolBootstrapping={atConn.editorBootstrapInFlight}
       ready={splashReadyForDismiss}
       onDismiss={() => {
         splashOverlayVisible = false;
       }}
     />
   {/if}
-  <ErrorDisplay />
   <ErrorAnnouncer />
 
+  <ModalDialog
+    open={leaveSaveBlockedOpen}
+    onClose={onLeaveSaveBlockedCancel}
+    variant="confirm"
+    title="Could not save before leaving"
+    showHeaderClose={true}
+    class="leave-save-blocked-modal"
+    bodyClass="leave-save-blocked-body"
+  >
+    {#snippet footer()}
+      <div class="leave-save-blocked-footer">
+        <Button variant="primary" size="md" onclick={() => void onLeaveSaveBlockedRetry()}>Retry save</Button>
+        <Button variant="secondary" size="md" onclick={onLeaveSaveBlockedDownloadAndContinue}>
+          Download JSON & leave
+        </Button>
+        <Button variant="ghost" size="md" onclick={onLeaveSaveBlockedCancel}>Cancel</Button>
+      </div>
+    {/snippet}
+    <p class="leave-save-blocked-copy">
+      The browser could not save your project before returning to Projects. That can happen if storage is full, private
+      browsing blocks saves, or permission was denied. Retry the save, download your graph as JSON and leave, or cancel
+      to stay in the editor.
+    </p>
+  </ModalDialog>
+
   <NodeEditorLayout
+    runtimeBootstrapped={runtimeManager !== null}
+    projectGateBlocking={projectGateBlocking}
+    hubProjects={hubProjects}
+    hubPresets={presets}
+    hubLastOpenedProjectId={hubLastOpenedProjectId}
+    hubPickerHighlightedProjectId={hubPickerHighlightedProjectId}
+    hubStorageWarning={hubStorageWarning}
+    hubBusy={hubBusy}
+    onHubPick={handleHubPick}
+    onHubDuplicate={(id) => void handleHubDuplicate(id)}
+    onHubDelete={(id) => void handleHubDelete(id)}
+    onHubRename={(id, name) => void handleHubRename(id, name)}
+    onHubAppearanceChange={(id, next) => void handleHubAppearanceChange(id, next)}
+    onHubImportJson={(json) => void handleHubImportJson(json)}
     presetList={presets}
     selectedPreset={selectedPreset}
     primaryTrackKey={primaryTrackKey}
+    autosavePersistPending={isUserProjectDirty}
+    audiotoolAccount={atConn.session
+      ? {
+          userName: atConn.session.userName,
+          onLogout: handleAudiotoolLogout,
+          rpcClient: atConn.session,
+          onAudiotoolSessionInvalidated: handleAudiotoolSessionRpcInvalidated,
+        }
+      : null}
+    audiotoolSignInChrome={resolveAudiotoolSignInChromeAction({
+      useAudiotoolGate,
+      splashOverlayVisible,
+      hasAudiotoolSession: atConn.session != null,
+      login: atConn.disconnectedLogin,
+    })}
     isPanelVisible={isPanelVisible}
     zoom={zoom}
     fps={fps}
@@ -717,7 +1488,6 @@
       onDownloadPreset: handleDownloadPreset,
       onExport: handleExport,
       onVideoExport: handleVideoExport,
-      onLoadPreset: handleLoadPreset,
       onImportPresetFromFile: handleImportPresetFromFile,
       onZoomChange: (z) => canvasApi?.setZoom(z),
       getZoom: () => canvasApi?.getViewState().zoom ?? 1,
@@ -808,15 +1578,12 @@
         onLoopToggle={() => {
           const setup = setLoopCurrentTrack(graphStore.audioSetup, !(graphStore.audioSetup?.playlistState?.loopCurrentTrack));
           graphStore.setAudioSetup(setup);
-          runtimeDispatcher?.setAudioSetup(setup);
           const state = runtimeManager?.getTimelineState();
           if (state?.isPlaying) {
             runtimeDispatcher?.toggleGlobalAudioPlayback();
             runtimeDispatcher?.toggleGlobalAudioPlayback();
           }
         }}
-        onSkipBack={() => runtimeDispatcher?.playPrevious()}
-        onSkipForward={() => runtimeDispatcher?.playNext()}
         onTimeChange={(t) => runtimeDispatcher?.seekGlobalAudio(t)}
         onToolChange={(tool) => {
           graphStore.setActiveTool(tool);
@@ -826,13 +1593,63 @@
         audioSetup={graphStore.audioSetup}
         getTrackKey={() => getPrimaryFileId(graphStore.audioSetup)}
         getPrimaryAudioFileNodeId={() => getPrimaryFileId(graphStore.audioSetup) ?? 'primary'}
-        onSelectTrack={async (trackId) => {
+        onSelectTrack={async (trackId, pickMeta?: PlaylistTrackPickMeta) => {
           const prevPrimaryId = getPrimaryFileId(graphStore.audioSetup);
           const data = await getTracksData();
-          const order = getPlaylistOrder(data);
+
+          let gotFromGet: AudiotoolGetTrackParsed | undefined;
+          if (trackId.startsWith('tracks/') && !resolvePlaylistTrackMp3Url(data, trackId)) {
+            const session = atConn.session;
+            if (session) {
+              const fetched = await withAudiotoolUserSession(session, (client) =>
+                fetchAudiotoolTrackViaGetTrack(client, trackId)
+              );
+              if (fetched.ok && fetched.value) {
+                gotFromGet = fetched.value;
+                if (gotFromGet.playbackUrl) registerAudiotoolPlaylistTrackPlaybackUrl(trackId, gotFromGet.playbackUrl);
+              }
+            }
+          }
+
+          const now = new Date().toISOString();
+          const pickLabel = pickMeta?.displayName?.trim() ?? '';
+          let primaryPl: PlaylistPrimarySource;
+
+          if (pickMeta && pickLabel.length > 0) {
+            setAudiotoolTrackDisplayNameCache(trackId, pickLabel);
+            primaryPl = {
+              type: 'playlist',
+              trackId,
+              displayName: pickLabel,
+              displayNameSource: pickMeta.displayNameSource,
+              displayNameUpdatedAt: now,
+            };
+          } else {
+            const fromBundled = playlistPrimaryFromBundledCatalog(trackId, data);
+            if (fromBundled.displayName) {
+              primaryPl = fromBundled;
+            } else if (gotFromGet?.displayName?.trim()) {
+              const dn = gotFromGet.displayName.trim();
+              setAudiotoolTrackDisplayNameCache(trackId, dn);
+              primaryPl = {
+                type: 'playlist',
+                trackId,
+                displayName: dn,
+                displayNameSource: 'audiotool',
+                displayNameUpdatedAt: now,
+              };
+            } else {
+              primaryPl = { type: 'playlist', trackId };
+            }
+          }
+
+          let order = getPlaylistOrder(data);
+          if (!order.includes(trackId)) {
+            order = [trackId, ...order];
+          }
           let setup = graphStore.audioSetup;
           setup = setPlaylistOrder(setup, order);
-          setup = setPrimarySource(setup, { type: 'playlist', trackId });
+          setup = setPrimarySource(setup, primaryPl);
           const idx = order.indexOf(trackId);
           setup = setPlaylistCurrentIndex(setup, idx >= 0 ? idx : 0);
           const newPrimaryId = getPrimaryFileId(setup);
@@ -878,6 +1695,9 @@
         }}
         timelinePanel={timelinePanelSnippet}
         curveEditorSlot={curveEditorSlotSnippet}
+        audiotoolRpcClient={atConn.session}
+        audiotoolUserName={atConn.session?.userName ?? null}
+        onAudiotoolSessionInvalidated={handleAudiotoolSessionRpcInvalidated}
       />
     {/snippet}
   </NodeEditorLayout>
@@ -1010,3 +1830,24 @@
     onAudioSetupChange={(setup) => graphStore.setAudioSetup(setup)}
   />
 </div>
+
+<style>
+  .leave-save-blocked-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--pd-sm);
+    justify-content: flex-end;
+    width: 100%;
+  }
+
+  .leave-save-blocked-copy {
+    margin: 0;
+    font-size: var(--text-sm);
+    line-height: 1.45;
+    color: var(--print-soft);
+  }
+
+  :global(.leave-save-blocked-body) {
+    min-height: unset;
+  }
+</style>

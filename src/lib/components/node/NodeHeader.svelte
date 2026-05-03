@@ -64,10 +64,6 @@
 
   const displayLabel = $derived(label || spec.displayName);
 
-  $effect(() => {
-    if (!isEditing) editValue = displayLabel;
-  });
-
   function handleDoubleClick() {
     isEditing = true;
     editValue = displayLabel;

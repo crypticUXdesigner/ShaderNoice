@@ -27,48 +27,48 @@ export const rgbSeparationNodeSpec: NodeSpec = {
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Red'
-    },
+      label: 'Red',
+      knobPolarity: 'two-sided' },
     rgbSeparationRY: {
       type: 'float',
       default: 0.0,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Y'
-    },
+      label: 'Y',
+      knobPolarity: 'two-sided' },
     rgbSeparationGX: {
       type: 'float',
       default: 0.0,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Green'
-    },
+      label: 'Green',
+      knobPolarity: 'two-sided' },
     rgbSeparationGY: {
       type: 'float',
       default: 0.0,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Y'
-    },
+      label: 'Y',
+      knobPolarity: 'two-sided' },
     rgbSeparationBX: {
       type: 'float',
       default: -0.1,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Blue'
-    },
+      label: 'Blue',
+      knobPolarity: 'two-sided' },
     rgbSeparationBY: {
       type: 'float',
       default: 0.0,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Y'
-    },
+      label: 'Y',
+      knobPolarity: 'two-sided' },
     rgbSeparationStrength: {
       type: 'float',
       default: 1.0,

@@ -213,6 +213,7 @@ self.onmessage = (ev: MessageEvent<AudioAnalysisWorkerRequest>) => {
 
   (async () => {
     try {
+      postProgress(buildId, fileId, 0);
       const hopSeconds = 1 / hopHz;
       const lastSampleTime = startTimeSeconds + (Math.max(1, maxFrames) - 0.5) / frameRateForDuration;
       const frameCount = Math.ceil((lastSampleTime - startTimeSeconds) / hopSeconds) + 2;

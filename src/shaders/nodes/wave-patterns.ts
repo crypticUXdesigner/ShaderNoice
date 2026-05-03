@@ -99,8 +99,8 @@ export const wavePatternsNodeSpec: NodeSpec = {
       min: -100.0,
       max: 100.0,
       step: 0.05,
-      label: 'Time Offset'
-    }
+      label: 'Time Offset',
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

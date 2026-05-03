@@ -25,7 +25,6 @@ async function main(): Promise<void> {
     .map((e) => e.name);
 
   if (pngFiles.length === 0) {
-    // eslint-disable-next-line no-console
     console.log('No PNG files found in public/app-logo');
     return;
   }
@@ -47,13 +46,11 @@ async function main(): Promise<void> {
     const [srcBytes, outBytes] = await Promise.all([fileSizeBytes(srcPath), fileSizeBytes(outPath)]);
     const pct = ((outBytes / srcBytes) * 100).toFixed(1);
 
-    // eslint-disable-next-line no-console
     console.log(`${pngName} -> ${webpName} (${srcBytes} B -> ${outBytes} B, ${pct}%) [${mode}]`);
   }
 }
 
 main().catch((e) => {
-  // eslint-disable-next-line no-console
   console.error(e);
   process.exitCode = 1;
 });

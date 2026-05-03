@@ -38,6 +38,7 @@ export const mixedWaveSignalNodeSpec: NodeSpec = {
       step: 0.01,
       label: 'Global speed',
       supportsAnimation: true,
+      knobPolarity: 'two-sided',
     },
     globalOffset: {
       type: 'float',
@@ -47,6 +48,7 @@ export const mixedWaveSignalNodeSpec: NodeSpec = {
       step: 0.05,
       label: 'Global offset',
       supportsAnimation: true,
+      knobPolarity: 'two-sided',
     },
     w0Speed: {
       type: 'float',
@@ -56,6 +58,7 @@ export const mixedWaveSignalNodeSpec: NodeSpec = {
       step: 0.01,
       label: 'Speed',
       supportsAnimation: true,
+      knobPolarity: 'two-sided',
     },
     w0Offset: {
       type: 'float',
@@ -65,6 +68,7 @@ export const mixedWaveSignalNodeSpec: NodeSpec = {
       step: 0.05,
       label: 'Phase',
       supportsAnimation: true,
+      knobPolarity: 'two-sided',
     },
     w0Weight: {
       type: 'float',
@@ -84,6 +88,7 @@ export const mixedWaveSignalNodeSpec: NodeSpec = {
       step: 0.01,
       label: 'Speed',
       supportsAnimation: true,
+      knobPolarity: 'two-sided',
     },
     w1Offset: {
       type: 'float',
@@ -93,6 +98,7 @@ export const mixedWaveSignalNodeSpec: NodeSpec = {
       step: 0.05,
       label: 'Phase',
       supportsAnimation: true,
+      knobPolarity: 'two-sided',
     },
     w1Weight: {
       type: 'float',
@@ -112,6 +118,7 @@ export const mixedWaveSignalNodeSpec: NodeSpec = {
       step: 0.01,
       label: 'Speed',
       supportsAnimation: true,
+      knobPolarity: 'two-sided',
     },
     w2Offset: {
       type: 'float',
@@ -121,6 +128,7 @@ export const mixedWaveSignalNodeSpec: NodeSpec = {
       step: 0.05,
       label: 'Phase',
       supportsAnimation: true,
+      knobPolarity: 'two-sided',
     },
     w2Weight: {
       type: 'float',

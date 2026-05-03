@@ -248,6 +248,9 @@ export class FunctionGenerator {
     while ((match = functionStartRegex.exec(codeForScan)) !== null) {
       const returnType = match[1].trim();
       const functionName = match[2].trim();
+      // "else if (...)" matches the pattern [identifier] [identifier] ( — not a function definition.
+      // Treating "if" as a function name breaks GLSL when node-specific renaming turns if(...) into if_node_<id>(...).
+      if (returnType === 'else' && functionName === 'if') continue;
       functionStarts.push({
         index: match.index,
         returnType,

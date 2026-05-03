@@ -6,6 +6,7 @@
   import { tick } from 'svelte';
   import type { NodeSpec } from '../../../types/nodeSpec';
   import { getCategorySlug, getSubGroupSlug, CATEGORY_SUBGROUP_ORDER } from '../../../utils/cssTokens';
+  import { PALETTE_NODE_DRAG_MIME } from '../../../utils/paletteNodeDrag';
   import NodePanelHeader from './NodePanelHeader.svelte';
   import NodePanelResults from './NodePanelResults.svelte';
 
@@ -234,6 +235,7 @@
   function onDragStart(e: DragEvent, nodeType: string) {
     if (e.dataTransfer) {
       e.dataTransfer.effectAllowed = 'copy';
+      e.dataTransfer.setData(PALETTE_NODE_DRAG_MIME, nodeType);
       e.dataTransfer.setData('text/plain', nodeType);
     }
   }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Action } from 'svelte/action';
   import type { TransitionConfig } from 'svelte/transition';
   import { cubicOut } from 'svelte/easing';
   import { Button } from '..';
@@ -36,7 +37,7 @@
 
   interface Props {
     visible?: boolean;
-    variant?: 'success' | 'error' | 'info';
+    variant?: 'success' | 'error' | 'info' | 'warning';
     /** When true, renders inline (no fixed position, no visibility/transition). */
     inline?: boolean;
     /** When true, toast participates in a parent stack (no fixed positioning on wrapper). */
@@ -66,36 +67,89 @@
 
   const showIcon = $derived(!hideIcon && variant !== 'info');
 
-  let wasVisible = $state(false);
+  function statusIconName(): 'circle-check' | 'circle-x' | 'warning' | 'help-circle' {
+    if (variant === 'success') return 'circle-check';
+    if (variant === 'error') return 'circle-x';
+    if (variant === 'warning') return 'warning';
+    return 'help-circle';
+  }
+
   let deferredVisible = $state(false);
 
-  $effect(() => {
-    const v = visible;
-    if (v) {
-      deferredVisible = false;
-      const id = requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          deferredVisible = true;
-        });
-      });
-      wasVisible = true;
-      return () => cancelAnimationFrame(id);
-    } else {
-      deferredVisible = false;
-      if (wasVisible) {
-        const id = setTimeout(() => onExited?.(), TOAST_DURATION);
-        wasVisible = false;
-        return () => clearTimeout(id);
-      }
+  /** Floating (non-stacked) toast only: stages deferredVisible + exit callback without `$effect`. Stacked toasts skip this and render when `visible` is true. */
+  const toastPresenceSync: Action<
+    HTMLElement,
+    {
+      visible: boolean;
+      durationMs: number;
+      setDeferred: (v: boolean) => void;
+      onExited?: () => void;
     }
-  });
+  > = (_node, _init) => {
+    let prev = false;
+    let hadToastCycle = false;
+    let rafOuter = 0;
+    let rafInner = 0;
+    let exitTimer = 0;
+
+    return {
+      update(p) {
+        const v = p.visible;
+        if (v && !prev) {
+          window.cancelAnimationFrame(rafOuter);
+          window.cancelAnimationFrame(rafInner);
+          window.clearTimeout(exitTimer);
+          p.setDeferred(false);
+          rafOuter = window.requestAnimationFrame(() => {
+            rafInner = window.requestAnimationFrame(() => {
+              p.setDeferred(true);
+            });
+          });
+          hadToastCycle = true;
+        } else if (!v && prev) {
+          window.cancelAnimationFrame(rafOuter);
+          window.cancelAnimationFrame(rafInner);
+          p.setDeferred(false);
+          if (hadToastCycle) {
+            exitTimer = window.setTimeout(() => {
+              p.onExited?.();
+              exitTimer = 0;
+            }, p.durationMs);
+          }
+          hadToastCycle = false;
+        }
+        prev = v;
+      },
+      destroy() {
+        window.cancelAnimationFrame(rafOuter);
+        window.cancelAnimationFrame(rafInner);
+        window.clearTimeout(exitTimer);
+      },
+    };
+  };
 </script>
+
+{#if !inline && !stacked}
+  <span
+    class="message-presence-sync"
+    aria-hidden="true"
+    use:toastPresenceSync={{
+      visible,
+      durationMs: TOAST_DURATION,
+      setDeferred: (v) => {
+        deferredVisible = v;
+      },
+      onExited,
+    }}
+  ></span>
+{/if}
 
 {#if inline}
   <div
     class="message is-inline {className || ''}"
     class:is-success={variant === 'success'}
     class:is-error={variant === 'error'}
+    class:is-warning={variant === 'warning'}
     class:is-info={variant === 'info'}
     class:has-heading={!!heading}
     class:no-icon={hideIcon}
@@ -106,21 +160,19 @@
     <span class="message-content">
       {#if showIcon}
         <span class="icon">
-          <IconSvg
-            name={variant === 'success' ? 'circle-check' : variant === 'error' ? 'circle-x' : 'help-circle'}
-            variant="filled"
-          />
+          <IconSvg name={statusIconName()} variant="filled" />
         </span>
       {/if}
       {@render children?.()}
     </span>
   </div>
-{:else if visible && deferredVisible}
+{:else if visible && (stacked || deferredVisible)}
   <div class="message-wrapper" class:is-stacked={stacked}>
     <div
       class="message {className || ''}"
       class:is-success={variant === 'success'}
       class:is-error={variant === 'error'}
+      class:is-warning={variant === 'warning'}
       class:is-info={variant === 'info'}
       class:no-icon={hideIcon}
       in:flipIn={{ duration: TOAST_DURATION }}
@@ -129,15 +181,12 @@
     <span class="message-content">
       {#if showIcon}
         <span class="icon">
-          <IconSvg
-            name={variant === 'success' ? 'circle-check' : variant === 'error' ? 'circle-x' : 'help-circle'}
-            variant="filled"
-          />
+          <IconSvg name={statusIconName()} variant="filled" />
         </span>
       {/if}
       {@render children?.()}
     </span>
-    {#if variant === 'error' && onclose}
+    {#if (variant === 'error' || variant === 'warning') && onclose}
       <Button variant="ghost" size="sm" mode="icon-only" onclick={onclose} aria-label="Close">×</Button>
     {/if}
     </div>
@@ -183,7 +232,7 @@
       /* Typography */
       font-family: inherit;
       font-size: var(--message-font-size);
-      text-align: center;
+      text-align: left;
 
       /* Other */
       z-index: var(--message-z-index);
@@ -221,13 +270,19 @@
         background: var(--layout-message-error-bg);
         color: var(--layout-message-error-color);
         pointer-events: auto;
-        text-align: left;
       }
 
       &.is-info {
         border: 1px solid var(--layout-message-info-border);
         background: var(--layout-message-info-bg);
         color: var(--layout-message-color);
+      }
+
+      &.is-warning {
+        border: 1px solid var(--layout-message-warning-border);
+        background: var(--layout-message-warning-bg);
+        color: var(--layout-message-warning-color);
+        pointer-events: auto;
       }
     }
   }
@@ -279,6 +334,18 @@
     .icon :global(svg) {
       width: var(--icon-size-sm);
       height: var(--icon-size-sm);
+    }
+
+    &.is-error {
+      padding: var(--pd-sm) var(--pd-md);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--layout-message-error-border);
+      background: var(--layout-message-error-bg);
+      color: var(--layout-message-error-color);
+
+      .message-content {
+        color: inherit;
+      }
     }
 
     &.is-info {

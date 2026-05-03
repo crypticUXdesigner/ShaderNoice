@@ -27,16 +27,16 @@ export const ringsNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Center X'
-    },
+      label: 'Center X',
+      knobPolarity: 'two-sided' },
     ringCenterY: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Center Y'
-    },
+      label: 'Center Y',
+      knobPolarity: 'two-sided' },
     ringRadius: {
       type: 'float',
       default: 0.5,
@@ -75,8 +75,8 @@ export const ringsNodeSpec: NodeSpec = {
       min: -100.0,
       max: 100.0,
       step: 0.05,
-      label: 'Time Offset'
-    }
+      label: 'Time Offset',
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

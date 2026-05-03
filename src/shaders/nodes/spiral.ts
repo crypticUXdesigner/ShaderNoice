@@ -27,16 +27,16 @@ export const spiralNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Center X'
-    },
+      label: 'Center X',
+      knobPolarity: 'two-sided' },
     spiralCenterY: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Center Y'
-    },
+      label: 'Center Y',
+      knobPolarity: 'two-sided' },
     spiralDensity: {
       type: 'float',
       default: 4.0,
@@ -51,8 +51,8 @@ export const spiralNodeSpec: NodeSpec = {
       min: -6.28,
       max: 6.28,
       step: 0.05,
-      label: 'Rotation'
-    },
+      label: 'Rotation',
+      knobPolarity: 'two-sided' },
     spiralArms: {
       type: 'float',
       default: 1.0,
@@ -83,8 +83,8 @@ export const spiralNodeSpec: NodeSpec = {
       min: -10.0,
       max: 10.0,
       step: 0.1,
-      label: 'Time Phase'
-    }
+      label: 'Time Phase',
+      knobPolarity: 'two-sided' }
   },
   parameterGroups: [
     {

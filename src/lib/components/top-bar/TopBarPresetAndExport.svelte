@@ -37,7 +37,7 @@
         <IconSvg name="layout-grid" variant="filled" />
       </Button>
     {/if}
-    <Button variant="ghost" size="sm" mode="both" title={presetLoading ? 'Loading preset…' : 'Select preset'} disabled={presetLoading} onclick={onPresetClick}>
+    <Button variant="ghost" size="sm" mode="both" title={presetLoading ? 'Loading preset…' : 'Load project'} disabled={presetLoading} onclick={onPresetClick}>
       <IconSvg name="folder-open" variant="filled" />
       <span class="top-bar-preset-button-label">{presetLoading ? 'Loading…' : presetLabel}</span>
     </Button>

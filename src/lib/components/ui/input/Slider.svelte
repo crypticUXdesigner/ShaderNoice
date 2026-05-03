@@ -10,7 +10,6 @@
     [key: string]: unknown;
   }
 
-  let componentProps: Props = $props();
   let {
     min = 0,
     max = 100,
@@ -20,14 +19,25 @@
     disabled = false,
     class: className = '',
     ...restProps
-  } = componentProps;
+  }: Props = $props();
 
-  let internalValue = $state(value);
-  $effect(() => {
-    internalValue = componentProps.value ?? componentProps.min ?? 0;
-  });
+  const propValue = $derived(value ?? min ?? 0);
+  /** True while pointer/keyboard is adjusting the slider (Story B: parent value does not overwrite mid-gesture). */
+  let interacting = $state(false);
+  let liveValue = $state(0);
 
-  const progress = $derived(((internalValue - min) / (max - min || 1)) * 100);
+  const displayValue = $derived(interacting ? liveValue : propValue);
+
+  const progress = $derived(((displayValue - min) / (max - min || 1)) * 100);
+
+  function beginInteraction(): void {
+    interacting = true;
+    liveValue = propValue;
+  }
+
+  function endInteraction(): void {
+    interacting = false;
+  }
 </script>
 
 <input
@@ -36,11 +46,17 @@
   {min}
   {max}
   {step}
-  bind:value={internalValue}
+  value={displayValue}
   {disabled}
   style="--slider-progress: {progress}%"
+  onpointerdown={beginInteraction}
+  onpointerup={endInteraction}
+  onpointercancel={endInteraction}
+  onblur={endInteraction}
   oninput={(e) => {
-    internalValue = (e.currentTarget as HTMLInputElement).valueAsNumber;
+    const t = e.currentTarget as HTMLInputElement;
+    if (!interacting) beginInteraction();
+    liveValue = t.valueAsNumber;
     oninput?.(e);
   }}
   {...restProps}

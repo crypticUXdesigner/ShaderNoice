@@ -45,6 +45,9 @@ export interface NodeSpec {
 
 export type ParameterInputMode = 'override' | 'add' | 'subtract' | 'multiply';
 
+/** Rotary knob arc fill: one-sided (min→value) vs two-sided (neutral→value). */
+export type KnobPolarity = 'one-sided' | 'two-sided';
+
 export interface ParameterSpec {
   type: 'float' | 'int' | 'string' | 'vec4' | 'array';
   default: ParameterValue;
@@ -57,6 +60,12 @@ export interface ParameterSpec {
   supportsAnimation?: boolean;
   /** Whether this parameter is intended to be driven by audio (virtual audio node or similar signal). */
   supportsAudio?: boolean;
+  /**
+   * Knob UI only: arc highlight from min to value (default), or from knobCenter to value when two-sided.
+   */
+  knobPolarity?: KnobPolarity;
+  /** Neutral point on the knob arc when knobPolarity is two-sided (default 0). Ignored for one-sided. */
+  knobCenter?: number;
 }
 
 export type ParameterValue = 

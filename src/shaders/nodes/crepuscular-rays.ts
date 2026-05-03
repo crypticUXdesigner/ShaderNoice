@@ -27,16 +27,16 @@ export const crepuscularRaysNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Source X'
-    },
+      label: 'Source X',
+      knobPolarity: 'two-sided' },
     sourceY: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Source Y'
-    },
+      label: 'Source Y',
+      knobPolarity: 'two-sided' },
     rayCount: {
       type: 'int',
       default: 12,
@@ -83,8 +83,8 @@ export const crepuscularRaysNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Rotation Speed'
-    },
+      label: 'Rotation Speed',
+      knobPolarity: 'two-sided' },
     rotationOffset: {
       type: 'float',
       default: 0.0,

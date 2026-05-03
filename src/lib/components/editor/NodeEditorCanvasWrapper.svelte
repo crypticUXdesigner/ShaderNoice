@@ -15,15 +15,20 @@
     addConnections,
     updateViewState,
     addConnectionWithValidation,
+    insertNodeIntoConnection,
     type AddConnectionWithValidationResult,
     type NodeSpecification,
+    type InsertNodeIntoConnectionErrorCode,
   } from '../../../data-model';
   import { wheelNonPassive } from '../../actions/wheelPassive';
   import type { NodeGraph, Connection, NodeInstance, ParameterValue } from '../../../data-model/types';
   import type { NodeSpec, ParameterInputMode } from '../../../types/nodeSpec';
   import { graphStore } from '../../stores';
+  import { appToastStore } from '../../stores/appToastStore';
   import { getVirtualNodeIdsFromAudioSetup } from '../../../utils/virtualNodes';
+  import { hasPaletteNodeMime, readPaletteNodeType } from '../../../utils/paletteNodeDrag';
   import DomNodeLayer from './DomNodeLayer.svelte';
+  import AddNodePicker from './AddNodePicker.svelte';
   import type {
     NodeEditorCanvasWrapperCallbacks,
     NodeEditorCanvasWrapperAPI
@@ -57,10 +62,69 @@
   let canvasInstance = $state<NodeEditorCanvas | null>(null);
   let liveViewState = $state({ zoom: 1, panX: 0, panY: 0, selectedNodeIds: [] as string[] });
   const activeTool = $derived(graphStore.activeTool);
+  /** Read via `$derived` so `$effect` re-runs when picks change (plain `graphStore.*` getters do not subscribe inside `$effect`). */
+  const patchWireConnectionId = $derived(graphStore.patchWireConnectionId);
+  const patchInsertNodeId = $derived(graphStore.patchInsertNodeId);
   const isSpacebarPressed = $derived(graphStore.isSpacebarPressed);
   /** Hand tool active = toolbar selection OR spacebar held */
   const effectiveHandTool = $derived(activeTool === 'hand' || isSpacebarPressed);
   let isHandPanning = $state(false);
+
+  let addNodePickerOpen = $state(false);
+  let addNodePickerScreen = $state({ x: 0, y: 0 });
+  let addNodePendingCanvas = $state({ x: 0, y: 0 });
+
+  /** Brief entrance motion for palette / add-picker placed nodes (DomNodeLayer). */
+  let landedNodeId = $state<string | null>(null);
+  let landedClearTimer: ReturnType<typeof setTimeout> | null = null;
+  let paletteDragHighlight = $state(false);
+
+  function flashLandedNode(id: string): void {
+    if (landedClearTimer) clearTimeout(landedClearTimer);
+    landedNodeId = id;
+    landedClearTimer = setTimeout(() => {
+      landedNodeId = null;
+      landedClearTimer = null;
+    }, 320);
+  }
+
+  function handleWrapperPaletteDragEnter(e: DragEvent): void {
+    if (!hasPaletteNodeMime(e.dataTransfer)) return;
+    e.preventDefault();
+    paletteDragHighlight = true;
+  }
+
+  function handleWrapperPaletteDragLeave(e: DragEvent): void {
+    if (!hasPaletteNodeMime(e.dataTransfer)) return;
+    const related = e.relatedTarget as Node | null;
+    if (related && wrapperEl?.contains(related)) return;
+    paletteDragHighlight = false;
+  }
+
+  function handleWrapperPaletteDragOver(e: DragEvent): void {
+    if (!hasPaletteNodeMime(e.dataTransfer)) return;
+    e.preventDefault();
+    e.dataTransfer!.dropEffect = 'copy';
+  }
+
+  function handleWrapperPaletteDrop(e: DragEvent): void {
+    if (!hasPaletteNodeMime(e.dataTransfer)) return;
+    e.preventDefault();
+    paletteDragHighlight = false;
+    const nodeType = readPaletteNodeType(e.dataTransfer);
+    if (!nodeType || !apiProp?.screenToCanvas || !apiProp.addNode) return;
+    const pos = apiProp.screenToCanvas(e.clientX, e.clientY);
+    apiProp.addNode(nodeType, pos.x, pos.y);
+  }
+
+  /** Palette drag cancelled or finished outside the editor — clear drop highlight. */
+  $effect(() => {
+    const onWindowDragEnd = () => {
+      paletteDragHighlight = false;
+    };
+    window.addEventListener('dragend', onWindowDragEnd);
+    return () => window.removeEventListener('dragend', onWindowDragEnd);
+  });
 
   function generateId(prefix: string): string {
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -144,6 +208,157 @@
     callbacks.onGraphChanged?.(graphStore.graph);
   }
 
+  const PATCH_SUCCESS = "Nice. Patching done.";
+
+  function mapPatchError(code: InsertNodeIntoConnectionErrorCode): string {
+    switch (code) {
+      case 'no_valid_ports':
+        return 'No matching port types.';
+      case 'cannot_patch_endpoint_node':
+        return 'Can not patch this.';
+      case 'connection_not_found':
+        return 'Where is the cable?';
+      case 'insert_node_not_found':
+        return 'Where is the node?';
+      default:
+        return "Patching not possible.";
+    }
+  }
+
+  /** Exit Patch tool: Cursor, clear picks, dismiss prompt toast. */
+  function exitPatchMode(): void {
+    canvasInstance?.clearConnectionSelectionFromDOM?.();
+    graphStore.clearPatchPicks();
+    graphStore.setActiveTool('cursor');
+    apiProp?.setActiveTool?.('cursor');
+    appToastStore.dismissBySource('patch-tool');
+  }
+
+  function tryCommitPatch(connectionId: string, insertNodeId: string): void {
+    const specs = toNodeSpecifications(nodeSpecs);
+    const result = insertNodeIntoConnection(graphStore.graph, connectionId, insertNodeId, specs);
+    if (!result.ok) {
+      appToastStore.addToast({
+        variant: 'error',
+        message: mapPatchError(result.code),
+        source: 'patch-commit',
+      });
+      return;
+    }
+    graphStore.setGraph(result.graph);
+    notifyGraphChanged();
+    canvasInstance?.requestRender?.();
+    callbacks.onSelectionChanged?.(graphStore.viewState.selectedNodeIds ?? []);
+    exitPatchMode();
+    appToastStore.addToast({
+      variant: 'success',
+      message: PATCH_SUCCESS,
+      source: 'patch-success',
+    });
+  }
+
+  function onPatchWireChosen(connectionId: string): void {
+    const nodePick = graphStore.patchInsertNodeId;
+    if (nodePick) {
+      tryCommitPatch(connectionId, nodePick);
+    } else {
+      graphStore.setPatchWirePick(connectionId);
+      canvasInstance?.setConnectionSelectionFromDOM?.(connectionId);
+      if (canvasInstance) syncViewStateFromCanvas(canvasInstance);
+      canvasInstance?.requestRender?.();
+      callbacks.onSelectionChanged?.([]);
+    }
+  }
+
+  function onPatchNodeChosen(nodeId: string): void {
+    const wireId = graphStore.patchWireConnectionId;
+    if (wireId) {
+      tryCommitPatch(wireId, nodeId);
+    } else {
+      graphStore.setPatchInsertNodePick(nodeId);
+      graphStore.updateViewState({ selectedNodeIds: [nodeId] });
+      liveViewState = {
+        ...liveViewState,
+        selectedNodeIds: [nodeId],
+      };
+      canvasInstance?.setSelectionFromDOM?.([nodeId]);
+      canvasInstance?.requestRender?.();
+      callbacks.onSelectionChanged?.([nodeId]);
+    }
+  }
+
+  /** Keeps bottom prompt text in sync with wire/node picks (one persistent toast, source patch-tool). */
+  let lastSyncedPatchPrompt = $state('');
+  $effect(() => {
+    const tool = activeTool;
+    if (tool !== 'patch') {
+      lastSyncedPatchPrompt = '';
+      return;
+    }
+    const wire = patchWireConnectionId;
+    const node = patchInsertNodeId;
+    const msg =
+      wire != null && node == null
+        ? 'Click a node...'
+        : wire == null && node != null
+          ? 'Click a cable...'
+          : 'Click a cable or node...';
+
+    if (msg === lastSyncedPatchPrompt) return;
+    lastSyncedPatchPrompt = msg;
+
+    appToastStore.dismissBySource('patch-tool');
+    appToastStore.addToast({
+      variant: 'info',
+      message: msg,
+      source: 'patch-tool',
+      noAutoDismiss: true,
+      dismissKeycaps: [
+        { text: 'Esc', title: 'Exit patch mode' },
+        { text: 'Right-click', title: 'Exit patch mode' },
+      ],
+    });
+  });
+
+  $effect(() => {
+    if (activeTool !== 'patch') return;
+    function onKeyDown(e: KeyboardEvent) {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
+      ) {
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        exitPatchMode();
+      }
+    }
+    function onContextMenu(e: MouseEvent) {
+      e.preventDefault();
+      exitPatchMode();
+    }
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('contextmenu', onContextMenu, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('contextmenu', onContextMenu, true);
+    };
+  });
+
+  /** Popover treats canvas clicks as “outside”; Alt+click / Add-tool click already moves the picker on mousedown — skip the following click so it doesn’t close. */
+  function canCloseAddNodePickerOnOutsideClick(e: MouseEvent): boolean {
+    const t = e.target;
+    if (!(t instanceof Node)) return true;
+    const canvas = containerEl?.querySelector('canvas');
+    if (!canvas || !(canvas === t || canvas.contains(t))) return true;
+    const tool = graphStore.activeTool;
+    if (tool === 'add') return false;
+    if (tool === 'cursor' && e.altKey) return false;
+    return true;
+  }
+
   /** Show signal picker when param port is clicked (DOM nodes capture pointer events, so canvas never receives port clicks). */
   function handlePortClickForSignalPicker(
     screenX: number,
@@ -152,6 +367,7 @@
     targetParameter: string,
     triggerElement?: HTMLElement | null
   ): void {
+    if (graphStore.activeTool === 'patch') return;
     if (!overlayBridge) return;
     const validationSpecs = toNodeSpecifications(nodeSpecs);
     const onSelect = (payload: import('../../../types/editor').SignalSelectPayload) => {
@@ -520,7 +736,14 @@
       },
       hasClipboard: () => copyPasteManager.hasClipboard(),
       isDialogVisible: callbacks.isDialogVisible,
-      onToggleFullscreen: callbacks.onToggleFullscreen
+      onToggleFullscreen: callbacks.onToggleFullscreen,
+      onRequestAddNodeAtCanvas: (screenX, screenY) => {
+        const c = canvas as unknown as { screenToCanvas(sx: number, sy: number): { x: number; y: number } };
+        const pos = c.screenToCanvas(screenX, screenY);
+        addNodePickerScreen = { x: screenX, y: screenY };
+        addNodePendingCanvas = { x: pos.x, y: pos.y };
+        addNodePickerOpen = true;
+      }
     });
 
     function addNodeToGraph(nodeType: string, x: number, y: number): NodeInstance | null {
@@ -550,22 +773,15 @@
       const finalMetrics = canvas.getNodeRenderer().calculateMetrics(node, spec);
       canvas.getNodeMetrics().set(node.id, finalMetrics);
       canvas.setGraph(graphStore.graph);
+      graphStore.updateViewState({ selectedNodeIds: [node.id] });
+      liveViewState = { ...liveViewState, selectedNodeIds: [node.id] };
+      canvas.setSelectionFromDOM([node.id]);
+      callbacks.onSelectionChanged?.([node.id]);
+      flashLandedNode(node.id);
       notifyGraphChanged();
+      canvas.requestRender();
       return node;
     }
-
-    canvasEl.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.dataTransfer!.dropEffect = 'copy';
-    });
-    canvasEl.addEventListener('drop', (e) => {
-      e.preventDefault();
-      const nodeType = e.dataTransfer?.getData('text/plain');
-      if (nodeType) {
-        const pos = (canvas as unknown as { screenToCanvas(x: number, y: number): { x: number; y: number } }).screenToCanvas(e.clientX, e.clientY);
-        addNodeToGraph(nodeType, pos.x, pos.y);
-      }
-    });
 
     apiProp = buildApi(canvas, addNodeToGraph, nodeSpecsMap);
 
@@ -601,9 +817,16 @@
     const space = isSpacebarPressed;
     if (!wrapper || !api?.hitTestConnection) return;
     const handler = (e: MouseEvent) => {
-      if (tool !== 'cursor' || space || e.button !== 0) return;
+      if (space || e.button !== 0) return;
       const connId = api.hitTestConnection?.(e.clientX, e.clientY);
-      if (connId && api.forwardMouseDown) {
+      if (connId && tool === 'patch') {
+        e.preventDefault();
+        e.stopPropagation();
+        onPatchWireChosen(connId);
+        return;
+      }
+      if ((tool !== 'cursor' && tool !== 'add') || !api.forwardMouseDown) return;
+      if (connId) {
         e.preventDefault();
         e.stopPropagation();
         (e as MouseEvent & { _connectionClickForward?: string })._connectionClickForward = connId;
@@ -619,8 +842,13 @@
 <div
   bind:this={wrapperEl}
   class="node-editor-canvas-wrapper"
+  class:palette-drop-active={paletteDragHighlight}
   style="width: 100%; height: 100%; position: relative; overflow: hidden;"
   use:wheelNonPassive={(e) => apiProp?.handleWheel?.(e)}
+  ondragenter={handleWrapperPaletteDragEnter}
+  ondragleave={handleWrapperPaletteDragLeave}
+  ondragover={handleWrapperPaletteDragOver}
+  ondrop={handleWrapperPaletteDrop}
 >
   <div
     bind:this={containerEl}
@@ -648,6 +876,7 @@
     }}
   ></div>
   <DomNodeLayer
+    landedNodeId={landedNodeId}
     graph={graph}
     nodeSpecs={nodeSpecs}
     audioSetup={graphStore.audioSetup}
@@ -673,6 +902,10 @@
       notifyGraphChanged();
     }}
     onNodeSelected={(nodeId, multiSelect) => {
+      if (graphStore.activeTool === 'patch' && !isSpacebarPressed && !multiSelect) {
+        onPatchNodeChosen(nodeId);
+        return;
+      }
       if (canvasInstance) syncViewStateFromCanvas(canvasInstance);
       let newIds: string[];
       if (multiSelect) {
@@ -712,9 +945,40 @@
       if (node) callbacks.onNodeContextMenu?.(clientX, clientY, nodeId, node.type);
     }}
   />
+
+  <AddNodePicker
+    open={addNodePickerOpen}
+    x={addNodePickerScreen.x}
+    y={addNodePickerScreen.y}
+    nodeSpecs={nodeSpecs}
+    canCloseOnClickOutside={canCloseAddNodePickerOnOutsideClick}
+    onSelect={(nodeType) => {
+      const cx = addNodePendingCanvas.x;
+      const cy = addNodePendingCanvas.y;
+      addNodePickerOpen = false;
+      const node = apiProp?.addNode(nodeType, cx, cy);
+      if (node) {
+        canvasInstance?.requestRender?.();
+      }
+    }}
+    onClose={() => {
+      addNodePickerOpen = false;
+    }}
+  />
 </div>
 
 <style>
+  .node-editor-canvas-wrapper.palette-drop-active {
+    cursor: none !important;
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--color-teal-light-110) 75%, transparent);
+    background: color-mix(in srgb, var(--color-teal-light-110) 6%, transparent);
+  }
+
+  /* Crosshair reads as a “+” drop cursor; children may set their own cursor — override while dropping. */
+  .node-editor-canvas-wrapper.palette-drop-active :global(*) {
+    cursor: none !important;
+  }
+
   .hand-tool-overlay {
     position: absolute;
     inset: 0;

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Action } from 'svelte/action';
   import { fade } from 'svelte/transition';
   import { portal } from '../../../actions/portal';
 
@@ -31,6 +32,18 @@
     alignY?: 'start' | 'center';
     /** When false, clicking outside does not close the popover (close via Done / Escape only). Default true. */
     closeOnClickOutside?: boolean;
+    /**
+     * When true, after layout the popover is shifted so its bounding box stays inside the viewport
+     * with at least `viewportInset` px from each edge. Opt-in to avoid changing anchored menus unexpectedly.
+     */
+    clampToViewport?: boolean;
+    /** Minimum distance from the popover box to the viewport edge when `clampToViewport` is true (px). */
+    viewportInset?: number;
+    /**
+     * Optional gate for outside clicks: return false to keep the popover open (e.g. canvas Alt+click
+     * that repositions the menu on mousedown before this click reaches document).
+     */
+    canCloseOnClickOutside?: (e: MouseEvent) => boolean;
     onClose?: () => void;
     children?: import('svelte').Snippet<[]>;
     class?: string;
@@ -46,6 +59,9 @@
     align = 'center',
     alignY = 'start',
     closeOnClickOutside = true,
+    clampToViewport = false,
+    viewportInset = 12,
+    canCloseOnClickOutside,
     onClose,
     children,
     class: className = ''
@@ -53,12 +69,14 @@
 
   let popoverEl = $state<HTMLElement | null>(null);
   let openedAt = $state<number>(0);
+  /** Extra offset from base `getPosition()` so the popover stays inside the viewport (when clamping). */
+  let positionDelta = $state({ top: 0, left: 0 });
 
-  $effect(() => {
-    if (open) {
-      openedAt = Date.now();
-    }
-  });
+  /** Sets openedAt when the popover content mounts (each open is a fresh {#if open} subtree). */
+  const stampOpenedAt: Action<HTMLElement, Record<string, never>> = () => {
+    openedAt = Date.now();
+    return {};
+  };
 
   function getPosition(): { top: number; left: number } {
     if (anchor) {
@@ -74,7 +92,15 @@
     return { top: y, left: x };
   }
 
-  const position = $derived(open ? getPosition() : { top: 0, left: 0 });
+  const basePosition = $derived(open ? getPosition() : { top: 0, left: 0 });
+
+  const position = $derived.by(() => {
+    const b = basePosition;
+    return {
+      top: b.top + positionDelta.top,
+      left: b.left + positionDelta.left
+    };
+  });
 
   function getTransform(): string {
     const tx = align === 'center' ? '-50%' : '0';
@@ -101,7 +127,12 @@
       !popoverEl.contains(target) &&
       !anchor?.contains(target) &&
       !triggerElement?.contains(target);
-    if (isOutside) onClose();
+    if (
+      isOutside &&
+      (canCloseOnClickOutside == null || canCloseOnClickOutside(e))
+    ) {
+      onClose();
+    }
   }
 
   const INPUT_LIKE_SELECTOR = 'input, textarea, select, [contenteditable="true"]';
@@ -126,6 +157,93 @@
       document.removeEventListener('keydown', handleKeydown);
     };
   });
+
+  $effect(() => {
+    if (!open || !clampToViewport) {
+      positionDelta = { top: 0, left: 0 };
+      return;
+    }
+    // Re-clamp when anchor / x / y / alignment changes while open.
+    void basePosition.top;
+    void basePosition.left;
+    if (!popoverEl) return;
+
+    let cancelled = false;
+    let ro: ResizeObserver | undefined;
+
+    function clampOnce(): void {
+      if (cancelled || !popoverEl) return;
+      const m = viewportInset;
+      const vw = typeof window !== 'undefined' ? window.innerWidth : 0;
+      const vh = typeof window !== 'undefined' ? window.innerHeight : 0;
+      if (vw <= 0 || vh <= 0) return;
+
+      const maxOuterHeight = Math.max(120, vh - 2 * m);
+      const r0 = popoverEl.getBoundingClientRect();
+      // Tall menus (add picker): shrink outer box first so position clamp can succeed.
+      if (r0.height > maxOuterHeight + 0.5) {
+        popoverEl.style.maxHeight = `${Math.floor(maxOuterHeight)}px`;
+        popoverEl.style.overflow = 'hidden';
+        popoverEl.style.boxSizing = 'border-box';
+        return;
+      }
+
+      const r = popoverEl.getBoundingClientRect();
+      let desiredLeft = r.left;
+      let desiredTop = r.top;
+      const w = r.width;
+      const h = r.height;
+      if (desiredLeft < m) desiredLeft = m;
+      if (desiredTop < m) desiredTop = m;
+      if (desiredLeft + w > vw - m) desiredLeft = vw - m - w;
+      if (desiredTop + h > vh - m) desiredTop = vh - m - h;
+
+      // Screen-space nudge; add to prior delta (do *not* replace: ResizeObserver re-fires with dt=0
+      // when already fitted, which would wipe a non-zero positionDelta).
+      const adjLeft = desiredLeft - r.left;
+      const adjTop = desiredTop - r.top;
+      if (adjLeft !== 0 || adjTop !== 0) {
+        positionDelta = {
+          top: positionDelta.top + adjTop,
+          left: positionDelta.left + adjLeft
+        };
+      }
+    }
+
+    const runLayout = (): void => {
+      requestAnimationFrame(() => {
+        if (!cancelled) clampOnce();
+      });
+    };
+
+    const id0 = requestAnimationFrame(() => {
+      requestAnimationFrame(runLayout);
+    });
+
+    if (popoverEl) {
+      ro = new ResizeObserver(runLayout);
+      ro.observe(popoverEl);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', runLayout);
+    }
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(id0);
+      ro?.disconnect();
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('resize', runLayout);
+      }
+      if (popoverEl) {
+        popoverEl.style.maxHeight = '';
+        popoverEl.style.overflow = '';
+        popoverEl.style.boxSizing = '';
+      }
+      positionDelta = { top: 0, left: 0 };
+    };
+  });
 </script>
 
 {#if open}
@@ -137,6 +255,7 @@
     role="dialog"
     aria-modal="false"
     use:portal
+    use:stampOpenedAt
     transition:fade={{ duration: reducedMotion ? 0 : 150 }}
   >
     {@render children?.()}
@@ -150,6 +269,8 @@
     position: fixed;
     display: flex;
     flex-direction: column;
+    min-height: 0;
+    min-width: 0;
 
     /* Box model / visual from layer .frame */
 

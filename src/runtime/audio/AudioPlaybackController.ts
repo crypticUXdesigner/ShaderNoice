@@ -94,7 +94,7 @@ export class AudioPlaybackController extends BaseDisposable {
       handler.report(
         'audio',
         'warning',
-        `No audio state found for node ${nodeId}`,
+        `Nothing is loaded for this audio clip yet`,
         { nodeId, availableNodes: Array.from(this.audioNodes.keys()).join(', ') }
       );
       return;
@@ -119,7 +119,7 @@ export class AudioPlaybackController extends BaseDisposable {
       handler.report(
         'audio',
         'warning',
-        `No audio buffer available for node ${nodeId}`,
+        `No audio file loaded for this clip`,
         { nodeId }
       );
       return;
@@ -131,7 +131,7 @@ export class AudioPlaybackController extends BaseDisposable {
       handler.report(
         'audio',
         'warning',
-        `Audio nodes not properly initialized for node ${nodeId}`,
+        `Audio playback is not ready yet`,
         { nodeId, hasGainNode: !!state.gainNode, hasAnalyserNode: !!state.analyserNode }
       );
       return;

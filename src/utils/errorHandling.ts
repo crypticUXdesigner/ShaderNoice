@@ -128,13 +128,13 @@ export function getUserFriendlyErrorMessage(error: Error | string | unknown): st
   if (error instanceof Error) {
     // For known error types, provide user-friendly messages
     if (error.message.includes('decodeAudioData')) {
-      return 'Failed to load audio file. The file may be corrupted or in an unsupported format.';
+      return 'Could not load that audio file. It may be damaged or use an unsupported format.';
     }
     if (error.message.includes('compile')) {
-      return 'Shader compilation failed. Check the console for details.';
+      return 'Shader did not compile. Check the console for details.';
     }
     if (error.message.includes('WebGL')) {
-      return 'Graphics error occurred. Try refreshing the page.';
+      return 'Graphics error. Try refreshing the page.';
     }
     return error.message;
   }
@@ -143,7 +143,7 @@ export function getUserFriendlyErrorMessage(error: Error | string | unknown): st
     return error;
   }
   
-  return 'An unexpected error occurred.';
+  return 'Something went wrong.';
 }
 
 /**

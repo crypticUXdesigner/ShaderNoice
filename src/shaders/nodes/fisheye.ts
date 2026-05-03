@@ -27,24 +27,24 @@ export const fisheyeNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Center X'
-    },
+      label: 'Center X',
+      knobPolarity: 'two-sided' },
     fisheyeCenterY: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.1,
-      label: 'Center Y'
-    },
+      label: 'Center Y',
+      knobPolarity: 'two-sided' },
     fisheyeStrength: {
       type: 'float',
       default: -0.3,
       min: -1.0,
       max: 1.0,
       step: 0.01,
-      label: 'Strength'
-    },
+      label: 'Strength',
+      knobPolarity: 'two-sided' },
     fisheyeAspect: {
       type: 'float',
       default: 1.0,

@@ -27,16 +27,16 @@ export const radialRaysNodeSpec: NodeSpec = {
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Center X'
-    },
+      label: 'Center X',
+      knobPolarity: 'two-sided' },
     centerY: {
       type: 'float',
       default: 0.0,
       min: -2.0,
       max: 2.0,
       step: 0.01,
-      label: 'Center Y'
-    },
+      label: 'Center Y',
+      knobPolarity: 'two-sided' },
     rayCount: {
       type: 'int',
       default: 12,
@@ -75,8 +75,8 @@ export const radialRaysNodeSpec: NodeSpec = {
       min: -180.0,
       max: 180.0,
       step: 1.0,
-      label: 'Rotation'
-    },
+      label: 'Rotation',
+      knobPolarity: 'two-sided' },
     intensity: {
       type: 'float',
       default: 1.0,
