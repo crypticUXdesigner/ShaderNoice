@@ -163,9 +163,9 @@ export const lerpNodeSpec: NodeSpec = {
     { name: 'out', type: 'float', label: 'Result' }
   ],
   parameters: {
-    a: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Start',
+    a: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.001, label: 'Start',
       knobPolarity: 'two-sided' },
-    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'End',
+    b: { type: 'float', default: 1.0, min: -10.0, max: 10.0, step: 0.001, label: 'End',
       knobPolarity: 'two-sided' },
     t: { type: 'float', default: 0.5, min: 0.0, max: 1.0, step: 0.01, label: 'Factor' }
   },
@@ -289,9 +289,9 @@ export const combineVectorNodeSpec: NodeSpec = {
       max: 4,
       label: 'Output Type'
     },
-    z: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Z Component',
+    z: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.001, label: 'Z Component',
       knobPolarity: 'two-sided' },
-    w: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'W Component',
+    w: { type: 'float', default: 1.0, min: -10.0, max: 10.0, step: 0.001, label: 'W Component',
       knobPolarity: 'two-sided' }
   },
   parameterLayout: {

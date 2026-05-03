@@ -6,6 +6,12 @@ export interface FullWaveformData {
   durationSeconds: number;
 }
 
+/** When the canvas has not been laid out yet (rect width ~ 0), supply CSS px from a parent ResizeObserver. */
+export interface PaintRulerWaveformLayoutHint {
+  cssWidthFallbackPx?: number;
+  cssHeightFallbackPx?: number;
+}
+
 /**
  * Paints a stereo waveform overview into the ruler canvas for the visible time window.
  */
@@ -14,7 +20,8 @@ export function paintRulerWaveformCanvas(
   full: FullWaveformData | null,
   waveformService: WaveformService | null,
   panOffset: number,
-  visibleDuration: number
+  visibleDuration: number,
+  layoutHint?: PaintRulerWaveformLayoutHint
 ): void {
   const start = panOffset;
   const end = start + visibleDuration;
@@ -22,8 +29,12 @@ export function paintRulerWaveformCanvas(
   if (!ctx) return;
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio ?? 1;
-  const w = Math.max(1, Math.round((rect.width || 0) * dpr));
-  const h = Math.max(1, Math.round((rect.height || 20) * dpr));
+  const cssW =
+    rect.width >= 2 ? rect.width : Math.max(layoutHint?.cssWidthFallbackPx ?? 0, 2);
+  const cssH =
+    rect.height >= 1 ? rect.height : Math.max(layoutHint?.cssHeightFallbackPx ?? 0, 20);
+  const w = Math.max(1, Math.round(cssW * dpr));
+  const h = Math.max(1, Math.round(cssH * dpr));
   if (canvas.width !== w || canvas.height !== h) {
     canvas.width = w;
     canvas.height = h;

@@ -213,7 +213,7 @@
     };
   };
 
-  const docDeleteCapture: Action<HTMLDivElement, Record<string, never>> = (root) => {
+  const docDeleteCapture: Action<HTMLDivElement, undefined> = (root) => {
     function onDocKeydown(e: KeyboardEvent) {
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       const target = e.target instanceof Node ? e.target : null;
@@ -224,7 +224,11 @@
       e.stopPropagation();
     }
     document.addEventListener('keydown', onDocKeydown, true);
-    return () => document.removeEventListener('keydown', onDocKeydown, true);
+    return {
+      destroy() {
+        document.removeEventListener('keydown', onDocKeydown, true);
+      },
+    };
   };
 </script>
 
@@ -236,7 +240,7 @@
 >
   <div class="columns" role="group" aria-label="Audio signal picker: bands and remappers">
     <div
-      class="left"
+      class="left scrollbar-styled"
       role={bands.length !== 0 ? 'listbox' : 'group'}
       aria-label="Bands"
     >
@@ -261,9 +265,10 @@
       {/if}
     </div>
 
-    <div class="right frame-elevated" role="group" aria-label="Remappers for selected band">
+    <div class="right frame-elevated frame-scrollable scrollbar-styled" role="group" aria-label="Remappers for selected band">
       {#if selectedBand}
         <div class="toolbar">
+          <div class="controls">
           <div class="row">
             <span class="label">Half-life</span>
             <ValueInput
@@ -345,24 +350,15 @@
             />
           </div>
         </div>
-      {/if}
-      <div class="header">
-        <span class="label">
-          {#if bands.length === 0}
-            Get started
-          {:else if selectedBand}
-            Remappers: {selectedBand.name || `Band`} ({remappers.length})
-          {:else}
-            Remappers ({remappers.length})
-          {/if}
-        </span>
         {#if selectedBand}
-          <Button variant="secondary" size="sm" mode="both" iconPosition="trailing" onclick={handleAddRemapper}>
-            <IconSvg name="plus" variant="line" />
-            Add remapper
-          </Button>
-        {/if}
-      </div>
+        <Button variant="secondary" size="sm" mode="both" iconPosition="trailing" onclick={handleAddRemapper}>
+          <IconSvg name="plus" variant="line" />
+          Add remapper
+        </Button>
+      {/if}
+
+        </div>
+      {/if}
       {#if selectedBandRemappers.length === 0}
         <p class="empty">
           {#if bands.length === 0}
@@ -374,7 +370,7 @@
           {/if}
         </p>
       {:else}
-        <div class="cards" role="listbox" aria-label="Remappers">
+        <div class="cards scrollbar-styled" role="listbox" aria-label="Remappers">
           {#each selectedBandRemappers as remapper (remapper.id)}
             <RemapperCard
               remapper={remapper}
@@ -401,35 +397,47 @@
     display: flex;
     flex-direction: column;
     height: 100%;
+    min-height: 0;
+    overflow: hidden;
     padding: 0;
+    box-sizing: border-box;
 
     .columns {
       display: grid;
-      grid-template-columns: 300px 460px; /* one-off: bands | remappers column widths */
+      /* ~300:460 ratio; fills panel width between min/max on the shell */
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.533fr);
+      grid-template-rows: minmax(0, 1fr);
+      width: 100%;
+      height: 100%;
       gap: 0;
       flex: 1;
       min-height: 0;
+      overflow: hidden;
 
       .left {
         display: flex;
         flex-direction: column;
         gap: var(--pd-md);
-        flex: 1;
         min-width: 0;
         min-height: 0;
+        align-self: stretch;
         padding: var(--pd-md);
-        overflow: auto;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
+        overflow-x: hidden;
+        overflow-y: auto;
+        box-sizing: border-box;
 
-        &::-webkit-scrollbar {
-          display: none;
+        /* Natural height per band; never shrink cards inside the scroll column. */
+        & > :global(.band-card) {
+          flex: 0 0 auto;
+          width: 100%;
+          min-width: 0;
         }
 
         .hint {
           margin: var(--pd-xs) 0 0;
           font-size: var(--text-xs);
           color: var(--color-gray-110);
+          flex-shrink: 0;
         }
       }
 
@@ -438,69 +446,74 @@
         flex-direction: column;
         min-width: 0;
         min-height: 0;
-        padding: var(--pd-lg);
-        gap: var(--pd-sm);
+        align-self: stretch;
+        overflow: hidden;
+        padding: 0;
+        gap: 0;
         background: var(--color-gray-60);
         border-radius: var(--radius-md);
-        overflow: auto;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
-
-        &::-webkit-scrollbar {
-          display: none;
-        }
+        box-sizing: border-box;
 
         .toolbar {
           display: flex;
           flex-direction: row;
+          align-items: flex-end;
+          justify-content: space-between;
           gap: var(--pd-md);
-          margin-bottom: var(--pd-md);
+          padding: var(--pd-md) var(--pd-md);
           flex-shrink: 0;
 
-          .row {
+          .controls {
             display: flex;
             flex-direction: row;
-            align-items: center;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: var(--pd-sm);
+          }
+          .row {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
             gap: var(--pd-sm);
 
             .label {
               font-size: var(--text-xs);
               color: var(--color-gray-110);
+              padding-left: var(--pd-xs);
             }
           }
         }
 
-        .header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: var(--pd-sm);
-          margin-bottom: var(--pd-sm);
-          flex-shrink: 0;
-
-          .label {
-            font-size: var(--text-xs);
-            font-weight: 600;
-            color: var(--color-gray-110);
-          }
-        }
-
         .empty {
-          margin: 0 0 var(--pd-sm);
+          flex: 1 1 auto;
+          min-height: 0;
+          margin: 0;
+          padding: var(--pd-md);
           font-size: var(--text-sm);
           color: var(--text-muted, var(--color-gray-100));
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
         }
 
         .cards {
+          flex: 1 1 auto;
+          min-height: 0;
           display: flex;
           flex-direction: column;
+          align-items: stretch;
           gap: var(--pd-sm);
-          overflow: auto;
-          scrollbar-width: none;
-          -ms-overflow-style: none;
+          padding: var(--pd-md);
+          overflow-x: hidden;
+          overflow-y: auto;
+          box-sizing: border-box;
 
-          &::-webkit-scrollbar {
-            display: none;
+          /* Full width, intrinsic height; scroll lives on .cards, not squashed cards. */
+          & > :global(.remapper-card) {
+            flex: 0 0 auto;
+            width: 100%;
+            min-width: 0;
           }
         }
       }

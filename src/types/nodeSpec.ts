@@ -169,6 +169,12 @@ export interface GridElement {
   type: 'grid';
   /** Optional header label rendered above this grid block */
   label?: string;
+  /**
+   * When set with `label`, renders that parameter as a compact toggle in the header row
+   * next to the label (e.g. layer on/off). Omit the parameter from `parameters` so it
+   * is not duplicated in the grid body. Intended for int 0/1 (toggle UI).
+   */
+  headerToggleParameter?: string;
   parameters: string[];  // Which parameters to include (in order)
   layout?: {
     columns?: number | 'auto';  // 'auto' uses calculateOptimalColumns

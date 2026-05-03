@@ -167,7 +167,7 @@
 
       /* Other */
       cursor: default;
-      transition: color 0.15s;
+      transition: color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
 
       &.is-expanded {
         color: var(--print-highlight);

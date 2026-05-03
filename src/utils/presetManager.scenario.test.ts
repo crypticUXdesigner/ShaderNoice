@@ -123,8 +123,9 @@ describe('presetManager scenario tests', () => {
     const intensityVar = expectedOutputVariableName(intensityId, 'out');
     expect(compileResult.shaderCode).toContain(intensityVar);
 
+    const intensityVarEsc = intensityVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const c00Pattern = new RegExp(
-      `vec2\\(\\s*${intensityVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*,`
+      `vec2\\(\\s*(?:clamp\\([^\\)]*${intensityVarEsc}[^\\)]*\\)|${intensityVarEsc})\\s*,`
     );
     expect(
       compileResult.shaderCode,

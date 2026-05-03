@@ -10,4 +10,4 @@ Single path: `src/data-model/serialization.ts` → **SerializedGraphFile** (`for
 
 Pipeline: deserialize → migrate legacy → **`validateGraph`** → compiler/runtime — no “trusted” graphs without validation.
 
-**Refs:** `serialization.ts`, `validation.ts`, `.cursor/rules/domain/presets.mdc`, `docs/projects/core-architecture/_OVERVIEW.md` (§03A).
+**Refs:** `serialization.ts`, `validation.ts`, `.cursor/rules/domain/presets.mdc`, `docs/architecture/graph-and-platform-boundaries.md` (graph / validation context).

@@ -10,4 +10,4 @@ On add/remove/validate: **one connection per port**; exactly one of **`targetPor
 
 Replace: remove existing wire on that target, then add; never both/neither target fields set.
 
-**Refs:** `src/data-model/validation.ts`, `immutableUpdates.ts`, `docs/user-goals/05-connections.md`, core-architecture _OVERVIEW (§03B).
+**Refs:** `src/data-model/validation.ts`, `immutableUpdates.ts`, `docs/user-goals/05-connections.md`, `docs/architecture/graph-and-platform-boundaries.md` (connections / graph model).

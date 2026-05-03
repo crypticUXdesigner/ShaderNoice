@@ -58,6 +58,8 @@ export interface ManagerContextSetupDeps {
   getOnDuplicateSelected?: () => (() => void) | undefined;
   getHasClipboard?: () => (() => boolean) | undefined;
   getOnToggleFullscreen?: () => (() => void) | undefined;
+  getOnUndo?: () => (() => void) | undefined;
+  getOnRedo?: () => (() => void) | undefined;
   onSpacebarStateChange?: (isPressed: boolean) => void;
   isDialogVisible?: () => boolean;
   onCopySelected?: () => void;
@@ -65,6 +67,8 @@ export interface ManagerContextSetupDeps {
   onDuplicateSelected?: () => void;
   hasClipboard?: () => boolean;
   onToggleFullscreen?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 /** Canvas-shaped source for building ManagerContextSetupDeps (avoids circular dependency). */
@@ -105,6 +109,8 @@ export interface ManagerContextSetupDepsSource {
   getOnDuplicateSelected?: () => (() => void) | undefined;
   getHasClipboard?: () => (() => boolean) | undefined;
   getOnToggleFullscreen?: () => (() => void) | undefined;
+  getOnUndo?: () => (() => void) | undefined;
+  getOnRedo?: () => (() => void) | undefined;
   onSpacebarStateChange?: (isPressed: boolean) => void;
   isDialogVisible?: () => boolean;
   onCopySelected?: () => void;
@@ -112,6 +118,8 @@ export interface ManagerContextSetupDepsSource {
   onDuplicateSelected?: () => void;
   hasClipboard?: () => boolean;
   onToggleFullscreen?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export function buildManagerContextDeps(source: ManagerContextSetupDepsSource): ManagerContextSetupDeps {
@@ -149,6 +157,8 @@ export function buildManagerContextDeps(source: ManagerContextSetupDepsSource): 
     getOnDuplicateSelected: source.getOnDuplicateSelected ?? (() => source.onDuplicateSelected),
     getHasClipboard: source.getHasClipboard ?? (() => source.hasClipboard),
     getOnToggleFullscreen: source.getOnToggleFullscreen ?? (() => source.onToggleFullscreen),
+    getOnUndo: source.getOnUndo ?? (() => source.onUndo),
+    getOnRedo: source.getOnRedo ?? (() => source.onRedo),
     onSpacebarStateChange: source.onSpacebarStateChange,
     /** Getter so keyboard handler sees current callback (set by setCallbacks after init). */
     isDialogVisible: () => source.isDialogVisible?.() ?? false,
@@ -156,7 +166,9 @@ export function buildManagerContextDeps(source: ManagerContextSetupDepsSource): 
     onPaste: source.onPaste,
     onDuplicateSelected: source.onDuplicateSelected,
     hasClipboard: source.hasClipboard,
-    onToggleFullscreen: source.onToggleFullscreen
+    onToggleFullscreen: source.onToggleFullscreen,
+    onUndo: source.onUndo,
+    onRedo: source.onRedo
   };
 }
 
@@ -252,6 +264,8 @@ export function setupManagerContexts(deps: ManagerContextSetupDeps): void {
     onCopySelected: () => deps.getOnCopySelected?.()?.(),
     onPaste: () => deps.getOnPaste?.()?.(),
     onDuplicateSelected: () => deps.getOnDuplicateSelected?.()?.(),
-    hasClipboard: () => deps.getHasClipboard?.()?.() ?? false
+    hasClipboard: () => deps.getHasClipboard?.()?.() ?? false,
+    onUndo: () => deps.getOnUndo?.()?.(),
+    onRedo: () => deps.getOnRedo?.()?.()
   });
 }

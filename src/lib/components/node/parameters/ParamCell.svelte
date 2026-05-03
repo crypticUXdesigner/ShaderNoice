@@ -13,6 +13,7 @@
     supportsAudio,
     supportsAnimation,
     label,
+    inlineControl = false,
     timelineDriven = false,
     leftBottom: leftBottomSlot,
     control,
@@ -20,41 +21,59 @@
   }: Props = $props();
 </script>
 
-<div
-  class="param-cell {className}"
-  class:connected
-  data-timeline-driven={timelineDriven ? 'true' : undefined}
-  data-supports-audio={supportsAudio === undefined ? undefined : supportsAudio ? 'true' : 'false'}
-  data-supports-animation={supportsAnimation === undefined
-    ? undefined
-    : supportsAnimation
-      ? 'true'
-      : 'false'}
->
-  <div class="left-column">
-    <div class="top">
-      <span class="label">{label}</span>
-      {#if timelineDriven}
-        <span
-          class="timeline-driven-badge"
-          title="This parameter follows timeline automation for the whole timeline (including lead-in, gaps, and tail hold)."
-          aria-label="Timeline automation active"
-        >
-          <IconSvg name="wave-sine" variant="line" class="timeline-driven-icon" />
-        </span>
+{#if inlineControl}
+  <div
+    class="param-cell param-cell--inline-control {className}"
+    class:connected
+    data-timeline-driven={timelineDriven ? 'true' : undefined}
+    data-supports-audio={supportsAudio === undefined ? undefined : supportsAudio ? 'true' : 'false'}
+    data-supports-animation={supportsAnimation === undefined
+      ? undefined
+      : supportsAnimation
+        ? 'true'
+        : 'false'}
+  >
+    <div class="control-slot param-controls">
+      {@render control()}
+    </div>
+  </div>
+{:else}
+  <div
+    class="param-cell {className}"
+    class:connected
+    data-timeline-driven={timelineDriven ? 'true' : undefined}
+    data-supports-audio={supportsAudio === undefined ? undefined : supportsAudio ? 'true' : 'false'}
+    data-supports-animation={supportsAnimation === undefined
+      ? undefined
+      : supportsAnimation
+        ? 'true'
+        : 'false'}
+  >
+    <div class="left-column">
+      <div class="top">
+        <span class="label">{label}</span>
+        {#if timelineDriven}
+          <span
+            class="timeline-driven-badge"
+            title="This parameter follows timeline automation for the whole timeline (including lead-in, gaps, and tail hold)."
+            aria-label="Timeline automation active"
+          >
+            <IconSvg name="wave-sine" variant="line" class="timeline-driven-icon" />
+          </span>
+        {/if}
+      </div>
+      {#if leftBottomSlot}
+        <div class="bottom">
+          {@render leftBottomSlot()}
+        </div>
       {/if}
     </div>
-    {#if leftBottomSlot}
-      <div class="bottom">
-        {@render leftBottomSlot()}
-      </div>
-    {/if}
-  </div>
 
-  <div class="control-slot param-controls">
-    {@render control()}
+    <div class="control-slot param-controls">
+      {@render control()}
+    </div>
   </div>
-</div>
+{/if}
 
 <style>
   /* Layout and tokens: param-cell-* from tokens-node-editor.css. Per-category overrides in node-categories. */
@@ -80,12 +99,33 @@
     background: var(--param-cell-bg);
 
     /* Other */
-    transition: background 0.15s, border-color 0.15s;
+    transition:
+      background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      border-color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
   }
 
   .param-cell.connected {
     background: var(--param-cell-bg-connected);
     border-color: var(--param-cell-border-connected);
+  }
+
+  .param-cell--inline-control {
+    /* Layout */
+    display: inline-flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    flex-shrink: 0;
+
+    /* Box model */
+    min-width: 0;
+    min-height: 0;
+    padding: var(--pd-xs, 4px) var(--pd-sm, 8px);
+  }
+
+  .param-cell--inline-control .control-slot {
+    flex: 0 0 auto;
+    justify-content: center;
   }
 
   .left-column {
@@ -175,6 +215,7 @@
     height: 100%;
     background: var(--color-teal-100);
     border-radius: var(--radius-sm);
+    /* Exception: ultra-fast linear width for live peak metering (not part of the standard motion scale). */
     transition: width 0.05s linear;
   }
 

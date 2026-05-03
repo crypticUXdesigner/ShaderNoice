@@ -76,7 +76,7 @@
 
   let deferredVisible = $state(false);
 
-  /** Floating (non-stacked) toast only: stages deferredVisible + exit callback without `$effect`. Stacked toasts skip this and render when `visible` is true. */
+  /** Non-inline toasts: stages `deferredVisible` after two rAF ticks so `in:` / `out:` transitions run reliably (stacked + fixed). */
   const toastPresenceSync: Action<
     HTMLElement,
     {
@@ -85,41 +85,52 @@
       setDeferred: (v: boolean) => void;
       onExited?: () => void;
     }
-  > = (_node, _init) => {
+  > = (_node, init) => {
     let prev = false;
     let hadToastCycle = false;
     let rafOuter = 0;
     let rafInner = 0;
     let exitTimer = 0;
 
-    return {
-      update(p) {
-        const v = p.visible;
-        if (v && !prev) {
-          window.cancelAnimationFrame(rafOuter);
-          window.cancelAnimationFrame(rafInner);
-          window.clearTimeout(exitTimer);
-          p.setDeferred(false);
-          rafOuter = window.requestAnimationFrame(() => {
-            rafInner = window.requestAnimationFrame(() => {
-              p.setDeferred(true);
-            });
+    function apply(p: {
+      visible: boolean;
+      durationMs: number;
+      setDeferred: (v: boolean) => void;
+      onExited?: () => void;
+    }): void {
+      const v = p.visible;
+      if (v && !prev) {
+        window.cancelAnimationFrame(rafOuter);
+        window.cancelAnimationFrame(rafInner);
+        window.clearTimeout(exitTimer);
+        p.setDeferred(false);
+        rafOuter = window.requestAnimationFrame(() => {
+          rafInner = window.requestAnimationFrame(() => {
+            p.setDeferred(true);
           });
-          hadToastCycle = true;
-        } else if (!v && prev) {
-          window.cancelAnimationFrame(rafOuter);
-          window.cancelAnimationFrame(rafInner);
-          p.setDeferred(false);
-          if (hadToastCycle) {
-            exitTimer = window.setTimeout(() => {
-              p.onExited?.();
-              exitTimer = 0;
-            }, p.durationMs);
-          }
-          hadToastCycle = false;
+        });
+        hadToastCycle = true;
+      } else if (!v && prev) {
+        window.cancelAnimationFrame(rafOuter);
+        window.cancelAnimationFrame(rafInner);
+        p.setDeferred(false);
+        if (hadToastCycle) {
+          exitTimer = window.setTimeout(() => {
+            p.onExited?.();
+            exitTimer = 0;
+          }, p.durationMs);
         }
-        prev = v;
-      },
+        hadToastCycle = false;
+      }
+      prev = v;
+    }
+
+    if (init != null) {
+      apply(init);
+    }
+
+    return {
+      update: apply,
       destroy() {
         window.cancelAnimationFrame(rafOuter);
         window.cancelAnimationFrame(rafInner);
@@ -129,7 +140,7 @@
   };
 </script>
 
-{#if !inline && !stacked}
+{#if !inline}
   <span
     class="message-presence-sync"
     aria-hidden="true"
@@ -166,7 +177,7 @@
       {@render children?.()}
     </span>
   </div>
-{:else if visible && (stacked || deferredVisible)}
+{:else if visible && deferredVisible}
   <div class="message-wrapper" class:is-stacked={stacked}>
     <div
       class="message {className || ''}"
@@ -209,6 +220,18 @@
       bottom: auto;
       left: auto;
       transform: none;
+      width: fit-content;
+      max-width: 100%;
+
+      /* Bottom-center stack: shrink to content, cap width for long text */
+      .message {
+        display: inline-flex;
+        max-width: min(var(--message-max-width), 100%);
+      }
+
+      .message .message-content {
+        flex: 0 1 auto;
+      }
     }
 
     /* Message: the rotating face (child gets perspective from wrapper) */
@@ -222,7 +245,7 @@
       gap: var(--pd-md);
 
       /* Box model */
-      max-width: var(--message-max-width);
+      max-width: min(var(--message-max-width), 100%);
       padding: var(--pd-sm) var(--pd-md);
       border-radius: var(--radius-lg);
 

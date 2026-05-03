@@ -72,7 +72,8 @@ export const boxTorusSdfNodeSpec: NodeSpec = {
       min: 0.1,
       max: 3.0,
       step: 0.1,
-      label: 'Size X'
+      label: 'Size X',
+      inputMode: 'override'
     },
     primitiveSizeY: {
       type: 'float',
@@ -80,7 +81,8 @@ export const boxTorusSdfNodeSpec: NodeSpec = {
       min: 0.1,
       max: 3.0,
       step: 0.1,
-      label: 'Size Y'
+      label: 'Size Y',
+      inputMode: 'override'
     },
     primitiveSizeZ: {
       type: 'float',
@@ -88,7 +90,8 @@ export const boxTorusSdfNodeSpec: NodeSpec = {
       min: 0.0,
       max: 3.0,
       step: 0.1,
-      label: 'Size Z'
+      label: 'Size Z',
+      inputMode: 'override'
     },
     primitiveRotationX: {
       type: 'float',

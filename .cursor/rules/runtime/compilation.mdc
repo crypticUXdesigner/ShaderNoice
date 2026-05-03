@@ -12,4 +12,4 @@ Parameter updates flow like the app (`onParameterChange`, etc.); compiler receiv
 
 After edits: grep/scan for mutations in `src/runtime/**` and `src/shaders/**` (compilation); run `npm run build` + relevant tests.
 
-**Refs:** `.cursor/rules/data-model/graph-updates.mdc`, core-architecture _OVERVIEW (§01, §03A–§04).
+**Refs:** `.cursor/rules/data-model/graph-updates.mdc`, `docs/architecture/graph-and-platform-boundaries.md` (graph ownership, compilation / runtime seams), `docs/architecture/preview-and-recompilation.md`, `docs/architecture/compilation-worker.md`.

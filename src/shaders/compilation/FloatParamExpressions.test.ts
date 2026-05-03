@@ -33,7 +33,9 @@ function buildTestNodeSpecs(): Map<string, NodeSpec> {
     parameters: {
       gain: {
         type: 'float',
-        default: 0.5
+        default: 0.5,
+        min: 0,
+        max: 1
       }
     },
     mainCode: 'void main() {}'
@@ -95,6 +97,7 @@ describe('buildFloatParamExpressions', () => {
       targetNode,
       nodeSpecs.get('test-target')!,
       graph,
+      ['n-target'],
       uniformNames,
       variableNames,
       nodeSpecs,
@@ -103,7 +106,7 @@ describe('buildFloatParamExpressions', () => {
       escapeIdentity
     );
 
-    expect(expressions.gain).toBe('uTargetGain');
+    expect(expressions.gain).toBe('clamp((uTargetGain), 0.0, 1.0)');
     expect(expressions.__hasInputConnections).toBeUndefined();
   });
 
@@ -160,6 +163,7 @@ describe('buildFloatParamExpressions', () => {
       targetNode,
       nodeSpecs.get('test-target')!,
       graph,
+      ['n-target-auto'],
       uniformNames,
       variableNames,
       nodeSpecs,
@@ -169,7 +173,7 @@ describe('buildFloatParamExpressions', () => {
     );
 
     // lane-123 → sanitized to lane_123 in getAutomationExpressionForParam
-    expect(expressions.gain).toBe('evalAutomation_lane_123(uTimelineTime)');
+    expect(expressions.gain).toBe('clamp((evalAutomation_lane_123(uTimelineTime)), 0.0, 1.0)');
     expect(expressions.__hasInputConnections).toBeUndefined();
   });
 
@@ -219,6 +223,7 @@ describe('buildFloatParamExpressions', () => {
       targetNode,
       nodeSpecs.get('test-target')!,
       graph,
+      ['n-source', 'n-target-override'],
       uniformNames,
       variableNames,
       nodeSpecs,
@@ -227,7 +232,7 @@ describe('buildFloatParamExpressions', () => {
       escapeIdentity
     );
 
-    expect(expressions.gain).toBe('node_source_out');
+    expect(expressions.gain).toBe('clamp((node_source_out), 0.0, 1.0)');
     expect(expressions.__hasInputConnections).toBe(true);
   });
 
@@ -297,6 +302,7 @@ describe('buildFloatParamExpressions', () => {
         targetNode,
         nodeSpecs.get('test-target')!,
         graph,
+        ['n-source-2', 'n-target-combine'],
         uniformNames,
         variableNames,
         nodeSpecs,
@@ -304,7 +310,7 @@ describe('buildFloatParamExpressions', () => {
         escapeIdentity
       );
 
-      expect(expressions.gain).toBe('combine(0.5,' + mode + ',node_src_out)');
+      expect(expressions.gain).toBe('clamp((combine(0.5,' + mode + ',node_src_out)), 0.0, 1.0)');
       expect(expressions.__hasInputConnections).toBe(true);
     }
   });
@@ -349,6 +355,7 @@ describe('buildFloatParamExpressions', () => {
       targetNode,
       nodeSpecs.get('test-target')!,
       graph,
+      ['n-target-virtual-audio'],
       uniformNames,
       variableNames,
       nodeSpecs,
@@ -357,7 +364,7 @@ describe('buildFloatParamExpressions', () => {
       escapeIdentity
     );
 
-    expect(expressions.gain).toBe(audioUniformName);
+    expect(expressions.gain).toBe('clamp((' + audioUniformName + '), 0.0, 1.0)');
     expect(expressions.__hasInputConnections).toBe(true);
   });
 });

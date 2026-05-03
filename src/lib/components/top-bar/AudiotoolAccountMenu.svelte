@@ -165,9 +165,9 @@
     overflow: hidden;
     border-radius: var(--radius-md);
     transition:
-      box-shadow 0.15s ease,
-      background-color 0.15s ease,
-      color 0.15s ease;
+      box-shadow var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      background-color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
   }
 
   :global(button.audiotool-account__trigger.ghost:not(:disabled):hover) {

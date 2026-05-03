@@ -2,8 +2,10 @@
   import type { Action } from 'svelte/action';
   import { fade } from 'svelte/transition';
   import { portal } from '../../../actions/portal';
+  import { readCssTimeMs } from '../../../../utils/readCssTimeMs';
 
   let reducedMotion = $state(false);
+  let fadeMs = $state(150);
   $effect(() => {
     if (typeof window === 'undefined') return;
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -13,6 +15,17 @@
     };
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
+  });
+
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+    if (reducedMotion) {
+      fadeMs = 0;
+      return;
+    }
+
+    const fast = readCssTimeMs('--motion-effects-fast-duration');
+    fadeMs = Number.isFinite(fast) ? fast : 150;
   });
 
   interface Props {
@@ -256,7 +269,7 @@
     aria-modal="false"
     use:portal
     use:stampOpenedAt
-    transition:fade={{ duration: reducedMotion ? 0 : 150 }}
+    transition:fade={{ duration: fadeMs }}
   >
     {@render children?.()}
   </div>

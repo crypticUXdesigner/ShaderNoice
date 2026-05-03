@@ -313,7 +313,7 @@
 
         /* Other */
         cursor: crosshair;
-        transition: transform 0.15s;
+        transition: transform var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
 
         &:hover .dot {
           transform: scale(1.15);
@@ -352,7 +352,10 @@
           box-shadow: 0 0 var(--scale-1) var(--scale-3) color-mix(in srgb, var(--shadow-color) 30%, transparent 70%);
 
           /* Other */
-          transition: background 0.15s, box-shadow 0.15s, transform 0.15s;
+          transition:
+            background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+            box-shadow var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+            transform var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
         }
 
         &.input-port .dot,

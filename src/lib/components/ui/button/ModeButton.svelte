@@ -59,7 +59,9 @@
 
     /* Other */
     cursor: default;
-    transition: background 0.15s, color 0.15s;
+    transition:
+      background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
 
     > :global(*) {
       pointer-events: none;

@@ -119,7 +119,9 @@
     &::-moz-range-thumb {
       border-radius: 1px;
       cursor: default;
-      transition: width 0.15s, background 0.15s;
+      transition:
+        width var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+        background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
     }
 
     &::-webkit-slider-thumb {

@@ -34,12 +34,16 @@ export type NodeEditorCanvasPostInitTarget = {
   onPaste?: () => void;
   onDuplicateSelected?: () => void;
   hasClipboard?: () => boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
   getOnNodeDeleted?: () => ((nodeId: string) => void) | undefined;
   getOnConnectionDeleted?: () => ((connectionId: string) => void) | undefined;
   getOnCopySelected?: () => (() => void) | undefined;
   getOnPaste?: () => (() => void) | undefined;
   getOnDuplicateSelected?: () => (() => void) | undefined;
   getHasClipboard?: () => (() => boolean) | undefined;
+  getOnUndo?: () => (() => void) | undefined;
+  getOnRedo?: () => (() => void) | undefined;
   // Refs only (satisfy noUnusedLocals)
   draggedNodeIds: Set<string>;
   getValidVirtualNodeIds?: () => Set<string>;
@@ -116,6 +120,8 @@ export function satisfyCanvasRefsForInitializer(c: NodeEditorCanvasPostInitTarge
     c.onPaste,
     c.onDuplicateSelected,
     c.hasClipboard,
+    c.onUndo,
+    c.onRedo,
     c.connectionLayerRenderer,
     c.parameterConnectionLayerRenderer,
     c.isSpacePressed,
@@ -158,6 +164,8 @@ export function runNodeEditorCanvasPostInit(c: NodeEditorCanvasPostInitTarget): 
   (c as unknown as { getOnPaste: () => typeof c.onPaste }).getOnPaste = () => c.onPaste;
   (c as unknown as { getOnDuplicateSelected: () => typeof c.onDuplicateSelected }).getOnDuplicateSelected = () => c.onDuplicateSelected;
   (c as unknown as { getHasClipboard: () => typeof c.hasClipboard }).getHasClipboard = () => c.hasClipboard;
+  (c as unknown as { getOnUndo: () => typeof c.onUndo }).getOnUndo = () => c.onUndo;
+  (c as unknown as { getOnRedo: () => typeof c.onRedo }).getOnRedo = () => c.onRedo;
 
   c.setupManagerContexts();
   c.setupInteractionHandlers();

@@ -9,6 +9,7 @@ import { Renderer } from './Renderer';
 import { AudioManager } from './AudioManager';
 import { CompilationManager } from './CompilationManager';
 import { RuntimeManager } from './RuntimeManager';
+import { installPreviewSchedulerDebugGlobal } from './PreviewScheduler';
 import type { ShaderCompiler, IRenderer, IAudioManager, ICompilationManager } from './types';
 import type { NodeSpec } from '../types';
 
@@ -112,7 +113,9 @@ export function createRuntimeManager(
 
   if (nodeSpecsForWorker == null) {
     const compilationManager = createCompilationManager(compiler, renderer, errorHandler);
-    return new RuntimeManager(renderer, audioManager, compilationManager, errorHandler);
+    const rm = new RuntimeManager(renderer, audioManager, compilationManager, errorHandler);
+    installPreviewSchedulerDebugGlobal();
+    return rm;
   }
 
   return (async (): Promise<RuntimeManager> => {
@@ -126,7 +129,9 @@ export function createRuntimeManager(
     worker.postMessage({ type: 'init', nodeSpecs: nodeSpecsObj });
     await waitForWorkerInited(worker);
     const compilationManager = createCompilationManager(compiler, renderer, errorHandler, worker);
-    return new RuntimeManager(renderer, audioManager, compilationManager, errorHandler);
+    const rm = new RuntimeManager(renderer, audioManager, compilationManager, errorHandler);
+    installPreviewSchedulerDebugGlobal();
+    return rm;
   })();
 }
 
@@ -144,5 +149,7 @@ export function createRuntimeManagerWithDependencies(
   compilationManager: ICompilationManager,
   errorHandler?: import('../utils/errorHandling').ErrorHandler
 ): RuntimeManager {
-  return new RuntimeManager(renderer, audioManager, compilationManager, errorHandler);
+  const rm = new RuntimeManager(renderer, audioManager, compilationManager, errorHandler);
+  installPreviewSchedulerDebugGlobal();
+  return rm;
 }

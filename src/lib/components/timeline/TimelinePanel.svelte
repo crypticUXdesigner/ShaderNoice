@@ -118,6 +118,8 @@
   let rulerSeekDragging = $state(false);
   let playheadDragging = $state(false);
   let trackWidth = $state(TRACK_WIDTH);
+  /** Ruler track CSS width from ResizeObserver — canvas often reports 0×0 before first layout. */
+  let rulerWaveformHostCssWidth = $state(0);
   /** Full waveform for current primary (from 02B); null when no data or no service. Stereo: values = left, valuesRight = right. */
   let fullWaveformData = $state<{ values: number[]; valuesRight?: number[]; durationSeconds: number } | null>(null);
   let rulerWaveformCanvasEl = $state<HTMLCanvasElement | null>(null);
@@ -194,8 +196,22 @@
     const visDur = visibleDuration;
     const svc = waveformService;
     void trackWidth;
+    void rulerWaveformHostCssWidth;
     if (!canvas) return;
-    paintRulerWaveformCanvas(canvas, full, svc, panOffset, visDur);
+    const layoutHint = {
+      cssWidthFallbackPx: Math.max(rulerWaveformHostCssWidth, trackWidth, TRACK_WIDTH),
+      cssHeightFallbackPx: 20,
+    };
+    paintRulerWaveformCanvas(canvas, full, svc, panOffset, visDur, layoutHint);
+    let raf = 0;
+    if (canvas.getBoundingClientRect().width < 2) {
+      raf = requestAnimationFrame(() => {
+        paintRulerWaveformCanvas(canvas, full, svc, panOffset, visDur, layoutHint);
+      });
+    }
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+    };
   });
 
   function getDuration(): number {
@@ -669,7 +685,8 @@
         ) as HTMLElement;
         if (track) {
           const rect = track.getBoundingClientRect();
-          const newStart = computeDuplicateDropStart({
+          const maxT = getDuration();
+          const rawStart = computeDuplicateDropStart({
             clientX: e2.clientX,
             trackRect: rect,
             math: timelineTransform,
@@ -677,6 +694,7 @@
             bpm: getBpm(),
             snapGridBars,
           });
+          const newStart = Math.max(0, Math.min(rawStart, maxT - region.duration));
           duplicateRegion(laneId, regionId, newStart);
         }
         regionDrag = null;
@@ -803,6 +821,22 @@
         trackWidth = Math.round(entry.contentRect.width);
       }
     });
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
+  $effect(() => {
+    const el = rulerTrackEl;
+    if (!el) {
+      rulerWaveformHostCssWidth = 0;
+      return;
+    }
+    const update = (): void => {
+      const w = el.getBoundingClientRect().width;
+      rulerWaveformHostCssWidth = w >= 2 ? Math.round(w) : 0;
+    };
+    update();
+    const ro = new ResizeObserver(() => update());
     ro.observe(el);
     return () => ro.disconnect();
   });

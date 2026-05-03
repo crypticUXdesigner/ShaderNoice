@@ -77,7 +77,10 @@
 
     /* Other */
     outline: none;
-    transition: all 0.15s;
+    transition:
+      background-color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      border-color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
     --tag-color: var(--color-gray-120);
     --tag-color-hover: var(--color-gray-130);
     --tag-color-active: var(--color-gray-130);

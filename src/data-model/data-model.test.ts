@@ -1205,6 +1205,56 @@ export function testValidateAutomationEvaluableOverlapErrors(): void {
   );
 }
 
+/** Sub-1ms gap from snap/float is not an evaluable overlap error. */
+export function testValidateAutomationEvaluableNearAdjacentNoError(): void {
+  const graph: NodeGraph = {
+    id: 'g1',
+    name: 'Test',
+    version: '2.0',
+    nodes: [{ id: 'n1', type: 'noise', position: { x: 0, y: 0 }, parameters: {} }],
+    connections: [],
+    automation: {
+      bpm: 120,
+      durationSeconds: 60,
+      lanes: [
+        {
+          id: 'lane1',
+          nodeId: 'n1',
+          paramName: 'noiseScale',
+          regions: [
+            {
+              id: 'r1',
+              startTime: 0,
+              duration: 30,
+              loop: false,
+              curve: {
+                keyframes: [{ time: 0, value: 0 }, { time: 1, value: 1 }],
+                interpolation: 'linear',
+              },
+            },
+            {
+              id: 'r2',
+              startTime: 29.999,
+              duration: 4,
+              loop: false,
+              curve: {
+                keyframes: [{ time: 0, value: 0 }, { time: 1, value: 1 }],
+                interpolation: 'linear',
+              },
+            },
+          ],
+        },
+      ],
+    },
+  };
+  const result = validateGraph(graph, mockNodeSpecs);
+  assert(result.valid === true, 'Near-adjacent evaluable regions within tolerance should validate');
+  assert(
+    !result.errors.some((e) => e.includes('overlapping evaluable')),
+    'Should not report evaluable overlap for 1ms-class float gap'
+  );
+}
+
 // Non-evaluable regions overlapping do not error (no evaluable overlap)
 export function testValidateAutomationNonEvaluableOverlapOk(): void {
   const graph: NodeGraph = {
@@ -1343,5 +1393,6 @@ describe('data-model', () => {
   it('validateAutomationIntLaneWarning', testValidateAutomationIntLaneWarning);
   it('validateAutomationDuplicateKeyframeErrors', testValidateAutomationDuplicateKeyframeErrors);
   it('validateAutomationEvaluableOverlapErrors', testValidateAutomationEvaluableOverlapErrors);
+  it('validateAutomationEvaluableNearAdjacentNoError', testValidateAutomationEvaluableNearAdjacentNoError);
   it('validateAutomationNonEvaluableOverlapOk', testValidateAutomationNonEvaluableOverlapOk);
 });

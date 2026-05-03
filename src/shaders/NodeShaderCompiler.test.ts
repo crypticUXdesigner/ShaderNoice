@@ -138,6 +138,17 @@ describe('NodeShaderCompiler', () => {
       expect(result.metadata.finalOutputNodeId).toBe('n-out');
     });
 
+    it('includes previewDependencies with no audio uniforms for minimal graph', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const graph = buildMinimalCompilableGraph();
+      const result = compiler.compile(graph);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.metadata.previewDependencies).toBeDefined();
+      expect(result.metadata.previewDependencies!.usesAudioUniforms).toBe(false);
+    });
+
     it('produces fragment shader with void main and expected identifiers', () => {
       const nodeSpecsMap = buildNodeSpecsMap();
       const compiler = new NodeShaderCompiler(nodeSpecsMap);
@@ -179,6 +190,54 @@ describe('NodeShaderCompiler', () => {
       expect(result.metadata.errors).toHaveLength(0);
       expect(result.shaderCode).not.toMatch(/\bif_node_/);
       expect(result.shaderCode).toContain('else if');
+    });
+
+    it('embeds float param connection into sceneSDF (e.g. primitiveSizeX) and orders upstream math before Primitives', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const graph: NodeGraph = {
+        id: 'graph-bt-param',
+        name: 'BT param',
+        version: '2.0',
+        nodes: [
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-mw', type: 'mixed-wave-signal', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-mul', type: 'multiply', position: { x: 0, y: 0 }, parameters: { b: 2.0 } },
+          {
+            id: 'n-bt',
+            type: 'box-torus-sdf',
+            position: { x: 0, y: 0 },
+            parameters: { primitiveType: 0, primitiveSizeX: 1.5 },
+          },
+          { id: 'n-cm', type: 'color-map', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-bt', targetPort: 'in' },
+          { id: 'c2', sourceNodeId: 'n-mw', sourcePort: 'out', targetNodeId: 'n-mul', targetPort: 'a' },
+          {
+            id: 'c3',
+            sourceNodeId: 'n-mul',
+            sourcePort: 'out',
+            targetNodeId: 'n-bt',
+            targetParameter: 'primitiveSizeX',
+          },
+          { id: 'c4', sourceNodeId: 'n-bt', sourcePort: 'out', targetNodeId: 'n-cm', targetPort: 'in' },
+          { id: 'c5', sourceNodeId: 'n-cm', sourcePort: 'out', targetNodeId: 'n-out', targetPort: 'in' },
+        ],
+      };
+
+      const result = compiler.compile(graph);
+      expect(result.metadata.errors).toHaveLength(0);
+      const order = result.metadata.executionOrder;
+      expect(order.indexOf('n-mul')).toBeLessThan(order.indexOf('n-bt'));
+
+      const mulVar = expectedOutputVariableName('n-mul', 'out');
+      expect(result.shaderCode).toContain(mulVar);
+      const sceneIdx = result.shaderCode.indexOf('sceneSDF');
+      expect(sceneIdx).toBeGreaterThanOrEqual(0);
+      const sceneChunk = result.shaderCode.slice(sceneIdx, sceneIdx + 1200);
+      expect(sceneChunk).toContain(`vec3(clamp((${mulVar}),`);
     });
   });
 
@@ -399,7 +458,9 @@ describe('NodeShaderCompiler', () => {
 
       // Stricter: quad-warp c00 is vec2($param.quadCorner0X, $param.quadCorner0Y); with connection
       // it must become vec2(intensityVar, ...). If we used default 0.0 we'd see vec2(0.0, ...) → solid color.
-      const c00Pattern = new RegExp(`vec2\\(\\s*${intensityVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*,`);
+      const c00Pattern = new RegExp(
+        `vec2\\(\\s*clamp\\(\\(\\s*${intensityVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\)\\s*,`
+      );
       expect(
         result.shaderCode,
         'quad-warp c00 must use Intensity variable (vec2(intensityVar, ...)), not default'
@@ -461,7 +522,7 @@ describe('NodeShaderCompiler', () => {
   /**
    * Param wiring contract (WP 02): execution order and variable substitution for a
    * parameter connection chain. Chain: time → one-minus → hexagon.hexGap.
-   * See docs/architecture/audio-reactive-pipeline.md § Contract (invariants).
+   * See docs/architecture/audio-reactivity.md — Contract (invariants).
    */
   describe('parameter connection chain (one-minus → hexagon.hexGap)', () => {
     /**
@@ -539,8 +600,10 @@ describe('NodeShaderCompiler', () => {
 
       // Hexagon uses: float gap = clamp($param.hexGap, 0.0, 2.0); with connection it must become
       // clamp(oneMinusVar, 0.0, 2.0), not the default uniform for hexGap.
+      const gapVarEsc = oneMinusVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const gapPattern = new RegExp(
-        `clamp\\(\\s*${oneMinusVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*,\\s*0\\.0\\s*,\\s*2\\.0\\s*\\)`
+        // The node code clamps hexGap, and parameter substitution also clamps.
+        `clamp\\(\\s*clamp\\(\\s*\\(\\s*${gapVarEsc}\\s*\\)\\s*,\\s*0\\.0\\s*,\\s*2\\.0\\s*\\)\\s*,\\s*0\\.0\\s*,\\s*2\\.0\\s*\\)`
       );
       expect(
         result.shaderCode,
@@ -613,10 +676,15 @@ describe('NodeShaderCompiler', () => {
       expect(oneMinusIndex, 'one-minus must run before hexagon').toBeLessThan(hexIndex);
       // One-minus input must be the remap uniform (uRemap_node_test123Out or similar)
       expect(result.shaderCode).toContain(oneMinusVar);
+      const gapVarEsc = oneMinusVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const gapPattern = new RegExp(
-        `clamp\\(\\s*${oneMinusVar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*,\\s*0\\.0\\s*,\\s*2\\.0\\s*\\)`
+        // Node code may already clamp $param.hexGap, and we also clamp the substituted expression.
+        // Accept nested clamps like: clamp(clamp((node_var), 0.0, 2.0), 0.0, 2.0)
+        `clamp\\(\\s*clamp\\(\\s*\\(\\s*${gapVarEsc}\\s*\\)\\s*,\\s*0\\.0\\s*,\\s*2\\.0\\s*\\)\\s*,\\s*0\\.0\\s*,\\s*2\\.0\\s*\\)`
       );
       expect(result.shaderCode, 'hexGap must use one-minus output variable').toMatch(gapPattern);
+      expect(result.metadata.previewDependencies).toBeDefined();
+      expect(result.metadata.previewDependencies!.usesAudioUniforms).toBe(true);
     });
   });
 
@@ -658,6 +726,62 @@ describe('NodeShaderCompiler', () => {
         ],
       };
     }
+
+    it('uses sceneSDF for generic-raymarcher when SDF source is box-torus (no $output.x =) and embeds float param wires', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const uvId = 'n-uv';
+      const mwId = 'n-mw';
+      const mulId = 'n-mul';
+      const btId = 'n-bt';
+      const rayId = 'n-ray';
+      const outId = 'n-out';
+      const graph: NodeGraph = {
+        id: 'graph-ray-bt-sdf',
+        name: 'Ray BT SDF',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: mwId, type: 'mixed-wave-signal', position: { x: 0, y: 0 }, parameters: {} },
+          { id: mulId, type: 'multiply', position: { x: 0, y: 0 }, parameters: { b: 1.0 } },
+          {
+            id: btId,
+            type: 'box-torus-sdf',
+            position: { x: 0, y: 0 },
+            parameters: { primitiveType: 0, primitiveSizeX: 1.5 },
+          },
+          { id: rayId, type: 'generic-raymarcher', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'r1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: rayId, targetPort: 'in' },
+          { id: 'r2', sourceNodeId: btId, sourcePort: 'out', targetNodeId: rayId, targetPort: 'sdf' },
+          { id: 'r3', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: btId, targetPort: 'in' },
+          { id: 'r4', sourceNodeId: mwId, sourcePort: 'out', targetNodeId: mulId, targetPort: 'a' },
+          {
+            id: 'r5',
+            sourceNodeId: mulId,
+            sourcePort: 'out',
+            targetNodeId: btId,
+            targetParameter: 'primitiveSizeX',
+          },
+          { id: 'r6', sourceNodeId: rayId, sourcePort: 'color', targetNodeId: outId, targetPort: 'in' },
+        ],
+      };
+
+      const result = compiler.compile(graph);
+      expect(result.metadata.errors).toHaveLength(0);
+      const mulVar = expectedOutputVariableName(mulId, 'out');
+      expect(result.shaderCode).toContain(mulVar);
+      const genericFn = `generic_raymarcher_sdf_${rayId.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+      expect(result.shaderCode).toMatch(
+        new RegExp(`float\\s+${genericFn}\\s*\\(vec3\\s+p\\)\\s*\\{\\s*return\\s+sceneSDF`)
+      );
+      const sceneIdx = result.shaderCode.indexOf('sceneSDF');
+      expect(sceneIdx).toBeGreaterThanOrEqual(0);
+      const sceneChunk = result.shaderCode.slice(sceneIdx, sceneIdx + 1200);
+      expect(sceneChunk).toContain(`vec3(clamp((${mulVar}),`);
+    });
 
     function buildGenericRaymarcherWithDisplacementGraph(): NodeGraph {
       const uvId = 'n-uv';
@@ -863,6 +987,68 @@ describe('NodeShaderCompiler', () => {
       // A sanity check that a function body referencing nc is present.
       expect(result.shaderCode).toContain('nc = vec3(');
       expect(result.shaderCode).toContain('pModIcosahedronInflated(inout vec3 p)');
+    });
+  });
+
+  describe('compileIncremental execution-order extensions', () => {
+    it('succeeds after adding a disconnected constant-float (subsequence order)', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const base: NodeGraph = {
+        id: 'g-ext',
+        name: 'g',
+        version: '2.0',
+        nodes: [
+          { id: 'n1', type: 'time', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n2', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n1', sourcePort: 'out', targetNodeId: 'n2', targetPort: 'in' },
+        ],
+      };
+      const prev = compiler.compile(base);
+      expect(prev.metadata.errors).toHaveLength(0);
+      const extended: NodeGraph = {
+        ...base,
+        nodes: [
+          ...base.nodes,
+          {
+            id: 'nf',
+            type: 'constant-float',
+            position: { x: 0, y: 0 },
+            parameters: { value: 0.25 },
+          },
+        ],
+      };
+      const incr = compiler.compileIncremental(extended, prev, new Set(['nf']));
+      expect(incr).not.toBeNull();
+      expect(incr!.metadata.executionOrder.length).toBe(prev.metadata.executionOrder.length + 1);
+      expect(incr!.metadata.errors).toHaveLength(0);
+    });
+
+    it('returns null when a previous-order node is missing from the graph', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const base: NodeGraph = {
+        id: 'g-rem',
+        name: 'g',
+        version: '2.0',
+        nodes: [
+          { id: 'n1', type: 'time', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n2', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n1', sourcePort: 'out', targetNodeId: 'n2', targetPort: 'in' },
+        ],
+      };
+      const prev = compiler.compile(base);
+      const broken: NodeGraph = {
+        ...base,
+        nodes: [{ id: 'n2', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} }],
+        connections: [],
+      };
+      const incr = compiler.compileIncremental(broken, prev, new Set(['n2']));
+      expect(incr).toBeNull();
     });
   });
 });

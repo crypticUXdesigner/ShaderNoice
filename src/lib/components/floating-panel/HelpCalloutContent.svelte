@@ -238,7 +238,9 @@
       background: var(--ghost-bg);
       color: var(--ghost-print);
       cursor: default;
-      transition: background 0.15s, color 0.15s;
+      transition:
+        background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+        color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
     }
 
     .related .item:hover {

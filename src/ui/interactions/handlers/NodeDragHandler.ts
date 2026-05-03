@@ -12,6 +12,8 @@ import type { InteractionEvent, InteractionHandler } from '../InteractionHandler
 import type { HandlerContext } from '../HandlerContext';
 import { RenderLayer } from '../../editor/rendering/RenderState';
 import { createNodeDragEdgeScroll } from './NodeDragHandlerEdgeScroll';
+import { previewPerformanceMark, PreviewPerfMark } from '../../../runtime/previewPerformanceMarks';
+import { getPreviewScheduler } from '../../../runtime/PreviewScheduler';
 
 export class NodeDragHandler implements InteractionHandler {
   priority = 50;
@@ -193,6 +195,8 @@ export class NodeDragHandler implements InteractionHandler {
       if (distance > this.nodeDragThreshold) {
         // Start dragging
         this.isDraggingNode = true;
+        previewPerformanceMark(PreviewPerfMark.editorDragStart);
+        getPreviewScheduler().recordInteractionStart('NodeDragHandler');
         this.draggingNodeId = this.potentialNodeDragId;
         this.potentialNodeDrag = false;
         this.context.setCursor('grabbing');
@@ -299,6 +303,12 @@ export class NodeDragHandler implements InteractionHandler {
   }
 
   onEnd(_event: InteractionEvent): void {
+    const wasDragging = this.isDraggingNode;
+    if (wasDragging) {
+      previewPerformanceMark(PreviewPerfMark.editorDragEnd);
+      previewPerformanceMark(PreviewPerfMark.interactionReleaseSettleFrame);
+      getPreviewScheduler().recordInteractionEnd('NodeDragHandler');
+    }
     this.isDraggingNode = false;
     this.draggingNodeId = null;
     this.draggingNodeInitialPos = null;

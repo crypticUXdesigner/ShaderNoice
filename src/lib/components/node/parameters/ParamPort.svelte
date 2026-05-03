@@ -86,7 +86,7 @@
     background: transparent;
     cursor: default;
     font-family: inherit;
-    transition: opacity 0.15s;
+    transition: opacity var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
 
     &:disabled {
       opacity: var(--opacity-disabled);
@@ -118,7 +118,10 @@
       background: var(--port-color);
       border: 1px solid rgba(255, 255, 255, 0.3);
       box-shadow: 0 0 2px 6px color-mix(in srgb, var(--shadow-color) 30%, transparent 70%);
-      transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+      transition:
+        background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+        box-shadow var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+        transform var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
 
       :global(.port-audio-icon) {
         width: var(--icon-size-sm);

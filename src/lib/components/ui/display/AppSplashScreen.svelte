@@ -10,6 +10,7 @@
   import AudiotoolMarkSvg from '../icon/AudiotoolMarkSvg.svelte';
   import Button from '../button/Button.svelte';
   import Message from './Message.svelte';
+  import { readCssTimeMs } from '../../../../utils/readCssTimeMs';
 
   interface Props {
     /** `'checking'` while resolving OAuth/session; `'signin'` shows the Audiotool action when callbacks are wired. */
@@ -115,8 +116,21 @@
     return () => mq.removeEventListener('change', onChange);
   });
 
-  /** Shorter when reduced motion; never 0 or the dismiss feels like a hard cut. */
-  const fadeDuration = $derived(reduceMotion ? 160 : 280);
+  let fadeMs = $state(200);
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+
+    const fast = readCssTimeMs('--motion-effects-fast-duration');
+    const normal = readCssTimeMs('--motion-effects-normal-duration');
+
+    // Shorter when reduced motion; never 0 or the dismiss feels like a hard cut.
+    if (reduceMotion) {
+      fadeMs = Number.isFinite(fast) ? fast : 150;
+      return;
+    }
+
+    fadeMs = Number.isFinite(normal) ? normal : Number.isFinite(fast) ? fast : 200;
+  });
 
   function handleActivate(): void {
     if (!ready || !onDismiss || oauthSplashBlocksDismiss) return;
@@ -172,7 +186,7 @@
   aria-busy={splashAriaBusy}
   aria-labelledby="app-splash-title"
   aria-describedby="app-splash-desc"
-  transition:fade={{ duration: fadeDuration, easing: cubicOut }}
+  transition:fade={{ duration: fadeMs, easing: cubicOut }}
   onclick={handleActivate}
 >
   <div class="app-splash__inner">

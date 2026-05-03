@@ -6,7 +6,13 @@
  */
 
 import { GraphChangeDetector } from '../utils/changeDetection/GraphChangeDetector';
-import type { IRenderer, IAudioManager, ICompilationManager, TimelineState } from './types';
+import type {
+  IRenderer,
+  IAudioManager,
+  ICompilationManager,
+  TimelineState,
+  PreviewDependencyMask
+} from './types';
 import type { NodeGraph, NodeInstance, Connection } from '../data-model/types';
 import type { AudioSetup } from '../data-model/audioSetupTypes';
 import { getPrimaryFileId } from '../data-model/audioSetupTypes';
@@ -284,7 +290,11 @@ export class RuntimeManager implements Disposable {
       time,
       shaderInstance,
       this.renderer,
-      (si) => this.audioParameterHandler.updateAudioUniforms(si, this.currentGraph)
+      (si) => this.audioParameterHandler.updateAudioUniforms(si, this.currentGraph),
+      {
+        previewDependencies: this.compilationManager.getPreviewDependencyMask(),
+        timelinePlaying: !!timelineState?.isPlaying
+      }
     );
   }
 
@@ -433,7 +443,12 @@ export class RuntimeManager implements Disposable {
   getRenderer(): IRenderer {
     return this.renderer;
   }
-  
+
+  /** Last successful compile preview dependency snapshot (WP 02B). */
+  getPreviewDependencyMask(): PreviewDependencyMask | null {
+    return this.compilationManager.getPreviewDependencyMask();
+  }
+
   /**
    * Cleanup all resources.
    * Cleans up in reverse order of creation (dependencies before dependents).

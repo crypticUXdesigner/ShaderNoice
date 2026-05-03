@@ -25,7 +25,7 @@ export const compareNodeSpec: NodeSpec = {
       max: 5,
       label: 'Operation'
     },
-    b: { type: 'float', default: 0.5, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+    b: { type: 'float', default: 0.5, min: -10.0, max: 10.0, step: 0.001, label: 'B',
       knobPolarity: 'two-sided' }
   },
   parameterLayout: {
@@ -70,9 +70,9 @@ export const selectNodeSpec: NodeSpec = {
     { name: 'out', type: 'float', label: 'Result' }
   ],
   parameters: {
-    trueValue: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'True Value',
+    trueValue: { type: 'float', default: 1.0, min: -10.0, max: 10.0, step: 0.001, label: 'True Value',
       knobPolarity: 'two-sided' },
-    falseValue: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'False Value',
+    falseValue: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.001, label: 'False Value',
       knobPolarity: 'two-sided' }
   },
   parameterLayout: {
@@ -106,10 +106,10 @@ export const maskCompositeFloatNodeSpec: NodeSpec = {
     { name: 'out', type: 'float', label: 'Result' }
   ],
   parameters: {
-    bg: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Background',
+    bg: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.001, label: 'Background',
       knobPolarity: 'two-sided' },
     mask: { type: 'float', default: 0.5, min: 0.0, max: 1.0, step: 0.01, label: 'Mask' },
-    fg: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Foreground',
+    fg: { type: 'float', default: 1.0, min: -10.0, max: 10.0, step: 0.001, label: 'Foreground',
       knobPolarity: 'two-sided' }
   },
   parameterLayout: {

@@ -63,6 +63,13 @@
     } | null;
     /** When disconnected, OAuth is configured and splash is dismissed: sign-in control in the top bar. */
     audiotoolSignInChrome?: (() => void) | null;
+    graphHistoryControls?: boolean;
+    canUndoGraph?: boolean;
+    canRedoGraph?: boolean;
+    onGraphUndo?: () => void;
+    onGraphRedo?: () => void;
+    /** Fired when layout-owned modals should block canvas shortcuts (load picker, shortcuts, import confirm). */
+    onLayoutBlockingOverlaysChange?: (blocked: boolean) => void;
   }
 
   let {
@@ -96,6 +103,12 @@
     autosavePersistPending = false,
     audiotoolAccount = null,
     audiotoolSignInChrome = null,
+    graphHistoryControls = false,
+    canUndoGraph = false,
+    canRedoGraph = false,
+    onGraphUndo,
+    onGraphRedo,
+    onLayoutBlockingOverlaysChange,
   }: Props = $props();
 
   const SAFE_DISTANCE = 16;
@@ -412,6 +425,15 @@
   });
 
   const zoomPercent = $derived(Math.round(zoom * 100));
+
+  $effect(() => {
+    const blocked =
+      shortcutsModalOpen || pendingImportJson !== null || loadProjectDialogOpen;
+    onLayoutBlockingOverlaysChange?.(blocked);
+    return () => {
+      onLayoutBlockingOverlaysChange?.(false);
+    };
+  });
 </script>
 
 <div
@@ -445,6 +467,11 @@
     {...topBarZoomChangeProps}
     onHelpClick={callbacks.onHelpClick}
     onShortcutsClick={() => (shortcutsModalOpen = true)}
+    {graphHistoryControls}
+    {canUndoGraph}
+    {canRedoGraph}
+    {onGraphUndo}
+    {onGraphRedo}
     {audiotoolAccount}
     audiotoolSignInChrome={audiotoolSignInChrome}
   />
@@ -559,12 +586,14 @@
 />
 
 <style>
-  /* Panel-affected layout: animate in sync with node panel slide (0.3s ease) */
+  /* Panel-affected layout: animate in sync with node panel slide (`--motion-spatial-fast-*`) */
   .node-editor-layout {
     overflow: visible;
 
     .node-editor-slot {
-      transition: left 0.3s ease, width 0.3s ease;
+      transition:
+        left var(--motion-spatial-fast-duration) var(--motion-spatial-fast-easing),
+        width var(--motion-spatial-fast-duration) var(--motion-spatial-fast-easing);
     }
 
     /* During divider or panel resize, follow cursor immediately (no transition) */

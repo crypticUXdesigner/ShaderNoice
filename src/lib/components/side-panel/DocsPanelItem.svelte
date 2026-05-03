@@ -74,7 +74,10 @@
     text-align: left;
     cursor: default;
     user-select: none;
-    transition: background 0.15s, transform 0.15s, color 0.15s;
+    transition:
+      background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      transform var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
   }
 
   .docs-panel-item:hover {

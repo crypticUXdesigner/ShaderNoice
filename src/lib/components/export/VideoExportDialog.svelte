@@ -188,21 +188,41 @@
     return Math.max(min, Math.min(max, value));
   }
 
+  function presetPixelSize(preset: Exclude<ResolutionPreset, 'custom'>): [number, number] {
+    switch (preset) {
+      case '3840x2160':
+        return [3840, 2160];
+      case '2560x1440':
+        return [2560, 1440];
+      case '1920x1080':
+        return [1920, 1080];
+      case '1280x720':
+        return [1280, 720];
+      case '1920x1920':
+        return [1920, 1920];
+      case '1080x1080':
+        return [1080, 1080];
+      case '1080x1920':
+        return [1080, 1920];
+      case '720x1280':
+        return [720, 1280];
+      default: {
+        const _exhaustive: never = preset;
+        return _exhaustive;
+      }
+    }
+  }
+
   function tryConfirm() {
     errorMessage = '';
     const primaryNow = getPrimaryAudio();
-    const width =
+    const [width, height] =
       resolutionPreset === 'custom'
-        ? Math.max(1, Math.min(4096, customWidth || DEFAULT_WIDTH))
-        : resolutionPreset === '1920x1080'
-          ? 1920
-          : 1080;
-    const height =
-      resolutionPreset === 'custom'
-        ? Math.max(1, Math.min(4096, customHeight || DEFAULT_HEIGHT))
-        : resolutionPreset === '1920x1080'
-          ? 1080
-          : 1920;
+        ? [
+            Math.max(1, Math.min(4096, customWidth || DEFAULT_WIDTH)),
+            Math.max(1, Math.min(4096, customHeight || DEFAULT_HEIGHT)),
+          ]
+        : presetPixelSize(resolutionPreset);
     const videoBitrate = Math.max(1_000_000, Math.min(100_000_000, Math.round((bitrateMbps || DEFAULT_VIDEO_BITRATE_MBPS) * 1_000_000)));
     const clampedKeyFrameIntervalSeconds = clampNumber(
       keyFrameIntervalSeconds || DEFAULT_KEYFRAME_INTERVAL_SECONDS,
@@ -270,27 +290,9 @@
 
   function setResolutionPreset(preset: ResolutionPreset) {
     resolutionPreset = preset;
-    const [w, h] =
-      preset === '3840x2160'
-        ? [3840, 2160]
-        : preset === '2560x1440'
-          ? [2560, 1440]
-          : preset === '1920x1080'
-            ? [1920, 1080]
-            : preset === '1280x720'
-              ? [1280, 720]
-              : preset === '1920x1920'
-                ? [1920, 1920]
-                : preset === '1080x1080'
-                  ? [1080, 1080]
-                  : preset === '1080x1920'
-                    ? [1080, 1920]
-                    : preset === '720x1280'
-                      ? [720, 1280]
-                      : [customWidth, customHeight];
-
     // Only snap inputs for presets; keep existing custom values when switching to 'custom'
     if (preset !== 'custom') {
+      const [w, h] = presetPixelSize(preset);
       customWidth = w;
       customHeight = h;
     }
@@ -760,9 +762,16 @@
   :global(.video-export-dialog.content.frame) {
     /* `ModalDialog` owns base layout + padding reset. */
 
-    /* ModalDialog body tweaks specific to export */
-    :global(.modal-dialog-body.export-panel) {
-      padding: var(--pd-xl) var(--pd-xl);
+    /* Match list modals: body shell is flush; padding lives on the scroll surface (see ModalDialog body-scroll). */
+    :global(.modal-dialog-body.export-panel),
+    :global(.modal-dialog-body.export-progress-panel) {
+      padding: 0;
+      gap: 0;
+    }
+
+    :global(.modal-dialog-body.export-panel .modal-dialog-body-scroll),
+    :global(.modal-dialog-body.export-progress-panel .modal-dialog-body-scroll) {
+      padding: var(--pd-lg);
       gap: var(--pd-md);
     }
 
@@ -775,7 +784,7 @@
     }
 
     /* Dividers between settings rows. */
-    :global(.modal-dialog-body.export-panel) > .settingRow + .settingRow {
+    :global(.modal-dialog-body.export-panel .modal-dialog-body-scroll) > .settingRow + .settingRow {
       border-top: 1px solid var(--divider);
       padding-top: var(--pd-md);
       margin-top: var(--pd-md);
@@ -945,12 +954,6 @@
       --range-editor-handle-active-bg: var(--color-teal-120);
     }
 
-    /* Progress step */
-    :global(.modal-dialog-body.export-progress-panel) {
-      padding: var(--pd-lg) var(--pd-lg);
-      gap: var(--pd-md);
-    }
-
     .video-export-progress-footer {
       display: flex;
       justify-content: flex-end;
@@ -1089,7 +1092,7 @@
     min-width: auto;
     height: auto;
   }
-  :global(.content.frame.modal-dialog .export-progress-panel) {
+  :global(.content.frame.modal-dialog .export-progress-panel .modal-dialog-body-scroll) {
     gap: var(--pd-2xl) !important;
   }
 </style>

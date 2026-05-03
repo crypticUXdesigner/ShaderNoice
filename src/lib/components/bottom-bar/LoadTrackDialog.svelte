@@ -359,6 +359,7 @@
       <Button
         variant="ghost"
         size="sm"
+        mode="icon-only"
         class="track-picker-tab {trackTab === 'yours' ? 'is-active' : ''}"
         role="tab"
         aria-selected={trackTab === 'yours'}
@@ -378,6 +379,7 @@
       <Button
         variant="ghost"
         size="sm"
+        mode="icon-only"
         class="track-picker-tab {trackTab === 'other' ? 'is-active' : ''}"
         role="tab"
         aria-selected={trackTab === 'other'}
@@ -613,8 +615,6 @@
   }
 
   .track-picker-topbar :global(.track-picker-tab) {
-    min-width: 2.25rem;
-    padding-inline: var(--pd-sm);
     font-size: 1.125rem;
   }
 

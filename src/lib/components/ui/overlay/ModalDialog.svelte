@@ -368,7 +368,7 @@
     height: 18px;
     pointer-events: none;
     opacity: 0;
-    transition: opacity 140ms ease;
+    transition: opacity var(--motion-effects-normal-duration) var(--motion-effects-normal-easing);
   }
 
   .modal-dialog-scroll-wrap::before,

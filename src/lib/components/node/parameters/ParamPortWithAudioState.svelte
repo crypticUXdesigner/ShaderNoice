@@ -52,6 +52,8 @@
     onPortDoubleClick?: (e: MouseEvent) => void;
     disabled?: boolean;
     class?: string;
+    /** Compact ParamCell (no label column); use in group headers, etc. */
+    inlineControl?: boolean;
     children?: import('svelte').Snippet<[{
       effectiveValue: number | null;
       /** Value to show in the control. When multiply and input is 0, this is config so user can still drag. */
@@ -82,6 +84,7 @@
     onPortDoubleClick,
     disabled = false,
     class: className = '',
+    inlineControl = false,
     children,
   }: Props = $props();
 
@@ -229,6 +232,7 @@
   supportsAudio={supportsAudio}
   supportsAnimation={supportsAnimation}
   timelineDriven={hasEvaluableAutomationLane}
+  {inlineControl}
   {onPortPointerDown}
   {onPortDoubleClick}
   onModeClick={handleModeClick}

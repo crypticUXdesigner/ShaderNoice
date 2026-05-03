@@ -33,6 +33,8 @@
     onPortDoubleClick?: (e: MouseEvent) => void;
     disabled?: boolean;
     class?: string;
+    /** Compact shell: control only (e.g. group header toggle). */
+    inlineControl?: boolean;
     children?: import('svelte').Snippet<[]>;
   }
 
@@ -56,6 +58,7 @@
     onPortDoubleClick,
     disabled = false,
     class: className = '',
+    inlineControl = false,
     children
   }: Props = $props();
 
@@ -111,8 +114,9 @@
   class={className}
   supportsAudio={supportsAudio}
   supportsAnimation={supportsAnimation}
+  {inlineControl}
   {timelineDriven}
-  leftBottom={showPort ? portRowContent : undefined}
+  leftBottom={showPort && !inlineControl ? portRowContent : undefined}
 >
   {#snippet control()}
     {@render children?.()}

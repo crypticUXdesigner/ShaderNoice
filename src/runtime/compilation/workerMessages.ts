@@ -58,5 +58,12 @@ export type WorkerReplyMessage =
 export function cloneableCompilePayload(
   payload: WorkerCompilePayload
 ): WorkerCompilePayload {
+  try {
+    if (typeof structuredClone === 'function') {
+      return structuredClone(payload);
+    }
+  } catch {
+    /* fall through */
+  }
   return JSON.parse(JSON.stringify(payload)) as WorkerCompilePayload;
 }

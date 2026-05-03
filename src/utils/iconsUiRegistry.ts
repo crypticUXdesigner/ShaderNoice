@@ -39,6 +39,7 @@ export type IconName =
   | 'square-x'
   | 'preset'
   | 'folder-open'
+  | 'house'
   | 'search'
   | 'arrows-maximize'
   | 'arrows-minimize'
@@ -78,7 +79,9 @@ export type IconName =
   | 'dots-nine'
   | 'palette'
   | 'user'
-  | 'sign-out';
+  | 'sign-out'
+  | 'graph-undo'
+  | 'graph-redo';
 
 /** IconName → Phosphor icon name (kebab-case) */
 export const iconNameMap: Record<IconName, string> = {
@@ -118,6 +121,7 @@ export const iconNameMap: Record<IconName, string> = {
   'square-x': 'x-square',
   'preset': 'bookmark',
   'folder-open': 'folder-open',
+  'house': 'house',
   'multiply': 'asterisk',
   'search': 'magnifying-glass',
   'arrows-maximize': 'arrows-out',
@@ -158,4 +162,6 @@ export const iconNameMap: Record<IconName, string> = {
   'palette': 'palette',
   'user': 'user',
   'sign-out': 'sign-out',
+  'graph-undo': 'arrow-counter-clockwise',
+  'graph-redo': 'arrow-clockwise',
 };

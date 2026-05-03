@@ -61,6 +61,8 @@
   let wrapperEl = $state<HTMLDivElement | null>(null);
   let canvasInstance = $state<NodeEditorCanvas | null>(null);
   let liveViewState = $state({ zoom: 1, panX: 0, panY: 0, selectedNodeIds: [] as string[] });
+  /** When true, the next graph-prop sync skips `preserveViewState` apply (undo/redo uses `completeGraphHistoryRestore`). */
+  let skipNextGraphPropApply = $state(false);
   const activeTool = $derived(graphStore.activeTool);
   /** Read via `$derived` so `$effect` re-runs when picks change (plain `graphStore.*` getters do not subscribe inside `$effect`). */
   const patchWireConnectionId = $derived(graphStore.patchWireConnectionId);
@@ -200,7 +202,23 @@
       calculateSmartGuides: (node, x, y) => canvas.calculateSmartGuidesForDOM(node, x, y),
       setSmartGuides: (guides) => canvas.setSmartGuidesFromDOM(guides),
       clearSmartGuides: () => canvas.clearSmartGuides(),
-      startConnectionFromPort: (sx, sy) => canvas.startConnectionFromPort(sx, sy)
+      startConnectionFromPort: (sx, sy) => canvas.startConnectionFromPort(sx, sy),
+      beginGraphHistoryRestore: () => {
+        skipNextGraphPropApply = true;
+      },
+      completeGraphHistoryRestore: (g: NodeGraph) => {
+        const c = canvasInstance;
+        if (!c) return;
+        c.setGraph(g, { preserveViewState: false });
+        const vs = c.getViewState();
+        liveViewState = {
+          panX: vs.panX,
+          panY: vs.panY,
+          zoom: vs.zoom,
+          selectedNodeIds: [...vs.selectedNodeIds],
+        };
+        c.requestRender();
+      },
     };
   }
 
@@ -737,6 +755,12 @@
       hasClipboard: () => copyPasteManager.hasClipboard(),
       isDialogVisible: callbacks.isDialogVisible,
       onToggleFullscreen: callbacks.onToggleFullscreen,
+      onUndo: () => {
+        void callbacks.onUndo?.();
+      },
+      onRedo: () => {
+        void callbacks.onRedo?.();
+      },
       onRequestAddNodeAtCanvas: (screenX, screenY) => {
         const c = canvas as unknown as { screenToCanvas(sx: number, sy: number): { x: number; y: number } };
         const pos = c.screenToCanvas(screenX, screenY);
@@ -805,6 +829,10 @@
     const canvas = canvasInstance;
     const g = graph;
     if (!canvas) return;
+    if (skipNextGraphPropApply) {
+      skipNextGraphPropApply = false;
+      return;
+    }
     canvas.setGraph(g, { preserveViewState: true });
   });
 

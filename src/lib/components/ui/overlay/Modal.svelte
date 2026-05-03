@@ -1,8 +1,10 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
   import { portal } from '../../../actions/portal';
+  import { readCssTimeMs } from '../../../../utils/readCssTimeMs';
 
   let reducedMotion = $state(false);
+  let fadeMs = $state(150);
   $effect(() => {
     if (typeof window === 'undefined') return;
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -12,6 +14,17 @@
     };
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
+  });
+
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+    if (reducedMotion) {
+      fadeMs = 0;
+      return;
+    }
+
+    const fast = readCssTimeMs('--motion-effects-fast-duration');
+    fadeMs = Number.isFinite(fast) ? fast : 150;
   });
 
   interface Props {
@@ -111,7 +124,7 @@
     aria-modal="true"
     onclick={(e) => e.target === e.currentTarget && backdropDismisses && onClose?.()}
     use:portal
-    transition:fade={{ duration: reducedMotion ? 0 : 150 }}
+    transition:fade={{ duration: fadeMs }}
   >
   <div
     bind:this={contentEl}
@@ -134,7 +147,9 @@
     justify-content: center;
 
     /* Visual */
-    background: var(--search-dialog-overlay, rgba(0, 0, 0, 0.5));
+    background: var(--search-dialog-overlay);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
 
     /* Other */
     z-index: 9998;
@@ -153,6 +168,13 @@
       /* Other */
       z-index: 9999;
       pointer-events: auto;
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .modal-backdrop {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
     }
   }
 </style>

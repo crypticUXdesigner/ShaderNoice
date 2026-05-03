@@ -46,6 +46,11 @@
     } | null;
     /** Audiotool configured but disconnected: chrome entry for OAuth redirect. Hidden while splash is up. */
     audiotoolSignInChrome?: (() => void) | null;
+    graphHistoryControls?: boolean;
+    canUndoGraph?: boolean;
+    canRedoGraph?: boolean;
+    onGraphUndo?: () => void;
+    onGraphRedo?: () => void;
   }
 
   let {
@@ -71,6 +76,11 @@
     onShortcutsClick,
     audiotoolAccount = null,
     audiotoolSignInChrome = null,
+    graphHistoryControls = false,
+    canUndoGraph = false,
+    canRedoGraph = false,
+    onGraphUndo,
+    onGraphRedo,
   }: Props = $props();
 
   const notifyBarElement: Action<
@@ -97,6 +107,11 @@
       {isPanelVisible}
       {isVideoExportSupported}
       {presetLoading}
+      {graphHistoryControls}
+      {canUndoGraph}
+      {canRedoGraph}
+      {onGraphUndo}
+      {onGraphRedo}
       {onPanelToggle}
       {onPresetClick}
       {onDownloadPreset}
@@ -156,7 +171,7 @@
     height: calc(var(--size-md) + var(--pd-md) * 2);
     padding: 0 var(--pd-lg);
     z-index: 100;
-    transition: left 0.3s ease;
+    transition: left var(--motion-spatial-fast-duration) var(--motion-spatial-fast-easing);
   }
 
   :global([data-view="split"]) .top-bar,

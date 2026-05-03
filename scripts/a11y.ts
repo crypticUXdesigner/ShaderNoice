@@ -5,7 +5,7 @@
  * Prerequisite: run `npm run build` first (or rely on CI having already built).
  * Usage: npx tsx scripts/a11y.ts
  *
- * See docs/projects/quality-review-remediation/a11y-baseline.md for known acceptable issues.
+ * See docs/implementation/a11y-baseline.md for known acceptable issues.
  */
 
 import { spawn } from 'node:child_process';
@@ -87,7 +87,7 @@ async function runA11yInternal(appUrl: string): Promise<void> {
             console.error(`    - ${n.html?.slice(0, 80)}...`);
           }
         }
-        console.error('\nSee docs/projects/quality-review-remediation/a11y-baseline.md for baselined issues.');
+        console.error('\nSee docs/implementation/a11y-baseline.md for baselined issues.');
         process.exit(1);
       }
     }
@@ -102,7 +102,7 @@ async function loadBaselineRuleIds(): Promise<Set<string>> {
   const path = await import('node:path');
   const baselinePath = path.join(
     process.cwd(),
-    'docs/projects/quality-review-remediation/a11y-baseline.md'
+    'docs/implementation/a11y-baseline.md'
   );
   if (!fs.existsSync(baselinePath)) return new Set();
   const content = fs.readFileSync(baselinePath, 'utf-8');

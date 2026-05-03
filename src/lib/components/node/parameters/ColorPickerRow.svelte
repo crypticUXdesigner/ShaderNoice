@@ -86,7 +86,9 @@
       border: 1px solid var(--color-gray-70);
       border-radius: var(--color-picker-node-swatch-color-radius);
       cursor: default;
-      transition: border-color 0.15s, box-shadow 0.15s;
+      transition:
+        border-color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+        box-shadow var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
     }
 
     .swatch:hover:not(:disabled) {

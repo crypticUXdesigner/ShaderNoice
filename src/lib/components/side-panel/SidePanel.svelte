@@ -96,7 +96,7 @@
     transform: translateX(calc(-100% - var(--panel-hidden-offset)));
     z-index: var(--z-panel);
     overflow: visible;
-    transition: transform 0.3s ease;
+    transition: transform var(--motion-spatial-fast-duration) var(--motion-spatial-fast-easing);
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
     box-shadow: 0 0 0 6px var(--color-gray-20), 0 0 30px 6px var(--color-gray-20);

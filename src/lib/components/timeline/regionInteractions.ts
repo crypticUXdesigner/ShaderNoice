@@ -87,7 +87,11 @@ export function computeResizedRegion(params: ResizeUpdateParams): { startTime: n
       newDuration = startTime + startDuration - newStart;
     }
   } else {
-    const newEnd = Math.max(startTime + minDuration, Math.min(durationMax, startTime + startDuration + dt));
+    let newEnd = Math.max(startTime + minDuration, Math.min(durationMax, startTime + startDuration + dt));
+    if (snapEnabled) {
+      newEnd = snapStartTime(newEnd);
+      newEnd = Math.max(startTime + minDuration, Math.min(durationMax, newEnd));
+    }
     newDuration = newEnd - startTime;
   }
 

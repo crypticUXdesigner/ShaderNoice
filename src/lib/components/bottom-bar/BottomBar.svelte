@@ -142,9 +142,6 @@
         } else if (e.key === 's' || e.key === 'S') {
           e.preventDefault();
           handleToolClick('select');
-        } else if (e.key === 'a' || e.key === 'A') {
-          e.preventDefault();
-          handleToolClick('add');
         } else if (e.key === 'p' || e.key === 'P') {
           e.preventDefault();
           handleToolClick('patch');
@@ -263,7 +260,7 @@
     /* Other */
     z-index: var(--bottom-bar-z-index);
     pointer-events: none;
-    transition: left 0.3s ease;
+    transition: left var(--motion-spatial-fast-duration) var(--motion-spatial-fast-easing);
   }
 
   .bottom-bar {
@@ -368,7 +365,7 @@
     /* Other */
     z-index: var(--timeline-panel-z-index);
     pointer-events: auto;
-    transition: left 0.3s ease;
+    transition: left var(--motion-spatial-fast-duration) var(--motion-spatial-fast-easing);
 
     &.is-open {
       display: flex;

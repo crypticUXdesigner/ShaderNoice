@@ -9,6 +9,52 @@ const DEFAULT_BPM = 120;
 const DEFAULT_DURATION_SECONDS = 30;
 const MIN_DURATION_SECONDS = 0.001;
 
+/**
+ * Resolve overlaps between an updated region and other regions on the lane.
+ * Mirrors addAutomationRegion: if our span starts before a neighbor, trim the right edge
+ * at the neighbor's start; otherwise push our start after the neighbor.
+ * Iterates until stable so chained overlaps resolve.
+ */
+function resolveUpdatedRegionAgainstOthers(
+  lane: AutomationLane,
+  selfIndex: number,
+  startTime: number,
+  duration: number,
+  durationMax: number
+): { startTime: number; duration: number } {
+  let st = startTime;
+  let dur = Math.max(MIN_DURATION_SECONDS, duration);
+
+  for (let iter = 0; iter < 128; iter++) {
+    let changed = false;
+    for (let i = 0; i < lane.regions.length; i++) {
+      if (i === selfIndex) continue;
+      const r = lane.regions[i];
+      const rEnd = r.startTime + r.duration;
+      if (st >= rEnd || st + dur <= r.startTime) continue;
+
+      if (st < r.startTime) {
+        const newDur = r.startTime - st;
+        if (newDur < MIN_DURATION_SECONDS) {
+          st = rEnd;
+        } else {
+          dur = newDur;
+        }
+      } else {
+        st = rEnd;
+      }
+      dur = Math.max(MIN_DURATION_SECONDS, Math.min(dur, durationMax - st));
+      st = Math.max(0, Math.min(st, durationMax - dur));
+      changed = true;
+    }
+    if (!changed) break;
+  }
+
+  dur = Math.max(MIN_DURATION_SECONDS, Math.min(dur, durationMax - st));
+  st = Math.max(0, Math.min(st, durationMax - dur));
+  return { startTime: st, duration: dur };
+}
+
 function ensureAutomation(graph: NodeGraph): AutomationState {
   if (graph.automation) return graph.automation;
   return { bpm: DEFAULT_BPM, durationSeconds: DEFAULT_DURATION_SECONDS, lanes: [] };
@@ -64,17 +110,24 @@ export function addAutomationRegion(
       }
     }
   }
+  const spanSeconds = Math.max(MIN_DURATION_SECONDS, end - start);
+  const baseAutomationDuration = automation.durationSeconds ?? DEFAULT_DURATION_SECONDS;
+  const newAutomationDuration = Math.max(baseAutomationDuration, start + spanSeconds);
+
   const finalRegion: AutomationRegion = {
     ...newRegion,
     startTime: start,
-    duration: Math.min(duration, (automation.durationSeconds ?? DEFAULT_DURATION_SECONDS) - start),
+    duration: spanSeconds,
   };
 
   const newRegions = [...lane.regions, finalRegion].sort((a, b) => a.startTime - b.startTime);
   const newLanes = [...automation.lanes];
   newLanes[laneIndex] = { ...lane, regions: newRegions };
 
-  return { ...graph, automation: { ...automation, lanes: newLanes } };
+  return {
+    ...graph,
+    automation: { ...automation, durationSeconds: newAutomationDuration, lanes: newLanes },
+  };
 }
 
 export function updateAutomationRegion(
@@ -94,19 +147,17 @@ export function updateAutomationRegion(
   const region = lane.regions[regionIndex];
   let startTime = updates.startTime ?? region.startTime;
   let duration = updates.duration ?? region.duration;
-  const durationMax = automation.durationSeconds ?? DEFAULT_DURATION_SECONDS;
+  const baseAutomationDuration = automation.durationSeconds ?? DEFAULT_DURATION_SECONDS;
+  const requestedEnd = startTime + duration;
+  /** Grow the automation timeline so overlap resolution and clamps match the edited span (avoids negative duration when UI maps past stored durationSeconds). */
+  let durationMax = Math.max(baseAutomationDuration, requestedEnd);
+
   duration = Math.min(duration, durationMax - startTime);
   startTime = Math.max(0, Math.min(startTime, durationMax - duration));
 
-  for (let i = 0; i < lane.regions.length; i++) {
-    if (i === regionIndex) continue;
-    const r = lane.regions[i];
-    const rEnd = r.startTime + r.duration;
-    if (startTime < rEnd && startTime + duration > r.startTime) {
-      startTime = rEnd;
-      if (startTime + duration > durationMax) duration = durationMax - startTime;
-    }
-  }
+  const resolved = resolveUpdatedRegionAgainstOthers(lane, regionIndex, startTime, duration, durationMax);
+  startTime = resolved.startTime;
+  duration = resolved.duration;
 
   const updatedRegion: AutomationRegion = {
     ...region,
@@ -122,7 +173,13 @@ export function updateAutomationRegion(
   const newLanes = [...automation.lanes];
   newLanes[laneIndex] = { ...lane, regions: newRegions };
 
-  return { ...graph, automation: { ...automation, lanes: newLanes } };
+  const regionEnd = startTime + duration;
+  const newAutomationDuration = Math.max(baseAutomationDuration, regionEnd);
+
+  return {
+    ...graph,
+    automation: { ...automation, durationSeconds: newAutomationDuration, lanes: newLanes },
+  };
 }
 
 export function removeAutomationRegion(graph: NodeGraph, laneId: string, regionId: string): NodeGraph {

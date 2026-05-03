@@ -21,6 +21,15 @@ export type PlaceholderContext = {
   ) => string;
 };
 
+function clampFloatExpression(expr: string, paramSpec: NodeSpec['parameters'][string] | undefined): string {
+  if (!paramSpec || paramSpec.type !== 'float') return expr;
+  const min = typeof paramSpec.min === 'number' ? paramSpec.min : 0;
+  const max = typeof paramSpec.max === 'number' ? paramSpec.max : 1;
+  const minStr = formatParamLiteralForGlsl(min, { type: 'float' });
+  const maxStr = formatParamLiteralForGlsl(max, { type: 'float' });
+  return `clamp((${expr}), ${minStr}, ${maxStr})`;
+}
+
 /**
  * Replace placeholders in node mainCode ($input, $output, $param, $time, $resolution, $p).
  */
@@ -81,7 +90,10 @@ export function replacePlaceholders(
           (l) => l.nodeId === node.id && l.paramName === paramName
         );
         if (lane && automationLaneHasEvaluableRegions(lane)) {
-          const expr = `evalAutomation_${sanitizeAutomationLaneId(lane.id)}(uTimelineTime)`;
+          const expr = clampFloatExpression(
+            `evalAutomation_${sanitizeAutomationLaneId(lane.id)}(uTimelineTime)`,
+            paramSpec
+          );
           const regex = new RegExp(`\\$param\\.${ctx.escapeRegex(paramName)}\\b`, 'g');
           result = result.replace(regex, expr);
           continue;
@@ -92,7 +104,7 @@ export function replacePlaceholders(
         const inputMode = node.parameterInputModes?.[paramName] || paramSpec?.inputMode || 'override';
         if (inputMode === 'override') {
           const regex = new RegExp(`\\$param\\.${ctx.escapeRegex(paramName)}\\b`, 'g');
-          result = result.replace(regex, paramInputVar);
+          result = result.replace(regex, clampFloatExpression(paramInputVar, paramSpec));
         } else {
           const uniformName = uniformNames.get(`${node.id}.${paramName}`) || '';
           let configValue: string;
@@ -105,20 +117,20 @@ export function replacePlaceholders(
           const paramType = (paramSpec?.type === 'float' || paramSpec?.type === 'int') ? paramSpec.type : 'float';
           const combinedExpr = ctx.generateParameterCombination(configValue, paramInputVar, inputMode, paramType);
           const regex = new RegExp(`\\$param\\.${ctx.escapeRegex(paramName)}\\b`, 'g');
-          result = result.replace(regex, combinedExpr);
+          result = result.replace(regex, clampFloatExpression(combinedExpr, paramSpec));
         }
       } else {
         const uniformName = uniformNames.get(`${node.id}.${paramName}`) || '';
         if (uniformName) {
           const regex = new RegExp(`\\$param\\.${ctx.escapeRegex(paramName)}\\b`, 'g');
-          result = result.replace(regex, uniformName);
+          result = result.replace(regex, clampFloatExpression(uniformName, paramSpec));
         } else if (paramSpec) {
           const rawDefault: number = paramSpec.default !== undefined && typeof paramSpec.default === 'number'
             ? paramSpec.default
             : (paramSpec.type === 'int' ? 0 : 0.0);
           const defaultValue = formatParamLiteralForGlsl(rawDefault, paramSpec);
           const regex = new RegExp(`\\$param\\.${ctx.escapeRegex(paramName)}\\b`, 'g');
-          result = result.replace(regex, defaultValue);
+          result = result.replace(regex, clampFloatExpression(defaultValue, paramSpec));
         } else {
           const paramValue = node.parameters[paramName];
           if (paramValue !== undefined && typeof paramValue === 'number') {

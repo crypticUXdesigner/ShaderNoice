@@ -168,7 +168,10 @@
     border-radius: calc(var(--radius-lg) + var(--pd-sm));
     background: var(--ghost-bg);
     cursor: grab;
-    transition: background 0.15s, transform 0.15s, color 0.15s;
+    transition:
+      background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      transform var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
     color: var(--print-highlight) !important;
     overflow: hidden;
   }
@@ -250,7 +253,9 @@
       var(--node-header-bg-end-default, var(--color-gray-50))
     );
     cursor: grab;
-    transition: box-shadow 0.15s, transform 0.15s;
+    transition:
+      box-shadow var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      transform var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
     border: 2px solid var(--color-gray-50);
 
     &:hover {

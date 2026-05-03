@@ -10,6 +10,12 @@
     isVideoExportSupported?: boolean;
     /** When true, preset button shows "Loading…" and is disabled. */
     presetLoading?: boolean;
+    /** When true, show undo/redo (editor bootstrapped). */
+    graphHistoryControls?: boolean;
+    canUndoGraph?: boolean;
+    canRedoGraph?: boolean;
+    onGraphUndo?: () => void;
+    onGraphRedo?: () => void;
     onPanelToggle?: () => void;
     onPresetClick?: (e: MouseEvent) => void;
     onDownloadPreset?: () => void;
@@ -22,6 +28,11 @@
     isPanelVisible,
     isVideoExportSupported = true,
     presetLoading = false,
+    graphHistoryControls = false,
+    canUndoGraph = false,
+    canRedoGraph = false,
+    onGraphUndo,
+    onGraphRedo,
     onPanelToggle,
     onPresetClick,
     onDownloadPreset,
@@ -31,7 +42,29 @@
 </script>
 
 <div class="top-bar-preset-and-export">
-  <ButtonGroup role="group" ariaLabel="Panel, preset and export">
+  <ButtonGroup role="group" ariaLabel="Panel, preset, graph history, and export">
+    {#if graphHistoryControls}
+      <Button
+        variant="ghost"
+        size="sm"
+        mode="icon-only"
+        title="Undo (Ctrl+Z)"
+        disabled={!canUndoGraph}
+        onclick={() => onGraphUndo?.()}
+      >
+        <IconSvg name="graph-undo" variant="line" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        mode="icon-only"
+        title="Redo (Ctrl/Cmd+Shift+Z or Ctrl+Y / Cmd+Y)"
+        disabled={!canRedoGraph}
+        onclick={() => onGraphRedo?.()}
+      >
+        <IconSvg name="graph-redo" variant="line" />
+      </Button>
+    {/if}
     {#if !isPanelVisible}
       <Button variant="ghost" size="sm" mode="icon-only" title="Open node panel" onclick={() => onPanelToggle?.()}>
         <IconSvg name="layout-grid" variant="filled" />

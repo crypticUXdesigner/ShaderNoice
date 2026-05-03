@@ -1,6 +1,6 @@
 import type { NodeGraph, NodeInstance } from '../../data-model/types';
 import type { NodeSpec } from '../../types/nodeSpec';
-import { sanitizeIdForGlsl } from './MainCodeGeneratorUtils';
+import { formatParamLiteralForGlsl, sanitizeIdForGlsl } from './MainCodeGeneratorUtils';
 import {
   buildFloatParamExpressions,
   getAutomationExpressionForParam,
@@ -67,7 +67,8 @@ export function getOutputExpressionAtPosition(
     mode: 'override' | 'add' | 'subtract' | 'multiply',
     paramType: 'float' | 'int'
   ) => string,
-  escapeRegex: (str: string) => string
+  escapeRegex: (str: string) => string,
+  executionOrder: string[]
 ): string {
   const mainCode = sourceSpec.mainCode || '';
   const match = mainCode.match(/\$output\.(\w+)\s*=\s*([\s\S]+?);/);
@@ -85,6 +86,7 @@ export function getOutputExpressionAtPosition(
     sourceNode,
     sourceSpec,
     graph,
+    executionOrder,
     uniformNames,
     variableNames,
     nodeSpecs,
@@ -102,6 +104,15 @@ export function getOutputExpressionAtPosition(
   expr = expr.replace(/\$time/g, 'uTime');
   expr = expr.replace(/\$resolution/g, 'uResolution');
 
+  function clampFloatExpression(expr: string, paramSpec: NodeSpec['parameters'][string] | undefined): string {
+    if (!paramSpec || paramSpec.type !== 'float') return expr;
+    const min = typeof paramSpec.min === 'number' ? paramSpec.min : 0;
+    const max = typeof paramSpec.max === 'number' ? paramSpec.max : 1;
+    const minStr = formatParamLiteralForGlsl(min, { type: 'float' });
+    const maxStr = formatParamLiteralForGlsl(max, { type: 'float' });
+    return `clamp((${expr}), ${minStr}, ${maxStr})`;
+  }
+
   // Final cleanup pass: catch any remaining $param.* placeholders that weren't replaced
   // by floatParamExpressions (e.g. int params, or floats without uniforms/automation/inputs).
   expr = expr.replace(/\$param\.\w+/g, (match) => {
@@ -114,15 +125,15 @@ export function getOutputExpressionAtPosition(
       paramSpec
     );
     if (automationExpr) {
-      return automationExpr;
+      return clampFloatExpression(automationExpr, paramSpec);
     }
     const uniformName = uniformNames.get(`${sourceNode.id}.${paramName}`);
     if (uniformName) {
-      return uniformName;
+      return clampFloatExpression(uniformName, paramSpec);
     }
     const paramValue = sourceNode.parameters[paramName];
     if (paramValue !== undefined) {
-      return String(paramValue);
+      return clampFloatExpression(String(paramValue), paramSpec);
     }
     return paramSpec?.type === 'int' ? '0' : '0.0';
   });
@@ -153,7 +164,8 @@ export function buildGenericRaymarcherSdfFunction(
     mode: 'override' | 'add' | 'subtract' | 'multiply',
     paramType: 'float' | 'int'
   ) => string,
-  escapeRegex: (str: string) => string
+  escapeRegex: (str: string) => string,
+  executionOrder: string[]
 ): string {
   const sdfConn = graph.connections.find(
     (c) => c.targetNodeId === raymarcherNode.id && c.targetPort === 'sdf'
@@ -167,7 +179,7 @@ export function buildGenericRaymarcherSdfFunction(
   if (!sourceNode || !sourceSpec) {
     return `float ${funcName}(vec3 p) {\n  return 1000.0;\n}`;
   }
-  const body = getOutputExpressionAtPosition(
+  let body = getOutputExpressionAtPosition(
     sourceNode,
     sourceSpec,
     'p',
@@ -177,8 +189,19 @@ export function buildGenericRaymarcherSdfFunction(
     variableNames,
     nodeSpecs,
     generateParameterCombination,
-    escapeRegex
+    escapeRegex,
+    executionOrder
   );
+
+  const mainCodeStr = sourceSpec.mainCode || '';
+  const hasDirectOutputAssign = /\$output\.\w+\s*=\s*/.test(mainCodeStr);
+  const functionsStr = sourceSpec.functions || '';
+  if (!hasDirectOutputAssign && /\bsceneSDF\s*\(\s*vec3/.test(functionsStr)) {
+    const nodeMap = functionNameMap.get(sourceNode.id);
+    const sdfFnName = nodeMap?.get('sceneSDF') ?? 'sceneSDF';
+    body = `${sdfFnName}(p)`;
+  }
+
   return `float ${funcName}(vec3 p) {\n  return ${body};\n}`;
 }
 
@@ -198,7 +221,8 @@ export function getGenericRaymarcherReplacements(
     mode: 'override' | 'add' | 'subtract' | 'multiply',
     paramType: 'float' | 'int'
   ) => string,
-  escapeRegex: (str: string) => string
+  escapeRegex: (str: string) => string,
+  executionOrder: string[]
 ): { sdfCall: string; displacementAtP: string } {
   const funcName = `generic_raymarcher_sdf_${sanitizeIdForGlsl(node.id)}`;
   const sdfCall = `${funcName}(posDisplaced)`;
@@ -224,7 +248,8 @@ export function getGenericRaymarcherReplacements(
     variableNames,
     nodeSpecs,
     generateParameterCombination,
-    escapeRegex
+    escapeRegex,
+    executionOrder
   );
   return { sdfCall, displacementAtP };
 }

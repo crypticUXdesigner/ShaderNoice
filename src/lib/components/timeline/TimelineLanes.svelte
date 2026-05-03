@@ -96,11 +96,6 @@
             >
               <div class="lane-label-param-row">
                 <span class="lane-label-param">{vm.paramLabel}</span>
-                {#if automationLaneHasEvaluableRegions(vm.lane)}
-                  <span class="lane-timeline-hint" aria-hidden="true">
-                    <IconSvg name="wave-sine" variant="line" class="lane-timeline-hint-icon" />
-                  </span>
-                {/if}
               </div>
               <span class="lane-label-node">{vm.nodeLabel}</span>
             </div>

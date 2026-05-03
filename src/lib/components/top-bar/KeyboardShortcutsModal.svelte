@@ -41,22 +41,24 @@
       {
         title: 'Tools',
         shortcuts: [
+          { action: 'Tool: Add', keys: chord('Alt/Opt', 'Click') },
           { action: 'Tool: Cursor', keys: ['V'] },
           { action: 'Tool: Hand', keys: either('H', 'Hold Space') },
           { action: 'Tool: Select', keys: ['S'] },
-        { action: 'Tool: Add', keys: ['A'] },
-        { action: 'Tool: Patch', keys: ['P'] },
+          { action: 'Tool: Patch', keys: ['P'] },
       ],
     },
       {
         title: 'Node editor',
         shortcuts: [
-          { action: 'Delete selection', keys: either('Delete', 'Backspace') },
-          { action: 'Copy selection', keys: chord('Ctrl/Cmd', 'C') },
-          { action: 'Paste', keys: chord('Ctrl/Cmd', 'V') },
-          { action: 'Duplicate selection', keys: chord('Ctrl/Cmd', 'D') },
           { action: 'Pan (hold)', keys: ['Space'] },
-          { action: 'Add node (empty canvas)', keys: chord(altLabel, 'Click') },
+          { action: 'Add node', keys: chord(altLabel, 'Click') },
+          { action: 'Copy', keys: chord('Ctrl/Cmd', 'C') },
+          { action: 'Paste', keys: chord('Ctrl/Cmd', 'V') },
+          { action: 'Duplicate', keys: chord('Ctrl/Cmd', 'D') },
+          { action: 'Delete', keys: either('Delete', 'Backspace') },
+          { action: 'Undo', keys: chord('Ctrl/Cmd', 'Z') },
+          { action: 'Redo', keys: either('Ctrl/Cmd+Shift+Z', 'Ctrl/Cmd+Y') },
         ],
       },
       {

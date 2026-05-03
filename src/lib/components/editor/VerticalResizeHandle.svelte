@@ -65,7 +65,7 @@
     height: 60px;
     border-radius: 4px;
     background: var(--divider);
-    transition: background 0.15s ease;
+    transition: background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
   }
 
   .vertical-resize-handle:hover::before {

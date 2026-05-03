@@ -16,7 +16,7 @@ export const addNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+    b: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.001, label: 'B',
       knobPolarity: 'two-sided' }
   },
   mainCode: `$output.out = $input.a + $input.b;`
@@ -34,7 +34,7 @@ export const subtractNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+    b: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.001, label: 'B',
       knobPolarity: 'two-sided' }
   },
   mainCode: `$output.out = $input.a - $input.b;`
@@ -52,7 +52,7 @@ export const multiplyNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+    b: { type: 'float', default: 1.0, min: -10.0, max: 10.0, step: 0.001, label: 'B',
       knobPolarity: 'two-sided' }
   },
   mainCode: `$output.out = $input.a * $input.b;`
@@ -70,7 +70,7 @@ export const divideNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+    b: { type: 'float', default: 1.0, min: -10.0, max: 10.0, step: 0.001, label: 'B',
       knobPolarity: 'two-sided' }
   },
   mainCode: `$output.out = $input.a / $input.b;`
@@ -183,7 +183,7 @@ export const minNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+    b: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.001, label: 'B',
       knobPolarity: 'two-sided' }
   },
   mainCode: `$output.out = min($input.a, $input.b);`
@@ -201,7 +201,7 @@ export const maxNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+    b: { type: 'float', default: 1.0, min: -10.0, max: 10.0, step: 0.001, label: 'B',
       knobPolarity: 'two-sided' }
   },
   mainCode: `$output.out = max($input.a, $input.b);`
@@ -220,8 +220,8 @@ export const clampNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    min: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Minimum' },
-    max: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Maximum' }
+    min: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.001, label: 'Minimum' },
+    max: { type: 'float', default: 1.0, min: -10.0, max: 10.0, step: 0.001, label: 'Maximum' }
   },
   mainCode: `$output.out = clamp($input.in, $input.min, $input.max);`
 };
@@ -239,9 +239,9 @@ export const mixNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    a: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'A',
+    a: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.001, label: 'A',
       knobPolarity: 'two-sided' },
-    b: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'B',
+    b: { type: 'float', default: 1.0, min: -10.0, max: 10.0, step: 0.001, label: 'B',
       knobPolarity: 'two-sided' },
     t: { type: 'float', default: 0.5, min: 0.0, max: 1.0, step: 0.01, label: 't' }
   },
@@ -260,7 +260,7 @@ export const stepNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    edge: { type: 'float', default: 0.5, min: -1000.0, max: 1000.0, step: 0.01, label: 'Threshold' }
+    edge: { type: 'float', default: 0.5, min: -10.0, max: 10.0, step: 0.001, label: 'Threshold' }
   },
   mainCode: `$output.out = step($input.edge, $input.x);`
 };

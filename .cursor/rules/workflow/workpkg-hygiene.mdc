@@ -1,6 +1,6 @@
 ---
-description: Naming, structure, and progress updates when editing project task files in docs/projects/.
-globs: "docs/projects/**/*.md"
+description: Naming, structure, and progress updates when editing task files in docs/implementation/.
+globs: "docs/implementation/**/*.md"
 alwaysApply: false
 ---
 
@@ -16,8 +16,8 @@ alwaysApply: false
 
 ## Structure
 
-- **Single artifact:** optional lone `docs/projects/foo-01-task.md`
-- **Package:** `docs/projects/<project>/_OVERVIEW.md` + numbered tasks (see **`define-project` / `define-tasks`** skills).
+- **Single artifact:** optional lone `docs/implementation/foo-01-task.md`
+- **Package:** `docs/implementation/<project>/_OVERVIEW.md` + numbered tasks in the same directory (see **`define-project` / `define-tasks`** skills).
 - **_OVERVIEW:** no dependency ASCII art — Dependencies field per work package is enough.
 
 ## Completion

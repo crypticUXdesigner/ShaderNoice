@@ -157,7 +157,9 @@
     display: flex;
     flex-direction: column;
     pointer-events: auto;
-    transition: box-shadow 0.15s, border-color 0.15s;
+    transition:
+      box-shadow var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      border-color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
 
     &.shiny:not(.selected) {
       border-color: var(--node-shiny-ring-color);

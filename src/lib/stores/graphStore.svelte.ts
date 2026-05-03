@@ -60,6 +60,11 @@ let patchInsertNodeId = $state<string | null>(null);
 
 /** Optional listener invoked whenever the graph is mutated (for undo integration). Set by App. */
 let graphChangedListener: ((g: NodeGraph) => void) | null = null;
+
+export type SetGraphOptions = {
+  /** When true, `graphChangedListener` is not invoked (e.g. undo/redo restoring a snapshot). */
+  skipGraphChangedListener?: boolean;
+};
 /** Invoked whenever audioSetup is replaced (autosave/revision helpers). Set by App. */
 let audioChangedListener: (() => void) | null = null;
 
@@ -69,9 +74,11 @@ const viewState = $derived<GraphViewState>(graph.viewState ?? defaultViewState);
 
 // --- Actions ---
 
-function setGraphAction(newGraph: NodeGraph): void {
+function setGraphAction(newGraph: NodeGraph, options?: SetGraphOptions): void {
   graph = newGraph;
-  graphChangedListener?.(graph);
+  if (!options?.skipGraphChangedListener) {
+    graphChangedListener?.(graph);
+  }
 }
 
 function setAudioSetupAction(newSetup: AudioSetup): void {

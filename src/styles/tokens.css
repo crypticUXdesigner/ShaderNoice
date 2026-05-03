@@ -3,6 +3,48 @@
 --font-sans: "Space Grotesk", -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 --font-mono: "JetBrains Mono", 'Courier New', Courier, monospace;
 
+/* === MOTION TOKENS (interaction + layout) === */
+/*
+  Motion categories:
+  - effects: color/opacity/shadow/filter/transform micro-feedback (non-spatial)
+  - spatial: layout/position/size changes (panel moves, container transforms)
+
+  Values align with Material motion guidance (expressive vs standard). We default to Standard.
+  Components should consume these via var(...) instead of hardcoding ms/beziers.
+*/
+
+/* Standard — Effects */
+--motion-effects-fast-duration: 150ms;
+--motion-effects-fast-easing: cubic-bezier(0.31, 0.94, 0.34, 1.00);
+--motion-effects-normal-duration: 200ms;
+--motion-effects-normal-easing: cubic-bezier(0.34, 0.80, 0.34, 1.00);
+--motion-effects-slow-duration: 300ms;
+--motion-effects-slow-easing: cubic-bezier(0.34, 0.88, 0.34, 1.00);
+
+/* Standard — Spatial */
+--motion-spatial-fast-duration: 350ms;
+--motion-spatial-fast-easing: cubic-bezier(0.27, 1.06, 0.18, 1.00);
+--motion-spatial-normal-duration: 500ms;
+--motion-spatial-normal-easing: cubic-bezier(0.27, 1.06, 0.18, 1.00);
+--motion-spatial-slow-duration: 750ms;
+--motion-spatial-slow-easing: cubic-bezier(0.27, 1.06, 0.18, 1.00);
+
+/* Expressive (opt-in) — Effects */
+--motion-expressive-effects-fast-duration: 150ms;
+--motion-expressive-effects-fast-easing: cubic-bezier(0.31, 0.94, 0.34, 1.00);
+--motion-expressive-effects-normal-duration: 200ms;
+--motion-expressive-effects-normal-easing: cubic-bezier(0.34, 0.80, 0.34, 1.00);
+--motion-expressive-effects-slow-duration: 300ms;
+--motion-expressive-effects-slow-easing: cubic-bezier(0.34, 0.88, 0.34, 1.00);
+
+/* Expressive (opt-in) — Spatial */
+--motion-expressive-spatial-fast-duration: 350ms;
+--motion-expressive-spatial-fast-easing: cubic-bezier(0.42, 1.67, 0.21, 0.90);
+--motion-expressive-spatial-normal-duration: 500ms;
+--motion-expressive-spatial-normal-easing: cubic-bezier(0.38, 1.21, 0.22, 1.00);
+--motion-expressive-spatial-slow-duration: 650ms;
+--motion-expressive-spatial-slow-easing: cubic-bezier(0.39, 1.29, 0.35, 0.98);
+
 /* Component dimensions */
 --panel-width: 300px;
 --button-min-width-sm: 36px;
@@ -162,7 +204,7 @@
 --frame-elevated-gap: var(--pd-sm);
 
 /* === SEARCH DIALOG TOKENS === */
---search-dialog-overlay: rgba(0, 0, 0, 0.5);
+--search-dialog-overlay: color-mix(in srgb, var(--color-gray-80) 75%, transparent);
 --search-dialog-bg: var(--frame-bg);
 --search-dialog-border: var(--color-gray-20);
 --search-dialog-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -219,7 +261,8 @@
 --bottom-bar-button-width: 44px;
 --bottom-bar-button-height: 36px;
 --bottom-bar-button-radius: 14px;
---bottom-bar-transition: 0.15s;
+/* Legacy alias (prefer `--motion-effects-*` tokens directly) */
+--bottom-bar-transition: var(--motion-effects-fast-duration);
 
 /* Bottom Bar Play Button (Primary) */
 --bottom-bar-play-bg: var(--color-blue-90);

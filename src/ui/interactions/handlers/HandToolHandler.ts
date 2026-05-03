@@ -8,6 +8,8 @@
 import type { InteractionEvent, InteractionHandler } from '../InteractionHandler';
 import type { HandlerContext } from '../HandlerContext';
 import { shouldRequestPanRender } from '../panRenderThrottle';
+import { previewPerformanceMark, PreviewPerfMark } from '../../../runtime/previewPerformanceMarks';
+import { getPreviewScheduler } from '../../../runtime/PreviewScheduler';
 
 interface VelocityPoint {
   panX: number;
@@ -76,6 +78,8 @@ export class HandToolHandler implements InteractionHandler {
     
     // Start panning immediately
     this.isPanning = true;
+    previewPerformanceMark(PreviewPerfMark.editorPanZoomStart);
+    getPreviewScheduler().recordInteractionStart('HandToolHandler');
     this.panStartX = mouseX - state.panX;
     this.panStartY = mouseY - state.panY;
     this.lastMouseX = mouseX;
@@ -117,6 +121,10 @@ export class HandToolHandler implements InteractionHandler {
   
   onEnd(_event: InteractionEvent): void {
     const wasPanning = this.isPanning;
+    if (wasPanning) {
+      previewPerformanceMark(PreviewPerfMark.editorPanZoomEnd);
+      getPreviewScheduler().recordInteractionEnd('HandToolHandler');
+    }
     this.isPanning = false;
     
     // Stop pan animation loop

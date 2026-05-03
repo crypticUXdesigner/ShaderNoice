@@ -9,6 +9,8 @@ import type { CompilationResult } from './types';
 import { getUniformName } from './utils';
 import { ShaderCompilationError } from './errors';
 import type { Disposable } from '../utils/Disposable';
+import { previewPerformanceMark, PreviewPerfMark } from './previewPerformanceMarks';
+import { ProgramCache } from './programCache';
 
 /**
  * Base vertex shader (static, used for all shaders - fullscreen quad).
@@ -21,6 +23,53 @@ void main() {
 
 /** Message thrown when WebGL context is lost so callers can skip without reporting a compilation error. */
 export const SHADER_INSTANCE_CONTEXT_LOST_MESSAGE = 'WEBGL_CONTEXT_LOST';
+/**
+ * Legacy message; `ShaderInstance` now waits for parallel link completion instead of throwing.
+ * Kept for `CompilationManager` catch/retry paths and any external handlers.
+ */
+export const SHADER_INSTANCE_PROGRAM_PENDING_MESSAGE = 'WEBGL_PROGRAM_PENDING';
+
+type CachedProgram = {
+  program: WebGLProgram;
+  vertexShader: WebGLShader;
+  fragmentShader: WebGLShader;
+  status: 'pending' | 'linked' | 'failed';
+  linkStatusChecked: boolean;
+  linkErrorLog: string | null;
+};
+
+const PROGRAM_CACHE_MAX_ENTRIES = 8;
+const programCacheByGl = new WeakMap<WebGL2RenderingContext, ProgramCache<CachedProgram>>();
+
+function getProgramCache(gl: WebGL2RenderingContext): ProgramCache<CachedProgram> {
+  const existing = programCacheByGl.get(gl);
+  if (existing) return existing;
+  const created = new ProgramCache<CachedProgram>(PROGRAM_CACHE_MAX_ENTRIES);
+  programCacheByGl.set(gl, created);
+  return created;
+}
+
+/** Max wall-clock wait when KHR_parallel_shader_compile leaves link asynchronous (e.g. video export path). */
+const PARALLEL_LINK_WAIT_TIMEOUT_MS = 60_000;
+
+/**
+ * Block until `program` reports COMPLETION_STATUS_KHR, then callers may query LINK_STATUS without stalling.
+ * Export and other synchronous paths cannot defer like the preview compile manager (rAF retry).
+ */
+function waitForParallelProgramCompletion(
+  gl: WebGL2RenderingContext,
+  program: WebGLProgram,
+  completionStatusEnum: number
+): void {
+  const deadline = performance.now() + PARALLEL_LINK_WAIT_TIMEOUT_MS;
+  while (!gl.getProgramParameter(program, completionStatusEnum)) {
+    if (performance.now() > deadline) {
+      throw new Error(
+        'Shader program link timed out while waiting for KHR_parallel_shader_compile completion'
+      );
+    }
+  }
+}
 
 export class ShaderInstance implements Disposable {
   /** Same as SHADER_INSTANCE_CONTEXT_LOST_MESSAGE; use for catch checks. */
@@ -30,6 +79,8 @@ export class ShaderInstance implements Disposable {
   private program: WebGLProgram | null = null;
   private vertexShader: WebGLShader | null = null;
   private fragmentShader: WebGLShader | null = null;
+  private cachedProgramRelease: (() => void) | null = null;
+  private programOwnedByCache: boolean = false;
   
   // Uniform location cache
   private uniformLocations: Map<string, WebGLUniformLocation> = new Map();
@@ -63,49 +114,121 @@ export class ShaderInstance implements Disposable {
    * Create and link WebGL shader program.
    */
   private createProgram(compilationResult: CompilationResult): void {
-    // Create vertex shader
-    this.vertexShader = this.createShader(
-      this.gl.VERTEX_SHADER,
-      BASE_VERTEX_SHADER
+    const cacheKey = compilationResult.shaderCode;
+    const cache = getProgramCache(this.gl);
+    const cached = cache.acquire(
+      cacheKey,
+      () => {
+        const ext = this.gl.getExtension('KHR_parallel_shader_compile') as
+          | { COMPLETION_STATUS_KHR: number }
+          | null;
+
+        // Create vertex shader
+        const vertexShader = this.createShader(this.gl.VERTEX_SHADER, BASE_VERTEX_SHADER);
+        if (!vertexShader) {
+          throw new Error('Failed to create vertex shader');
+        }
+
+        // Create fragment shader
+        const fragmentError = this.createShaderAndCaptureError(
+          this.gl.FRAGMENT_SHADER,
+          compilationResult.shaderCode
+        );
+        const fragmentShader = fragmentError.shader;
+        if (!fragmentShader) {
+          this.gl.deleteShader(vertexShader);
+          throw new ShaderCompilationError(
+            'Fragment shader compile failed',
+            fragmentError.infoLog || 'Unknown error',
+            compilationResult.shaderCode
+          );
+        }
+
+        const program = this.gl.createProgram();
+        if (!program) {
+          this.gl.deleteShader(vertexShader);
+          this.gl.deleteShader(fragmentShader);
+          throw new Error('Failed to create WebGL program');
+        }
+
+        this.gl.attachShader(program, vertexShader);
+        this.gl.attachShader(program, fragmentShader);
+        previewPerformanceMark(PreviewPerfMark.compileMainThreadLinkStart);
+        this.gl.linkProgram(program);
+        previewPerformanceMark(PreviewPerfMark.compileMainThreadLinkEnd);
+
+        // If the extension is available and compilation isn't complete yet, avoid blocking LINK_STATUS query.
+        const completionReady =
+          ext === null ? true : Boolean(this.gl.getProgramParameter(program, ext.COMPLETION_STATUS_KHR));
+
+        if (completionReady) {
+          const ok = Boolean(this.gl.getProgramParameter(program, this.gl.LINK_STATUS));
+          if (!ok) {
+            const error = this.gl.getProgramInfoLog(program);
+            this.gl.deleteProgram(program);
+            this.gl.deleteShader(vertexShader);
+            this.gl.deleteShader(fragmentShader);
+            throw new ShaderCompilationError(
+              'Shader program link failed',
+              error || 'Unknown error',
+              compilationResult.shaderCode
+            );
+          }
+        }
+
+        return {
+          program,
+          vertexShader,
+          fragmentShader,
+          status: completionReady ? 'linked' : 'pending',
+          linkStatusChecked: completionReady,
+          linkErrorLog: null,
+        };
+      },
+      (entry) => {
+        // Eviction cleanup (only called when refCount === 0)
+        this.gl.deleteProgram(entry.program);
+        this.gl.deleteShader(entry.vertexShader);
+        this.gl.deleteShader(entry.fragmentShader);
+      }
     );
-    if (!this.vertexShader) {
-      throw new Error('Failed to create vertex shader');
+
+    // If the program was left pending (parallel compile), block until completion so synchronous
+    // callers (video export, tests) get a linked program — preview uses rAF retry if this ever threw.
+    if (cached.value.status === 'pending') {
+      const ext = this.gl.getExtension('KHR_parallel_shader_compile') as
+        | { COMPLETION_STATUS_KHR: number }
+        | null;
+      if (ext) {
+        waitForParallelProgramCompletion(this.gl, cached.value.program, ext.COMPLETION_STATUS_KHR);
+      }
     }
-    
-    // Create fragment shader
-    const fragmentError = this.createShaderAndCaptureError(
-      this.gl.FRAGMENT_SHADER,
-      compilationResult.shaderCode
-    );
-    this.fragmentShader = fragmentError.shader;
-    if (!this.fragmentShader) {
-      throw new ShaderCompilationError(
-        'Fragment shader compile failed',
-        fragmentError.infoLog || 'Unknown error',
-        compilationResult.shaderCode
-      );
+
+    if (!cached.value.linkStatusChecked) {
+      cached.value.linkStatusChecked = true;
+      const ok = Boolean(this.gl.getProgramParameter(cached.value.program, this.gl.LINK_STATUS));
+      if (!ok) {
+        cached.value.status = 'failed';
+        cached.value.linkErrorLog = this.gl.getProgramInfoLog(cached.value.program);
+        cached.release();
+        throw new ShaderCompilationError(
+          'Shader program link failed',
+          cached.value.linkErrorLog || 'Unknown error',
+          compilationResult.shaderCode
+        );
+      }
+      cached.value.status = 'linked';
     }
-    
-    // Create and link program
-    this.program = this.gl.createProgram();
-    if (!this.program) {
-      throw new Error('Failed to create WebGL program');
-    }
-    
-    this.gl.attachShader(this.program, this.vertexShader);
-    this.gl.attachShader(this.program, this.fragmentShader);
-    this.gl.linkProgram(this.program);
-    
-    // Check link status
-    if (!this.gl.getProgramParameter(this.program, this.gl.LINK_STATUS)) {
-      const error = this.gl.getProgramInfoLog(this.program);
-      this.destroy();
-      throw new ShaderCompilationError(
-        'Shader program link failed',
-        error || 'Unknown error',
-        compilationResult.shaderCode
-      );
-    }
+
+    this.cachedProgramRelease = cached.release;
+    this.program = cached.value.program;
+    this.programOwnedByCache = true;
+
+    // Only store shaders for destroy() when we actually own them outside the cache.
+    // Cached programs own shader objects in the cache; instances only release references.
+    this.vertexShader = null;
+    this.fragmentShader = null;
+    return;
   }
   
   /**
@@ -371,12 +494,13 @@ export class ShaderInstance implements Disposable {
    */
   render(width: number, height: number): void {
     if (!this.program || !this.positionBuffer) return;
-    
+
+    previewPerformanceMark(PreviewPerfMark.previewUniformsStart);
     this.gl.useProgram(this.program);
-    
+
     // Set global uniforms (only if changed - setResolution checks internally)
     this.setResolution(width, height);
-    
+
     // Ensure time uniform is set (setTime is called every frame from animation loop,
     // but we set it here too in case render() is called directly from resize/compilation)
     const timeLocation = this.uniformLocations.get('uTime');
@@ -388,19 +512,26 @@ export class ShaderInstance implements Disposable {
     if (timelineTimeLocation) {
       this.gl.uniform1f(timelineTimeLocation, this.timelineTime);
     }
-    
+    previewPerformanceMark(PreviewPerfMark.previewUniformsEnd);
+
+    previewPerformanceMark(PreviewPerfMark.previewDrawStart);
     // Use cached position buffer
     this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
     this.gl.enableVertexAttribArray(this.positionAttribLocation);
     this.gl.vertexAttribPointer(this.positionAttribLocation, 2, this.gl.FLOAT, false, 0, 0);
-    
+
     this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+    previewPerformanceMark(PreviewPerfMark.previewDrawEnd);
   }
   
   /**
    * Destroy shader instance and clean up resources.
    */
   destroy(): void {
+    if (this.cachedProgramRelease) {
+      this.cachedProgramRelease();
+      this.cachedProgramRelease = null;
+    }
     if (this.vertexShader) {
       this.gl.deleteShader(this.vertexShader);
       this.vertexShader = null;
@@ -409,10 +540,11 @@ export class ShaderInstance implements Disposable {
       this.gl.deleteShader(this.fragmentShader);
       this.fragmentShader = null;
     }
-    if (this.program) {
+    if (this.program && !this.programOwnedByCache) {
       this.gl.deleteProgram(this.program);
-      this.program = null;
     }
+    this.program = null;
+    this.programOwnedByCache = false;
     if (this.positionBuffer) {
       this.gl.deleteBuffer(this.positionBuffer);
       this.positionBuffer = null;

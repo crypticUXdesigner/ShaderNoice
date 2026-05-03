@@ -6,9 +6,9 @@
  * Implements the CompilationManager class from Runtime Integration Specification.
  */
 
-import { ShaderInstance } from './ShaderInstance';
+import { ShaderInstance, SHADER_INSTANCE_PROGRAM_PENDING_MESSAGE } from './ShaderInstance';
 import { Renderer } from './Renderer';
-import type { ShaderCompiler, CompilationResult } from './types';
+import type { ShaderCompiler, CompilationResult, PreviewDependencyMask } from './types';
 import type { NodeGraph, ParameterValue } from '../data-model/types';
 import type { AudioSetup } from '../data-model/audioSetupTypes';
 import { hashGraph } from './utils';
@@ -20,6 +20,28 @@ import { isRuntimeOnlyParameter } from '../utils/runtimeOnlyParams';
 import { transferParameters as transferParametersImpl, transferParametersFromGraph as transferParametersFromGraphImpl } from './compilation/parameterTransfer';
 import { reportCompilationErrors, reportCompilationError } from './compilation/compilationErrorReporting';
 import { cloneableCompilePayload, type WorkerCompilePayload, type WorkerReplyMessage } from './compilation/workerMessages';
+import {
+  previewPerformanceMark,
+  PreviewPerfMark,
+  previewPerfCounters
+} from './previewPerformanceMarks';
+import { getPreviewScheduler } from './PreviewScheduler';
+import {
+  beginPreviewCompileProgressToast,
+  clearPreviewCompileProgressToast,
+  shouldDeferPreviewCompileToast,
+} from '../lib/stores/previewCompileStatusStore';
+
+/** Change snapshot from {@link CompilationManager.detectGraphChanges} for one compile kick. */
+type GraphCompileChanges = {
+  addedNodes: string[];
+  removedNodes: string[];
+  changedConnections: boolean;
+  addedConnectionIds: string[];
+  removedConnectionIds: string[];
+  changedNodeIds: Set<string>;
+  affectedNodeIds: Set<string>;
+};
 
 /** True if value can be applied to a single uniform (float/int or vec4). */
 function isUniformValue(v: ParameterValue): v is number | [number, number, number, number] {
@@ -38,6 +60,9 @@ export class CompilationManager implements Disposable {
   
   // Debounce compilation
   private compileTimeout: number | null = null;
+  private immediateCompileScheduled: boolean = false;
+  private pendingKickRaf1: number | null = null;
+  private pendingKickRaf2: number | null = null;
   private readonly COMPILE_DEBOUNCE_MS = 100;
   
   // Track if graph structure changed
@@ -71,9 +96,17 @@ export class CompilationManager implements Disposable {
   // Worker compilation (optional)
   private worker: Worker | null = null;
   private workerCompileId: number = 0;
+  /** When set, a worker `result` is scheduled to apply on the next frame (keeps `onmessage` short for responsiveness). */
+  private pendingWorkerApplyRafId: number | null = null;
+  private pendingApplyRetryRafId: number | null = null;
+  private pendingApplyRetryResult: CompilationResult | null = null;
+  private pendingApplyRetryWorkerId: number | null = null;
 
   // Parameter update batching
   private parameterRenderScheduled: boolean = false;
+
+  /** Snapshot from last successful compile (WP 02B); not inferred per frame from the graph. */
+  private previewDependencyMask: PreviewDependencyMask | null = null;
 
   constructor(
     compiler: ShaderCompiler,
@@ -116,6 +149,8 @@ export class CompilationManager implements Disposable {
    * When null, compilation runs on the main thread as before.
    */
   setWorker(worker: Worker | null): void {
+    this.clearPendingWorkerApplyRaf();
+    this.clearPendingApplyRetryRaf();
     if (this.worker !== null) {
       this.worker.onmessage = null;
     }
@@ -127,6 +162,8 @@ export class CompilationManager implements Disposable {
 
   /**
    * Handle messages from the compilation worker. Ignores result/error replies whose id does not match workerCompileId.
+   * Successful `result` messages defer `applyCompilationResult` to the next animation frame so the worker `message`
+   * handler returns quickly (avoids long main-thread blocking inside `onmessage`; WebGL link still runs next frame).
    */
   private handleWorkerMessage(ev: MessageEvent<WorkerReplyMessage>): void {
     const data = ev.data;
@@ -136,21 +173,84 @@ export class CompilationManager implements Disposable {
     }
 
     if (data.type === 'result') {
-      try {
-        this.applyCompilationResult(data.result);
-      } catch (err) {
-        const e = err instanceof Error ? err : new Error(String(err));
-        this.getErrorHandler().reportError(
-          ErrorUtils.compilationError(e.message, undefined, { originalError: e })
-        );
-      }
+      const result = data.result;
+      const id = data.id;
+      this.clearPendingWorkerApplyRaf();
+      this.clearPendingApplyRetryRaf();
+      this.pendingWorkerApplyRafId = requestAnimationFrame(() => {
+        this.pendingWorkerApplyRafId = null;
+        if (id !== this.workerCompileId) return;
+        if (result.metadata.errors.length > 0) {
+          getPreviewScheduler().recordCompileFailed();
+          reportCompilationErrors(result.metadata.errors, (err) => this.getErrorHandler().reportError(err));
+          return;
+        }
+        try {
+          this.applyCompilationResult(result);
+        } catch (err) {
+          const e = err instanceof Error ? err : new Error(String(err));
+          if (e.message === SHADER_INSTANCE_PROGRAM_PENDING_MESSAGE) {
+            this.scheduleApplyRetry(result, id);
+            return;
+          }
+          getPreviewScheduler().recordCompileFailed();
+          this.getErrorHandler().reportError(
+            ErrorUtils.compilationError(e.message, undefined, { originalError: e })
+          );
+        }
+      });
       return;
     }
     if (data.type === 'error') {
+      getPreviewScheduler().recordCompileFailed();
       this.getErrorHandler().reportError(
         ErrorUtils.compilationError(data.message)
       );
     }
+  }
+
+  private clearPendingWorkerApplyRaf(): void {
+    if (this.pendingWorkerApplyRafId !== null && typeof cancelAnimationFrame !== 'undefined') {
+      cancelAnimationFrame(this.pendingWorkerApplyRafId);
+    }
+    this.pendingWorkerApplyRafId = null;
+  }
+
+  private clearPendingApplyRetryRaf(): void {
+    if (this.pendingApplyRetryRafId !== null && typeof cancelAnimationFrame !== 'undefined') {
+      cancelAnimationFrame(this.pendingApplyRetryRafId);
+    }
+    this.pendingApplyRetryRafId = null;
+    this.pendingApplyRetryResult = null;
+    this.pendingApplyRetryWorkerId = null;
+  }
+
+  private scheduleApplyRetry(result: CompilationResult, workerId: number | null): void {
+    this.pendingApplyRetryResult = result;
+    this.pendingApplyRetryWorkerId = workerId;
+    if (this.pendingApplyRetryRafId !== null) return;
+    this.pendingApplyRetryRafId = requestAnimationFrame(() => {
+      this.pendingApplyRetryRafId = null;
+      const r = this.pendingApplyRetryResult;
+      const id = this.pendingApplyRetryWorkerId;
+      this.pendingApplyRetryResult = null;
+      this.pendingApplyRetryWorkerId = null;
+      if (!r) return;
+      if (id !== null && id !== this.workerCompileId) return;
+      try {
+        this.applyCompilationResult(r);
+      } catch (err) {
+        const e = err instanceof Error ? err : new Error(String(err));
+        if (e.message === SHADER_INSTANCE_PROGRAM_PENDING_MESSAGE) {
+          this.scheduleApplyRetry(r, id);
+          return;
+        }
+        getPreviewScheduler().recordCompileFailed();
+        this.getErrorHandler().reportError(
+          ErrorUtils.compilationError(e.message, undefined, { originalError: e })
+        );
+      }
+    });
   }
 
   /**
@@ -172,8 +272,12 @@ export class CompilationManager implements Disposable {
       const gl = this.renderer.getGLContext();
       if (gl.isContextLost && gl.isContextLost()) return;
       try {
+        previewPerformanceMark(PreviewPerfMark.compileRequested);
+        previewPerfCounters.compileRequests += 1;
+        getPreviewScheduler().recordCompileStarted();
         const result = this.compiler.compile(this.graph, this.audioSetup);
         if (result.metadata.errors.length > 0) {
+          getPreviewScheduler().recordCompileFailed();
           reportCompilationErrors(result.metadata.errors, (err) => this.getErrorHandler().reportError(err));
           return;
         }
@@ -182,6 +286,7 @@ export class CompilationManager implements Disposable {
       } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
         if (err.message === ShaderInstance.CONTEXT_LOST_MESSAGE) return;
+        getPreviewScheduler().recordCompileFailed();
         reportCompilationError(err, (e) => this.getErrorHandler().reportError(e));
       }
     } else {
@@ -195,19 +300,29 @@ export class CompilationManager implements Disposable {
    */
   clearShaderInstanceForContextLoss(): void {
     this.shaderInstance = null;
+    this.previewDependencyMask = null;
   }
 
   /**
    * Handle parameter change.
    * Determines if recompilation is needed or just uniform update.
    * Supports full ParameterValue: number and vec4 trigger uniform update when no recompile is needed;
-   * string, number[], number[][] trigger recompile. See docs/architecture/parameter-change-pipeline.md.
+   * string, number[], number[][] trigger recompile. See docs/architecture/parameters-pipeline.md.
    */
   onParameterChange(nodeId: string, paramName: string, value: ParameterValue): void {
     if (!this.graph) return;
 
     const node = this.graph.nodes.find(n => n.id === nodeId);
     if (node && isRuntimeOnlyParameter(node.type, paramName)) {
+      return;
+    }
+
+    const outputNodeId = this.compilationMetadata?.result.metadata.finalOutputNodeId ?? null;
+    if (
+      this.shaderInstance &&
+      outputNodeId &&
+      !this.computeUpstreamReachableNodeIds(this.graph, outputNodeId).has(nodeId)
+    ) {
       return;
     }
 
@@ -231,8 +346,11 @@ export class CompilationManager implements Disposable {
   onGraphStructureChange(immediate: boolean = false): void {
     if (immediate) {
       this.cancelPendingRecompile();
-      // Defer to next tick so we don't block the connection handler; still much faster than 100ms debounce
+      // Defer to next tick so we don't block the connection handler; coalesce bursts into one compile.
+      if (this.immediateCompileScheduled) return;
+      this.immediateCompileScheduled = true;
       this.compileTimeout = window.setTimeout(() => {
+        this.immediateCompileScheduled = false;
         this.compileTimeout = null;
         this.recompile();
       }, 0);
@@ -247,6 +365,8 @@ export class CompilationManager implements Disposable {
    */
   private cancelPendingRecompile(): void {
     this.workerCompileId += 1;
+    this.immediateCompileScheduled = false;
+    this.clearPendingRecompileKickRafs();
     if (this.compileIdleCallback !== null && typeof window !== 'undefined' && window.cancelIdleCallback) {
       window.cancelIdleCallback(this.compileIdleCallback);
       this.compileIdleCallback = null;
@@ -255,6 +375,17 @@ export class CompilationManager implements Disposable {
       clearTimeout(this.compileTimeout);
       this.compileTimeout = null;
     }
+  }
+
+  private clearPendingRecompileKickRafs(): void {
+    if (this.pendingKickRaf1 !== null && typeof cancelAnimationFrame !== 'undefined') {
+      cancelAnimationFrame(this.pendingKickRaf1);
+    }
+    if (this.pendingKickRaf2 !== null && typeof cancelAnimationFrame !== 'undefined') {
+      cancelAnimationFrame(this.pendingKickRaf2);
+    }
+    this.pendingKickRaf1 = null;
+    this.pendingKickRaf2 = null;
   }
   
   /**
@@ -345,50 +476,77 @@ export class CompilationManager implements Disposable {
   private applyCompilationResult(result: CompilationResult): void {
     const gl = this.renderer.getGLContext();
     if (gl.isContextLost && gl.isContextLost()) {
+      clearPreviewCompileProgressToast();
       return;
     }
 
+    const prevInstance = this.shaderInstance;
     const newInstance = new ShaderInstance(gl, result);
 
-    if (this.shaderInstance) {
-      if (this.graph) {
-        transferParametersImpl(this.graph, this.shaderInstance, newInstance);
+    try {
+      if (prevInstance) {
+        if (this.graph) {
+          transferParametersImpl(this.graph, prevInstance, newInstance);
+          transferParametersFromGraphImpl(this.graph, newInstance);
+        }
+        newInstance.setTimelineTime(prevInstance.getTimelineTime());
+        newInstance.setTime(prevInstance.getTime());
+      } else if (this.graph) {
         transferParametersFromGraphImpl(this.graph, newInstance);
       }
-      newInstance.setTimelineTime(this.shaderInstance.getTimelineTime());
-      newInstance.setTime(this.shaderInstance.getTime());
-      this.shaderInstance.destroy();
-    } else if (this.graph) {
-      transferParametersFromGraphImpl(this.graph, newInstance);
+
+      this.onBeforeFirstRender?.(newInstance);
+
+      // Swap renderer to the new instance; keep old instance alive until after first successful render.
+      this.shaderInstance = newInstance;
+      this.renderer.setShaderInstance(newInstance);
+
+      this.previewDependencyMask = result.metadata.previewDependencies ?? null;
+
+      this.compilationMetadata = {
+        result,
+        executionOrder: result.metadata.executionOrder
+      };
+
+      if (this.previousGraphState) {
+        this.previousGraphState.executionOrder = result.metadata.executionOrder;
+      }
+
+      if (this.graph) {
+        this.lastGraphHash = hashGraph(this.graph);
+      }
+
+      this.renderer.markDirty('compilation');
+      this.renderer.render();
+
+      // First render succeeded; now it is safe to release the previous instance.
+      prevInstance?.destroy();
+
+      this.onRecompiled?.();
+      getPreviewScheduler().recordCompileSucceeded();
+    } catch (err) {
+      // Roll back to last-good instance if swap/render failed.
+      try {
+        newInstance.destroy();
+      } catch {
+        // ignore cleanup errors
+      }
+      this.shaderInstance = prevInstance;
+      if (prevInstance) {
+        this.renderer.setShaderInstance(prevInstance);
+      }
+      throw err;
     }
-
-    this.onBeforeFirstRender?.(newInstance);
-
-    this.shaderInstance = newInstance;
-    this.renderer.setShaderInstance(newInstance);
-
-    this.compilationMetadata = {
-      result,
-      executionOrder: result.metadata.executionOrder
-    };
-
-    if (this.previousGraphState) {
-      this.previousGraphState.executionOrder = result.metadata.executionOrder;
-    }
-
-    if (this.graph) {
-      this.lastGraphHash = hashGraph(this.graph);
-    }
-
-    this.renderer.markDirty('compilation');
-    this.renderer.render();
-    this.onRecompiled?.();
   }
 
   /**
    * Recompile shader from graph.
    * When a worker is set, posts a compile request and returns; result is applied in worker onmessage.
    * Otherwise uses incremental compilation when possible on the main thread.
+   *
+   * After at least one successful compile, **adding or removing nodes** shows an indeterminate
+   * preview toast and defers the heavy compile kick by two animation frames so the shell can paint
+   * the toast before `postMessage` / main-thread compile runs.
    */
   private recompile(): void {
     if (!this.graph) return;
@@ -398,12 +556,167 @@ export class CompilationManager implements Disposable {
       return;
     }
 
+    // If a previous compile kick was deferred by rAF, supersede it with this newer request.
+    this.clearPendingRecompileKickRafs();
+
+    const priorGraph = this.previousGraph;
     const changes = this.detectGraphChanges(this.graph);
     const previousResult = this.compilationMetadata?.result ?? null;
+
+    if (this.shouldSkipPreviewRecompileForIdleGraphChanges(this.graph, priorGraph, changes, previousResult)) {
+      // Graph changed, but not in the dependency slice that feeds the preview output.
+      // Keep the current ShaderInstance; update hash so parameter changes don't trigger recompiles forever.
+      this.lastGraphHash = hashGraph(this.graph);
+      clearPreviewCompileProgressToast();
+      return;
+    }
     const tryIncremental =
-      !changes.changedConnections &&
       previousResult !== null &&
+      changes.removedNodes.length === 0 &&
+      changes.removedConnectionIds.length === 0 &&
       changes.affectedNodeIds.size < this.graph.nodes.length * 0.5;
+
+    const deferPreviewToast = shouldDeferPreviewCompileToast(previousResult, changes);
+
+    if (deferPreviewToast) {
+      beginPreviewCompileProgressToast();
+    }
+
+    const kick = (): void => {
+      if (!deferPreviewToast) {
+        clearPreviewCompileProgressToast();
+      }
+      previewPerformanceMark(PreviewPerfMark.compileRequested);
+      previewPerfCounters.compileRequests += 1;
+      getPreviewScheduler().recordCompileStarted();
+      this.recompileExecute(changes, tryIncremental, previousResult);
+    };
+
+    if (deferPreviewToast) {
+      this.pendingKickRaf1 = requestAnimationFrame(() => {
+        this.pendingKickRaf1 = null;
+        this.pendingKickRaf2 = requestAnimationFrame(() => {
+          this.pendingKickRaf2 = null;
+          kick();
+        });
+      });
+    } else {
+      kick();
+    }
+  }
+
+  private shouldSkipPreviewRecompileForIdleGraphChanges(
+    graph: NodeGraph,
+    priorGraph: NodeGraph | null,
+    changes: GraphCompileChanges,
+    previousResult: CompilationResult | null
+  ): boolean {
+    // Safe default: if we don't know what output we are targeting, always compile.
+    const outputNodeId = previousResult?.metadata.finalOutputNodeId ?? null;
+    if (!outputNodeId) return false;
+
+    if (!graph.nodes.some((n) => n.id === outputNodeId)) return false;
+
+    // If output node was removed or changed, we must recompile.
+    if (changes.removedNodes.includes(outputNodeId) || changes.changedNodeIds.has(outputNodeId)) return false;
+
+    const reachableNew = this.computeUpstreamReachableNodeIds(graph, outputNodeId);
+    const reachableOld =
+      priorGraph !== null ? this.computeUpstreamReachableNodeIds(priorGraph, outputNodeId) : new Set<string>();
+
+    const unionReach = new Set<string>(reachableNew);
+    for (const id of reachableOld) {
+      unionReach.add(id);
+    }
+
+    const connectionDelta =
+      changes.changedConnections &&
+      (changes.addedConnectionIds.length > 0 || changes.removedConnectionIds.length > 0);
+
+    if (connectionDelta) {
+      if (!priorGraph) return false;
+      const touched = new Set<string>();
+      for (const id of this.collectConnectionEndpointNodeIds(graph, changes.addedConnectionIds)) {
+        touched.add(id);
+      }
+      for (const id of this.collectConnectionEndpointNodeIds(priorGraph, changes.removedConnectionIds)) {
+        touched.add(id);
+      }
+      for (const id of touched) {
+        if (unionReach.has(id)) return false;
+      }
+    } else if (changes.changedConnections) {
+      // Connections flagged changed but we could not classify ids — compile.
+      return false;
+    }
+
+    for (const id of changes.removedNodes) {
+      if (reachableOld.has(id)) return false;
+    }
+
+    for (const id of changes.changedNodeIds) {
+      if (reachableNew.has(id)) return false;
+    }
+
+    // Purely idle structural edits: no impact on preview output.
+    return true;
+  }
+
+  /** Endpoints (source + target node ids) for the given connection ids in `graph`. */
+  private collectConnectionEndpointNodeIds(graph: NodeGraph, connectionIds: string[]): string[] {
+    if (connectionIds.length === 0) return [];
+    const byId = new Map(graph.connections.map((c) => [c.id, c]));
+    const out: string[] = [];
+    for (const id of connectionIds) {
+      const c = byId.get(id);
+      if (!c) continue;
+      out.push(c.sourceNodeId, c.targetNodeId);
+    }
+    return out;
+  }
+
+  /**
+   * Returns the set of node ids that can affect the output node (inclusive).
+   * Traverses connections backwards: output target -> upstream sources.
+   */
+  private computeUpstreamReachableNodeIds(graph: NodeGraph, outputNodeId: string): Set<string> {
+    const upstreamByTarget = new Map<string, string[]>();
+    for (const c of graph.connections) {
+      const list = upstreamByTarget.get(c.targetNodeId);
+      if (list) list.push(c.sourceNodeId);
+      else upstreamByTarget.set(c.targetNodeId, [c.sourceNodeId]);
+    }
+
+    const reachable = new Set<string>();
+    const stack: string[] = [outputNodeId];
+    while (stack.length > 0) {
+      const id = stack.pop() as string;
+      if (reachable.has(id)) continue;
+      reachable.add(id);
+      const ups = upstreamByTarget.get(id);
+      if (!ups) continue;
+      for (const srcId of ups) {
+        // Connections may refer to virtual sources (e.g. audio-signal:*) that aren't in graph.nodes.
+        // Include the id for set membership checks; traversal ends naturally if it has no incoming edges.
+        stack.push(srcId);
+      }
+    }
+    return reachable;
+  }
+
+  /** Worker post or main-thread compile + apply (after {@link #recompile} has run change detection). */
+  private recompileExecute(
+    changes: GraphCompileChanges,
+    tryIncremental: boolean,
+    previousResult: CompilationResult | null
+  ): void {
+    if (!this.graph) return;
+
+    const gl = this.renderer.getGLContext();
+    if (gl.isContextLost && gl.isContextLost()) {
+      clearPreviewCompileProgressToast();
+      return;
+    }
 
     if (this.worker !== null) {
       this.workerCompileId += 1;
@@ -414,7 +727,7 @@ export class CompilationManager implements Disposable {
         audioSetup: this.audioSetup,
         previousResult,
         affectedNodeIds: Array.from(changes.affectedNodeIds),
-        tryIncremental
+        tryIncremental,
       };
       this.worker.postMessage(cloneableCompilePayload(payload));
       return;
@@ -439,20 +752,33 @@ export class CompilationManager implements Disposable {
       }
 
       if (result.metadata.errors.length > 0) {
+        getPreviewScheduler().recordCompileFailed();
         reportCompilationErrors(result.metadata.errors, (err) => this.getErrorHandler().reportError(err));
         return;
       }
 
       if (gl.isContextLost && gl.isContextLost()) {
+        clearPreviewCompileProgressToast();
         return;
       }
 
-      this.applyCompilationResult(result);
+      try {
+        this.applyCompilationResult(result);
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        if (err.message === SHADER_INSTANCE_PROGRAM_PENDING_MESSAGE) {
+          this.scheduleApplyRetry(result, null);
+          return;
+        }
+        throw err;
+      }
     } catch (error) {
       const err = error instanceof Error ? error : new Error(String(error));
       if (err.message === ShaderInstance.CONTEXT_LOST_MESSAGE) {
+        clearPreviewCompileProgressToast();
         return;
       }
+      getPreviewScheduler().recordCompileFailed();
       reportCompilationError(err, (e) => this.getErrorHandler().reportError(e));
     }
   }
@@ -462,20 +788,14 @@ export class CompilationManager implements Disposable {
    * Returns information about added/removed nodes and affected nodes.
    * Uses unified change detection system.
    */
-  private detectGraphChanges(graph: NodeGraph): {
-    addedNodes: string[];
-    removedNodes: string[];
-    changedConnections: boolean;
-    changedNodeIds: Set<string>;
-    affectedNodeIds: Set<string>;
-  } {
+  private detectGraphChanges(graph: NodeGraph): GraphCompileChanges {
     // Use unified change detection system
     const changeResult = GraphChangeDetector.detectChanges(
       this.previousGraph,
       graph,
       {
         trackAffectedNodes: true,
-        includeConnectionIds: false // We don't need connection IDs for this use case
+        includeConnectionIds: true
       }
     );
     
@@ -511,6 +831,8 @@ export class CompilationManager implements Disposable {
       addedNodes: changeResult.addedNodeIds,
       removedNodes: changeResult.removedNodeIds,
       changedConnections: changeResult.isConnectionsChanged,
+      addedConnectionIds: changeResult.addedConnectionIds,
+      removedConnectionIds: changeResult.removedConnectionIds,
       changedNodeIds,
       affectedNodeIds: changeResult.affectedNodeIds
     };
@@ -522,11 +844,16 @@ export class CompilationManager implements Disposable {
   getShaderInstance(): ShaderInstance | null {
     return this.shaderInstance;
   }
+
+  getPreviewDependencyMask(): PreviewDependencyMask | null {
+    return this.previewDependencyMask;
+  }
   
   /**
    * Cleanup all resources.
    */
   destroy(): void {
+    this.clearPendingWorkerApplyRaf();
     if (this.worker !== null) {
       this.worker.terminate();
       this.worker = null;
@@ -549,5 +876,7 @@ export class CompilationManager implements Disposable {
     this.compilationMetadata = null;
     this.previousGraphState = null;
     this.previousGraph = null;
+    this.previewDependencyMask = null;
+    clearPreviewCompileProgressToast();
   }
 }

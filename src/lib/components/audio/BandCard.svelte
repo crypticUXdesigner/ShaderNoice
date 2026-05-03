@@ -63,6 +63,19 @@
     <Button
       variant="ghost"
       size="sm"
+      mode="icon-only"
+      title="Delete band"
+      aria-label={`Delete band: ${band.name || band.id}`}
+      onclick={(e) => {
+        e.stopPropagation();
+        onDelete?.();
+      }}
+    >
+      <IconSvg name="trash" variant="line" />
+    </Button>
+    <Button
+      variant="ghost"
+      size="sm"
       mode="both"
       disabled={!canConnect}
       title={canConnect ? 'Connect band (raw)' : 'Set source file first'}
@@ -74,19 +87,6 @@
     >
       <IconSvg name="plug" variant="line" />
       Connect
-    </Button>
-    <Button
-      variant="ghost"
-      size="sm"
-      mode="icon-only"
-      title="Delete band"
-      aria-label={`Delete band: ${band.name || band.id}`}
-      onclick={(e) => {
-        e.stopPropagation();
-        onDelete?.();
-      }}
-    >
-      <IconSvg name="minus-circle" variant="filled" />
     </Button>
   </div>
   <div class="frequency-editor-wrap" role="presentation" onclick={(e) => e.stopPropagation()}>
@@ -108,6 +108,7 @@
     gap: 0;
     padding: 0;
     width: 100%;
+    box-sizing: border-box;
 
     .band-card-header {
       display: flex;

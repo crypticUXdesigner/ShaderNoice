@@ -29,6 +29,8 @@ export interface CanvasCallbacks {
   onDuplicateSelected?: () => void;
   hasClipboard?: () => boolean;
   onRequestAddNodeAtCanvas?: (screenX: number, screenY: number) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export interface SetCallbacksCanvas {
@@ -54,6 +56,8 @@ export interface SetCallbacksCanvas {
   onDuplicateSelected?: CanvasCallbacks['onDuplicateSelected'];
   hasClipboard?: CanvasCallbacks['hasClipboard'];
   onRequestAddNodeAtCanvas?: CanvasCallbacks['onRequestAddNodeAtCanvas'];
+  onUndo?: CanvasCallbacks['onUndo'];
+  onRedo?: CanvasCallbacks['onRedo'];
   mouseEventHandler?: { deps?: { onTypeLabelClick?: CanvasCallbacks['onTypeLabelClick']; onNodeSelected?: CanvasCallbacks['onNodeSelected']; onParameterChanged?: CanvasCallbacks['onParameterChanged']; onConnectionCreated?: CanvasCallbacks['onConnectionCreated']; onRequestAddNodeAtCanvas?: CanvasCallbacks['onRequestAddNodeAtCanvas'] } };
   overlayManager?: { updateDependencies: (deps: Partial<Pick<CanvasCallbacks, 'onFileParameterChanged' | 'onFileDialogOpen' | 'onFileDialogClose' | 'onParameterChanged' | 'onNodeLabelChanged'>>) => void };
 }
@@ -81,6 +85,8 @@ export function setCallbacksImpl(canvas: SetCallbacksCanvas, callbacks: CanvasCa
   canvas.onDuplicateSelected = callbacks.onDuplicateSelected;
   canvas.hasClipboard = callbacks.hasClipboard;
   canvas.onRequestAddNodeAtCanvas = callbacks.onRequestAddNodeAtCanvas;
+  canvas.onUndo = callbacks.onUndo;
+  canvas.onRedo = callbacks.onRedo;
 
   if (canvas.mouseEventHandler?.deps) {
     const deps = canvas.mouseEventHandler.deps;

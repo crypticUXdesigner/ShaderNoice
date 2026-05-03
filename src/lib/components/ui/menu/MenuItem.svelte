@@ -71,7 +71,7 @@
     /* Other */
     cursor: default;
     outline: none;
-    transition: background 0.15s;
+    transition: background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
 
     &:hover:not(.is-disabled),
     &.is-selected:not(.is-disabled) {

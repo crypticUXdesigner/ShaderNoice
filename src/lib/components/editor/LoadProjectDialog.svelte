@@ -285,32 +285,38 @@
       <Button
         variant="ghost"
         size="sm"
-        class={hubTab === 'start' ? 'is-active' : ''}
+        mode="icon-only"
+        class="preset-picker-tab {hubTab === 'start' ? 'is-active' : ''}"
         role="tab"
         aria-selected={hubTab === 'start'}
         aria-controls="preset-picker-panel-start"
         id="preset-picker-tab-start"
+        aria-label="Start"
+        title="Start"
         disabled={busyCombined}
         onclick={() => {
           hubTab = 'start';
         }}
       >
-        Start
+        <IconSvg name="house" variant="line" class="preset-picker-tab__icon" />
       </Button>
       <Button
         variant="ghost"
         size="sm"
-        class={hubTab === 'own' ? 'is-active' : ''}
+        mode="icon-only"
+        class="preset-picker-tab {hubTab === 'own' ? 'is-active' : ''}"
         role="tab"
         aria-selected={hubTab === 'own'}
         aria-controls="preset-picker-panel-own"
         id="preset-picker-tab-own"
+        aria-label="Projects"
+        title="Projects"
         disabled={busyCombined}
         onclick={() => {
           hubTab = 'own';
         }}
       >
-        Projects
+        <IconSvg name="folder-open" variant="line" class="preset-picker-tab__icon" />
       </Button>
     </ButtonGroup>
     <div class="preset-picker-topbar__search">
@@ -538,6 +544,10 @@
 
   .preset-picker-topbar :global(.button-group) {
     flex-shrink: 0;
+  }
+
+  .preset-picker-topbar :global(.preset-picker-tab) {
+    font-size: 1.125rem;
   }
 
   .empty {

@@ -7,6 +7,11 @@
   import { Message, IconSvg, Button } from '../ui';
   import { portal } from '../../actions/portal';
   import { audioAnalysisStatusStore } from '../../stores/audioAnalysisStatusStore';
+  import type { PreviewCompileStatus } from '../../stores/previewCompileStatusStore';
+  import {
+    PREVIEW_COMPILE_DEFAULT_LABEL,
+    previewCompileStatusStore,
+  } from '../../stores/previewCompileStatusStore';
   import { appToastStore, type AppToast } from '../../stores/appToastStore';
 
   /** Legacy writable store: subscribe in an effect so the stack actually re-renders (runes do not auto-subscribe via `$store` inside `$derived` here). */
@@ -14,6 +19,14 @@
   $effect(() => {
     const unsub = appToastStore.subscribe((value) => {
       toasts = value;
+    });
+    return unsub;
+  });
+
+  let previewCompile = $state<PreviewCompileStatus>({ state: 'idle' });
+  $effect(() => {
+    const unsub = previewCompileStatusStore.subscribe((v) => {
+      previewCompile = v;
     });
     return unsub;
   });
@@ -85,8 +98,20 @@
     return { show: false, variant: 'info', label: '' };
   });
 
+  const previewCompileToast = $derived.by((): { show: boolean; label: string } => {
+    if (previewCompile.state === 'updating') {
+      return {
+        show: true,
+        label: previewCompile.label?.trim() || PREVIEW_COMPILE_DEFAULT_LABEL,
+      };
+    }
+    return { show: false, label: '' };
+  });
+
   const showOperationalStack = $derived(
-    autosavePersistDelayedVisible || audioAnalysisToast.show,
+    autosavePersistDelayedVisible ||
+      audioAnalysisToast.show ||
+      previewCompileToast.show,
   );
 
   const errorToastCount = $derived(toasts.filter((t) => t.variant === 'error').length);
@@ -145,35 +170,42 @@
             >
               {#if (t.repeatCount ?? 1) > 1}<span class="toast-repeat-prefix" aria-hidden="true">({t.repeatCount}x) </span>{/if}{t.message}
             </span>
-            {#if t.dismissKeycaps?.length}
-              <span class="toast-dismiss-keycaps" aria-hidden="true">
-                {#each t.dismissKeycaps as k}
-                  <kbd class="toast-kbd" title={k.title}>{k.text}</kbd>
-                {/each}
+            {#if t.dismissKeycaps?.length || t.actionLabel || t.variant === 'error' || t.variant === 'warning'}
+              <span class="toast-line__right">
+                {#if t.dismissKeycaps?.length}
+                  <span class="toast-dismiss-keycaps" aria-hidden="true">
+                    {#each t.dismissKeycaps as k}
+                      <kbd class="toast-kbd" title={k.title}>{k.text}</kbd>
+                    {/each}
+                  </span>
+                {/if}
+                {#if t.actionLabel}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    class="toast-action"
+                    onclick={() => {
+                      t.onAction?.();
+                      appToastStore.dismiss(t.id);
+                    }}
+                  >
+                    {t.actionLabel}
+                  </Button>
+                {/if}
+                {#if t.variant === 'error' || t.variant === 'warning'}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    mode="icon-only"
+                    class="toast-copy"
+                    title="Copy details"
+                    aria-label="Copy details to clipboard"
+                    onclick={() => void copyDetails(t.copyText)}
+                  >
+                    <IconSvg name="copy" variant="line" />
+                  </Button>
+                {/if}
               </span>
-            {/if}
-            {#if t.actionLabel}
-              <Button
-                variant="secondary"
-                size="sm"
-                class="toast-action"
-                onclick={() => {
-                  t.onAction?.();
-                  appToastStore.dismiss(t.id);
-                }}
-              >
-                {t.actionLabel}
-              </Button>
-            {/if}
-            {#if t.variant === 'error' || t.variant === 'warning'}
-              <Button
-                variant="ghost"
-                size="sm"
-                class="toast-copy"
-                onclick={() => void copyDetails(t.copyText)}
-              >
-                Copy
-              </Button>
             {/if}
           </span>
         </Message>
@@ -196,6 +228,16 @@
           {#if audioAnalysisToast.percent !== undefined}
             <span aria-hidden="true"> {audioAnalysisToast.percent}%</span>
           {/if}
+        </span>
+      </Message>
+    {/if}
+    {#if previewCompileToast.show}
+      <Message stacked visible={true} variant="info" hideIcon={true}>
+        <span class="preview-compile-inner">
+          <span class="preview-compile-spinner" aria-hidden="true">
+            <IconSvg name="circle-notch" variant="line" class="preview-compile-spinner__icon" />
+          </span>
+          <span>{previewCompileToast.label}</span>
         </span>
       </Message>
     {/if}
@@ -224,12 +266,14 @@
     pointer-events: auto;
     display: flex;
     justify-content: center;
-    width: min(var(--message-max-width), 100%);
+    width: fit-content;
+    max-width: min(var(--message-max-width), 100%);
   }
 
   .toast-queued {
     pointer-events: auto;
-    width: min(var(--message-max-width), 100%);
+    width: fit-content;
+    max-width: min(var(--message-max-width), 100%);
   }
 
   .toast-line {
@@ -237,15 +281,24 @@
     align-items: center;
     justify-content: flex-start;
     flex-wrap: wrap;
+    column-gap: var(--pd-xl);
+    row-gap: var(--pd-sm);
+    min-width: 0;
+  }
+
+  .toast-line__right {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
     gap: var(--pd-sm);
     min-width: 0;
-    width: 100%;
   }
 
   .toast-msg {
-    flex: 1;
+    flex: 0 1 auto;
     min-width: 0;
     text-align: left;
+    overflow-wrap: break-word;
   }
 
   .toast-dismiss-keycaps {
@@ -280,6 +333,11 @@
     pointer-events: auto;
   }
 
+  :global(.toast-copy svg) {
+    width: var(--icon-size-sm);
+    height: var(--icon-size-sm);
+  }
+
   .autosave-persist-pending-inner {
     display: flex;
     align-items: center;
@@ -306,6 +364,37 @@
   }
 
   :global(.autosave-spinner__icon) {
+    flex-shrink: 0;
+    width: var(--icon-size-sm);
+    height: var(--icon-size-sm);
+  }
+
+  .preview-compile-inner {
+    display: flex;
+    align-items: center;
+    gap: var(--pd-md);
+  }
+
+  .preview-compile-spinner {
+    display: flex;
+    flex-shrink: 0;
+    animation: preview-compile-spinner-rotate 0.85s linear infinite;
+    color: var(--layout-message-color);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .preview-compile-spinner {
+      animation: none;
+    }
+  }
+
+  @keyframes preview-compile-spinner-rotate {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  :global(.preview-compile-spinner__icon) {
     flex-shrink: 0;
     width: var(--icon-size-sm);
     height: var(--icon-size-sm);

@@ -12,6 +12,13 @@
     open: boolean;
     x: number;
     y: number;
+    /**
+     * Keep the panel inside the viewport (same mechanism as `AddNodePicker` / `Popover`).
+     * Default true so stored positions cannot render off-screen after resize or display change.
+     */
+    clampToViewport?: boolean;
+    /** Passed to `Popover` when clamping (px). */
+    viewportInset?: number;
     /** When the user drags the panel, call with new center (x, y). */
     onPositionChange?: (x: number, y: number) => void;
     /** Port/element that opened this – avoids closing when same click opens */
@@ -36,6 +43,8 @@
     open,
     x,
     y,
+    clampToViewport = true,
+    viewportInset = 16,
     onPositionChange,
     triggerElement = null,
     closeOnClickOutside = false,
@@ -96,6 +105,8 @@
   {triggerElement}
   align="center"
   alignY="center"
+  {clampToViewport}
+  {viewportInset}
   closeOnClickOutside={closeOnClickOutside}
   onClose={onClose}
   class="floating-panel {className}"
@@ -139,7 +150,7 @@
         </Button>
       </div>
     </header>
-    <div class="main">
+    <div class="main scrollbar-styled">
       {#if children}
         {@render children()}
       {/if}

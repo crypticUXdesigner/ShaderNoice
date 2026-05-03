@@ -237,14 +237,23 @@
     flex-direction: column;
     flex: 1;
     min-height: 0;
+    overflow: hidden;
 
     &.large {
       /* one-off: large picker dimensions */
+      width: 100%;
       min-width: 560px;
       max-width: 840px;
-      min-height: 400px;
-      max-height: 60vh;
-      height: 60vh;
+      height: 70vh;
+      max-height: 70vh;
+
+      /* Let large content fill the 70vh shell (flex chain for grid / scroll). */
+      > :global(.large) {
+        flex: 1;
+        min-height: 0;
+        min-width: 0;
+        align-self: stretch;
+      }
     }
 
     &.compact {

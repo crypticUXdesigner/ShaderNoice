@@ -5,29 +5,6 @@ import type { NodeGraph } from '../../data-model/types';
  */
 export class GraphAnalyzer {
   /**
-   * Build dependency graph
-   */
-  private buildDependencyGraph(graph: NodeGraph): Map<string, string[]> {
-    const dependencies = new Map<string, string[]>();
-
-    // Initialize all nodes with empty dependencies
-    for (const node of graph.nodes) {
-      dependencies.set(node.id, []);
-    }
-
-    // Add dependencies from connections (both regular port connections and parameter connections)
-    for (const conn of graph.connections) {
-      const deps = dependencies.get(conn.targetNodeId) || [];
-      if (!deps.includes(conn.sourceNodeId)) {
-        deps.push(conn.sourceNodeId);
-      }
-      dependencies.set(conn.targetNodeId, deps);
-    }
-
-    return dependencies;
-  }
-
-  /**
    * Build reverse dependency graph (dependents graph).
    * Maps each node to all nodes that depend on it (downstream dependents).
    */
@@ -94,8 +71,6 @@ export class GraphAnalyzer {
    * connection resolution (which source "wins" when multiple connect to the same parameter).
    */
   topologicalSort(graph: NodeGraph): string[] {
-    const dependencies = this.buildDependencyGraph(graph);
-    const inDegree = new Map<string, number>();
     const result: string[] = [];
     const nodeIds = new Set(graph.nodes.map((n) => n.id));
 
@@ -106,14 +81,27 @@ export class GraphAnalyzer {
       if (nodeIds.has(conn.targetNodeId)) connectedNodeIds.add(conn.targetNodeId);
     }
 
+    // In-degree = count of incoming edges from **real** graph nodes (same as filtering virtual
+    // predecessors out of the unique-deps list). Must match decrement: one decrement per edge,
+    // otherwise multiple wires from the same source (e.g. two float params) under-count in-degree
+    // and a node can run before its predecessors (classic "UI live / shader wrong" + link errors).
+    const inDegree = new Map<string, number>();
+    for (const node of graph.nodes) {
+      inDegree.set(node.id, 0);
+    }
+    for (const conn of graph.connections) {
+      if (!nodeIds.has(conn.targetNodeId)) continue;
+      if (!nodeIds.has(conn.sourceNodeId)) continue;
+      const t = conn.targetNodeId;
+      inDegree.set(t, (inDegree.get(t) ?? 0) + 1);
+    }
+
     // Two queues: process connected nodes before isolated so isolated nodes end up at the end
     const connectedQueue: string[] = [];
     const isolatedQueue: string[] = [];
 
     for (const node of graph.nodes) {
-      const deps = dependencies.get(node.id) || [];
-      const degree = deps.filter((id) => nodeIds.has(id)).length;
-      inDegree.set(node.id, degree);
+      const degree = inDegree.get(node.id) ?? 0;
       if (degree === 0) {
         if (connectedNodeIds.has(node.id)) {
           connectedQueue.push(node.id);
@@ -132,10 +120,12 @@ export class GraphAnalyzer {
 
       for (const conn of graph.connections) {
         if (conn.sourceNodeId !== nodeId) continue;
-        const targetInDegree = (inDegree.get(conn.targetNodeId) || 0) - 1;
-        inDegree.set(conn.targetNodeId, targetInDegree);
+        if (!nodeIds.has(conn.targetNodeId)) continue;
+        if (!nodeIds.has(conn.sourceNodeId)) continue;
+        const targetId = conn.targetNodeId;
+        const targetInDegree = (inDegree.get(targetId) || 0) - 1;
+        inDegree.set(targetId, targetInDegree);
         if (targetInDegree === 0) {
-          const targetId = conn.targetNodeId;
           if (connectedNodeIds.has(targetId)) {
             connectedQueue.push(targetId);
           } else {

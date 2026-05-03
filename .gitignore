@@ -11,11 +11,10 @@ dist/
 .env.*.local
 
 # Performance baseline: Lighthouse JSON report (regenerate with npx lighthouse ...)
-docs/projects/quality-review-remediation/lighthouse-report.json
+**/lighthouse-report.json
 
-# Exclude all markdown files except README.md
-*.md
-!README.md
+## Local scratchpad (not project documentation)
+docs/_NOTES.md
 
 *storybook.log
 storybook-static

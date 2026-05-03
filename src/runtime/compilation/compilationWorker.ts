@@ -11,6 +11,7 @@ import type {
   WorkerCompilePayload,
   WorkerReplyMessage
 } from './workerMessages';
+import { previewPerformanceMark, PreviewPerfMark } from '../previewPerformanceMarks';
 
 let compiler: NodeShaderCompiler | null = null;
 
@@ -43,6 +44,7 @@ self.onmessage = (event: MessageEvent<WorkerInitPayload | WorkerCompilePayload>)
     const { id, graph, audioSetup, previousResult, affectedNodeIds, tryIncremental } = payload;
     const affectedNodeIdsSet = new Set(affectedNodeIds);
 
+    previewPerformanceMark(PreviewPerfMark.compileWorkerStart);
     try {
       let result: CompilationResult;
 
@@ -73,6 +75,8 @@ self.onmessage = (event: MessageEvent<WorkerInitPayload | WorkerCompilePayload>)
         id,
         message: e instanceof Error ? e.message : String(e)
       } satisfies WorkerReplyMessage);
+    } finally {
+      previewPerformanceMark(PreviewPerfMark.compileWorkerEnd);
     }
   }
 };

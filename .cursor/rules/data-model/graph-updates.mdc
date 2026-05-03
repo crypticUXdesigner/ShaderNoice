@@ -11,4 +11,4 @@ Every change yields a **new** graph reference. Never mutate `NodeGraph`, its `no
 - **Use** `src/data-model/immutableUpdates.ts` (`updateNodeParameter`, `addNode`, `addConnection`, `updateViewState`, …) or **`graphStore`** actions (they wrap helpers). Pass the updated graph into runtime afterward.
 - **Don’t:** `graph.nodes.find(...).parameters[x] = …`; user-driven changes bypassing the store.
 
-**Refs:** `immutableUpdates.ts`, `docs/core-architecture-review.md` (§1 Graph ownership).
+**Refs:** `immutableUpdates.ts`, `docs/architecture/graph-and-platform-boundaries.md` (graph ownership).

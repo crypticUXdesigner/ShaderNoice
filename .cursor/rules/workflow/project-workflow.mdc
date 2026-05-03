@@ -1,6 +1,6 @@
 ---
 description: When to use project/task commands (define-project, define-tasks, implement-task, review-project) and where they live.
-globs: "docs/projects/**/*.md,.cursor/commands/**/*.md,.cursor/skills/**/*.md"
+globs: "docs/implementation/**/*.md,.cursor/commands/**/*.md,.cursor/skills/**/*.md"
 alwaysApply: false
 ---
 
@@ -22,6 +22,7 @@ Context: **`AGENTS.md`**, **`core/project-conventions.mdc`** (immutable graph, u
 | Performance findings → maybe WPs | `/review-performance` |
 | Capture investigated bug | `/write-bug` |
 | Close loop on `docs/bug/` report | `/review-bug` |
+| Prune / relocate stale `docs/`; refresh `docs/architecture/` vs code | `/cleanup-docs` |
 | Audit Cursor agent config itself | `/review-agent-tooling` |
 
 After big structural changes: consider new/updated **`docs/`** or **`.cursor/rules/`** entries — propose separately, don’t fold into unrelated implementation PRs unless required.

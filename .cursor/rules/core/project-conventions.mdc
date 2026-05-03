@@ -7,4 +7,4 @@ alwaysApply: true
 
 - **Features / UX:** Match `docs/user-goals/` for the area you change (canvas, panel, parameters, audio, timeline, export, etc.).
 - **Graph:** Single source of truth in `src/data-model/` — immutable updates, serialization, validation only; never mutate in place. Runtime and compilation **read** the graph; they do not mutate it.
-- **Pointers:** Implement via `.cursor/rules/`; behavior specs in `docs/user-goals/`; multi-step work in `docs/projects/`; repeatable flows in `.cursor/skills/`; checklists in `.cursor/commands/`.
+- **Pointers:** Implement via `.cursor/rules/`; behavior specs in `docs/user-goals/`; multi-step tasks and implementation specs in `docs/implementation/`; repeatable flows in `.cursor/skills/`; checklists in `.cursor/commands/`.

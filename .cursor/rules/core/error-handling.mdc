@@ -11,4 +11,4 @@ Compilation and runtime use **one** user-facing path (e.g. `ErrorHandler` / proj
 - **Do:** Surface errors through that abstraction; no ad-hoc DOM or stray `console` as the sole UX path. When rethrowing: `throw new Error('msg', { cause: err })` (see `.cursor/rules/frontend/typescript-standards.mdc`).
 - **Don’t:** Per-module custom error UX; empty `catch` — name, log, or rethrow.
 
-**Refs:** `src/utils/errorHandling.ts`, `docs/user-goals/01-overview-and-app-shell.md`, `docs/projects/core-architecture/_OVERVIEW.md` (§05).
+**Refs:** `src/utils/errorHandling.ts`, `docs/user-goals/01-overview-and-app-shell.md`, `docs/architecture/graph-and-platform-boundaries.md` (runtime / store context).

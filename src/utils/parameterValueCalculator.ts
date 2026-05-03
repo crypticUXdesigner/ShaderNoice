@@ -143,6 +143,13 @@ export function computeEffectiveParameterValue(
   audioManager?: IAudioManager,
   automationValue?: number | null
 ): number | null {
+  const clampToRange = (value: number): number => {
+    // Range policy: defaults to 0..1 when missing (matches existing snap defaults).
+    const min = typeof paramSpec.min === 'number' ? paramSpec.min : 0;
+    const max = typeof paramSpec.max === 'number' ? paramSpec.max : 1;
+    return Math.max(min, Math.min(max, value));
+  };
+
   const configNum: number = USE_SIGNAL_MODEL
     ? evaluateConfigFromSignalBindings(
         buildParameterSignalBindings({
@@ -160,7 +167,7 @@ export function computeEffectiveParameterValue(
   );
 
   if (!connection) {
-    return configNum;
+    return clampToRange(configNum);
   }
 
   const inputMode: ParameterInputMode =
@@ -171,19 +178,19 @@ export function computeEffectiveParameterValue(
   const inputValue = getInputValue(connection, graph, nodeSpecs, audioManager);
 
   if (inputValue === null) {
-    return configNum;
+    return clampToRange(configNum);
   }
 
   switch (inputMode) {
     case 'override':
-      return inputValue;
+      return clampToRange(inputValue);
     case 'add':
-      return configNum + inputValue;
+      return clampToRange(configNum + inputValue);
     case 'subtract':
-      return configNum - inputValue;
+      return clampToRange(configNum - inputValue);
     case 'multiply':
-      return configNum * inputValue;
+      return clampToRange(configNum * inputValue);
     default:
-      return inputValue;
+      return clampToRange(inputValue);
   }
 }

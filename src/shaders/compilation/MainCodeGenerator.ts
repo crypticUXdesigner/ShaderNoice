@@ -40,7 +40,8 @@ export class MainCodeGenerator {
   }
 
   private getNodeCodeContext(
-    variableNames: Map<string, Map<string, string>>
+    variableNames: Map<string, Map<string, string>>,
+    executionOrder: string[]
   ): NodeCodeContext {
     const self = this;
     return {
@@ -58,7 +59,8 @@ export class MainCodeGenerator {
           functionNameMap,
           self.nodeSpecs,
           self.generateParameterCombination,
-          self.escapeRegex
+          self.escapeRegex,
+          executionOrder
         );
       }
     };
@@ -83,7 +85,7 @@ export class MainCodeGenerator {
     const variableDeclarations = declLines.join('\n');
     const mainCode: string[] = [];
     const genericRaymarcherSdfFunctions: string[] = [];
-    const nodeCodeCtx = this.getNodeCodeContext(variableNames);
+    const nodeCodeCtx = this.getNodeCodeContext(variableNames, executionOrder);
 
     for (const nodeId of executionOrder) {
       const node = graph.nodes.find(n => n.id === nodeId);
@@ -103,7 +105,8 @@ export class MainCodeGenerator {
           functionNameMap,
           this.nodeSpecs,
           this.generateParameterCombination,
-          this.escapeRegex
+          this.escapeRegex,
+          executionOrder
         );
         if (sdfFuncCode) genericRaymarcherSdfFunctions.push(sdfFuncCode);
       }

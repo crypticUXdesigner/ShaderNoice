@@ -92,3 +92,46 @@ export function setStoredPosition(
     /* ignore */
   }
 }
+
+/**
+ * Conservative outer box for clamping the **large** audio signal picker center
+ * (`AudioSignalPickerPanel` + `FloatingPanel` chrome). Slightly oversized so the
+ * real panel stays inside the viewport after resize / monitor changes.
+ */
+export const AUDIO_SIGNAL_PICKER_LARGE_CLAMP_BOX = { width: 900, height: 800 } as const;
+
+/**
+ * Conservative outer box for the **compact** connected-signal picker.
+ */
+export const AUDIO_SIGNAL_PICKER_COMPACT_CLAMP_BOX = { width: 440, height: 360 } as const;
+
+/**
+ * Clamp a fixed `Popover` / `FloatingPanel` center (`align="center"`, `alignY="center"`)
+ * so the panel bounding box fits in the viewport with `inset` px margin.
+ * Used when restoring stored coordinates that may be off-screen.
+ */
+export function clampPanelCenterToViewport(
+  center: { x: number; y: number },
+  panelWidth: number,
+  panelHeight: number,
+  inset = 16
+): { x: number; y: number } {
+  if (typeof window === 'undefined') return center;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const w = Math.min(panelWidth, Math.max(1, vw - 2 * inset));
+  const h = Math.min(panelHeight, Math.max(1, vh - 2 * inset));
+  const halfW = w / 2;
+  const halfH = h / 2;
+  let x = center.x;
+  let y = center.y;
+  const minX = inset + halfW;
+  const maxX = vw - inset - halfW;
+  const minY = inset + halfH;
+  const maxY = vh - inset - halfH;
+  if (minX <= maxX) x = Math.min(Math.max(x, minX), maxX);
+  else x = vw / 2;
+  if (minY <= maxY) y = Math.min(Math.max(y, minY), maxY);
+  else y = vh / 2;
+  return { x, y };
+}

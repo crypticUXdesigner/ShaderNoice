@@ -57,10 +57,10 @@
     text-align: left;
     user-select: none;
     transition:
-      background 0.15s,
-      transform 0.15s,
-      color 0.15s,
-      box-shadow 0.15s;
+      background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      transform var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      box-shadow var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
   }
 
   button.row-card {
@@ -122,7 +122,7 @@
     flex-shrink: 0;
     color: var(--print-subtle);
     opacity: 0.9;
-    transition: color 0.15s;
+    transition: color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
   }
 
   .preset-open-icon :global(svg) {
@@ -130,7 +130,7 @@
     height: 1.125rem;
     min-width: 1.125rem;
     min-height: 1.125rem;
-    transition: transform 0.15s ease;
+    transition: transform var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
   }
 
   .preset-name {

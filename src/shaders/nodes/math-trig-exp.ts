@@ -88,7 +88,7 @@ export const arcTangent2NodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    x: { type: 'float', default: 1.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'X Component',
+    x: { type: 'float', default: 1.0, min: -10.0, max: 10.0, step: 0.001, label: 'X Component',
       knobPolarity: 'two-sided' }
   },
   mainCode: `$output.out = atan($input.y, $input.x);`

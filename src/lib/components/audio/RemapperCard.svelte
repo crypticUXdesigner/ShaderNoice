@@ -62,17 +62,6 @@
     <Button
       variant="ghost"
       size="sm"
-      mode="both"
-      title="Connect"
-      aria-label={`Connect: ${remapper.name || remapper.id}`}
-      onclick={(e) => { e.stopPropagation(); onConnect?.(); }}
-    >
-      <IconSvg name="plug" variant="line" />
-      Connect
-    </Button>
-    <Button
-      variant="ghost"
-      size="sm"
       mode="icon-only"
       title="Delete remapper"
       aria-label={`Delete remapper: ${remapper.name || remapper.id}`}
@@ -81,7 +70,18 @@
         onDelete?.();
       }}
     >
-      <IconSvg name="minus-circle" variant="filled" />
+      <IconSvg name="trash" variant="line" />
+    </Button>
+    <Button
+      variant="ghost"
+      size="sm"
+      mode="both"
+      title="Connect"
+      aria-label={`Connect: ${remapper.name || remapper.id}`}
+      onclick={(e) => { e.stopPropagation(); onConnect?.(); }}
+    >
+      <IconSvg name="plug" variant="line" />
+      Connect
     </Button>
   </div>
   <div class="editor-wrap">
@@ -101,6 +101,8 @@
   .remapper-card {
     /* Layout */
     flex-direction: column;
+    width: 100%;
+    box-sizing: border-box;
     padding-bottom: var(--pd-sm);
 
     /* Other */

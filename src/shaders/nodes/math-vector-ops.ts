@@ -28,9 +28,9 @@ export const distanceNodeSpec: NodeSpec = {
   ],
   outputs: [{ name: 'out', type: 'float', label: '=' }],
   parameters: {
-    bX: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Target X',
+    bX: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.001, label: 'Target X',
       knobPolarity: 'two-sided' },
-    bY: { type: 'float', default: 0.0, min: -1000.0, max: 1000.0, step: 0.01, label: 'Target Y',
+    bY: { type: 'float', default: 0.0, min: -10.0, max: 10.0, step: 0.001, label: 'Target Y',
       knobPolarity: 'two-sided' }
   },
   parameterLayout: {

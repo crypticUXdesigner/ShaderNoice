@@ -14,6 +14,12 @@ import { validateConnection } from './validationConnection';
 export type { NodeSpecification } from './validationTypes';
 
 /**
+ * Overlap (seconds) must exceed this before validation errors. Slightly above 1ms so
+ * `30 - 29.999`-class float/snap gaps do not false-positive; real overlaps (e.g. 5s) still fail.
+ */
+const EVALUABLE_REGION_OVERLAP_TOLERANCE_SEC = 1e-3 + 1e-6;
+
+/**
  * Validates a complete node graph.
  */
 export function validateGraph(
@@ -170,7 +176,8 @@ export function validateAutomation(
       const r = evaluableSorted[ei];
       const next = evaluableSorted[ei + 1];
       const end = r.startTime + r.duration;
-      if (end > next.startTime) {
+      const overlapSec = end - next.startTime;
+      if (overlapSec > EVALUABLE_REGION_OVERLAP_TOLERANCE_SEC) {
         errors.push(
           `Automation lane ${lane.id}: overlapping evaluable regions (${r.id} ends at ${end}, ${next.id} starts at ${next.startTime})`
         );

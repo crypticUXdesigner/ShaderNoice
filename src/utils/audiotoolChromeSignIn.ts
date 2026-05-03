@@ -1,6 +1,6 @@
 /**
  * Pure policy for "Sign in to Audiotool" in the chrome when OAuth is configured
- * but there is no active session (see docs/projects/audiotool-optional-connection/IMPLEMENTATION_PLAN.md §4).
+ * but there is no active session (see docs/user-goals/01-overview-and-app-shell.md — optional Audiotool OAuth).
  */
 
 export interface AudiotoolSignInChromeInput {

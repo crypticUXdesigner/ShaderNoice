@@ -15,4 +15,4 @@ alwaysApply: false
 - New work lands in owning feature dirs; primitives only in **`lib/components/ui/`**; node-only controls → **`node/parameters/`**.
 - **`lib`** imports **`ui/editor`** (optional **`ui/interactions`**) strictly via **`index.ts`** — no deep `ui/` paths.
 
-Diagram + migration notes: **`docs/architecture/component-structure-consultation.md`**.
+Editor layout + lib/ui split: **`docs/architecture/editor-ui-canvas-layout.md`** (appendix: historical migration notes).

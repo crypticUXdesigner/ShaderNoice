@@ -191,7 +191,9 @@
       height: var(--range-editor-edge-thickness);
       background: var(--range-editor-handle-bg);
       border-radius: 1px;
-      transition: height 0.15s, background 0.15s;
+      transition:
+        height var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+        background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
     }
 
     &:hover::before {

@@ -51,9 +51,9 @@
     box-sizing: border-box;
     user-select: none;
     transition:
-      background 0.15s,
-      transform 0.15s,
-      color 0.15s;
+      background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      transform var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
 
     &:focus {
       outline: none;

@@ -21,6 +21,8 @@ export interface KeyboardShortcutContext {
   onDuplicateSelected?: () => void;
   /** Whether there is node data to paste */
   hasClipboard?: () => boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
 export class KeyboardShortcutHandler {
@@ -126,6 +128,26 @@ export class KeyboardShortcutHandler {
     }
     if (mod && e.key === 'd') {
       this.context.onDuplicateSelected?.();
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    const isZ = e.key === 'z' || e.key === 'Z';
+    if (mod && isZ) {
+      if (e.shiftKey) {
+        this.context.onRedo?.();
+      } else {
+        this.context.onUndo?.();
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+
+    // Windows-style redo (in addition to Ctrl/Cmd+Shift+Z)
+    if (mod && !e.shiftKey && (e.key === 'y' || e.key === 'Y')) {
+      this.context.onRedo?.();
       e.preventDefault();
       e.stopPropagation();
       return;

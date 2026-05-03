@@ -70,6 +70,21 @@
     cursor: default;
     outline: none;
 
+    transition:
+      background-color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      border-color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      box-shadow var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      transform var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      opacity var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      padding var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      gap var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      border-radius var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
+
+    &:active:not(:disabled):not(.disabled) {
+      transform: translateY(0.5px);
+    }
+
     &.primary {
       background: var(--primary-bg);
       color: var(--primary-print);
@@ -224,6 +239,17 @@
       opacity: var(--opacity-disabled);
       cursor: not-allowed;
       pointer-events: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .button {
+      transition-duration: 1ms;
+      transform: none;
+
+      &:active:not(:disabled):not(.disabled) {
+        transform: none;
+      }
     }
   }
 </style>

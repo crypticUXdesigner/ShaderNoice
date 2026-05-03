@@ -12,6 +12,8 @@ import { InteractionType } from '../InteractionTypes';
 import type { InteractionEvent, InteractionHandler } from '../InteractionHandler';
 import type { HandlerContext } from '../HandlerContext';
 import { shouldRequestPanRender } from '../panRenderThrottle';
+import { previewPerformanceMark, PreviewPerfMark } from '../../../runtime/previewPerformanceMarks';
+import { getPreviewScheduler } from '../../../runtime/PreviewScheduler';
 
 interface VelocityPoint {
   panX: number;
@@ -97,6 +99,8 @@ export class CanvasPanHandler implements InteractionHandler {
     if (isSpacePressed || isMiddleMouse) {
       // Start panning immediately
       this.isPanning = true;
+      previewPerformanceMark(PreviewPerfMark.editorPanZoomStart);
+      getPreviewScheduler().recordInteractionStart('CanvasPanHandler');
       this.panStartX = mouseX - state.panX;
       this.panStartY = mouseY - state.panY;
       this.lastMouseX = mouseX;
@@ -150,6 +154,8 @@ export class CanvasPanHandler implements InteractionHandler {
         // Start panning
         const state = this.context.getState();
         this.isPanning = true;
+        previewPerformanceMark(PreviewPerfMark.editorPanZoomStart);
+        getPreviewScheduler().recordInteractionStart('CanvasPanHandler');
         this.potentialBackgroundPan = false;
         this.panStartX = this.backgroundDragStartX - state.panX;
         this.panStartY = this.backgroundDragStartY - state.panY;
@@ -187,6 +193,10 @@ export class CanvasPanHandler implements InteractionHandler {
   
   onEnd(_event: InteractionEvent): void {
     const wasPanning = this.isPanning;
+    if (wasPanning) {
+      previewPerformanceMark(PreviewPerfMark.editorPanZoomEnd);
+      getPreviewScheduler().recordInteractionEnd('CanvasPanHandler');
+    }
     this.isPanning = false;
     this.potentialBackgroundPan = false;
     

@@ -1,7 +1,7 @@
 /**
  * Audit: list node doc entries missing setupExampleGraph (or with empty nodes).
  * Run: node scripts/audit-setup-examples.mjs
- * Used by docs/projects/setup-examples-coverage/ (task 01).
+ * Used when auditing setup examples (see docs/implementation/ if a task spec exists).
  */
 import fs from 'fs';
 import path from 'path';

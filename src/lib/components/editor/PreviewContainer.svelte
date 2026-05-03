@@ -502,7 +502,9 @@
 
 <style>
   .preview-container {
-    transition: left 0.3s ease, width 0.3s ease;
+    transition:
+      left var(--motion-spatial-fast-duration) var(--motion-spatial-fast-easing),
+      width var(--motion-spatial-fast-duration) var(--motion-spatial-fast-easing);
   }
 
   .preview-container.node-view,

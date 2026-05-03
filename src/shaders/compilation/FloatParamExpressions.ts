@@ -1,11 +1,21 @@
 import type { NodeGraph } from '../../data-model/types';
 import type { NodeSpec } from '../../types/nodeSpec';
-import { isVirtualNodeId } from '../../utils/virtualNodes';
 import { automationLaneHasEvaluableRegions } from '../../utils/automationEvaluator';
+import { formatParamLiteralForGlsl } from './MainCodeGeneratorUtils';
+import { resolveFloatParameterInputVarsFromConnections } from './resolveFloatParameterInputVarsFromConnections';
 
 export type FloatParamExpressionMap = Record<string, string> & {
   __hasInputConnections?: boolean;
 };
+
+function clampFloatExpression(expr: string, paramSpec: NodeSpec['parameters'][string] | undefined): string {
+  if (!paramSpec || paramSpec.type !== 'float') return expr;
+  const min = typeof paramSpec.min === 'number' ? paramSpec.min : 0;
+  const max = typeof paramSpec.max === 'number' ? paramSpec.max : 1;
+  const minStr = formatParamLiteralForGlsl(min, { type: 'float' });
+  const maxStr = formatParamLiteralForGlsl(max, { type: 'float' });
+  return `clamp((${expr}), ${minStr}, ${maxStr})`;
+}
 
 export function getAutomationExpressionForParam(
   nodeId: string,
@@ -32,6 +42,7 @@ export function buildFloatParamExpressions(
   node: NodeGraph['nodes'][number],
   nodeSpec: NodeSpec,
   graph: NodeGraph,
+  executionOrder: string[],
   uniformNames: Map<string, string>,
   variableNames: Map<string, Map<string, string>>,
   nodeSpecs: Map<string, NodeSpec>,
@@ -47,55 +58,17 @@ export function buildFloatParamExpressions(
 ): FloatParamExpressionMap {
   const expressions: FloatParamExpressionMap = {} as FloatParamExpressionMap;
 
-  // Build map of parameter input variables (for parameters with input connections)
-  const parameterInputVars = new Map<string, string>();
+  const parameterInputVars = resolveFloatParameterInputVarsFromConnections(
+    node,
+    nodeSpec,
+    graph,
+    executionOrder,
+    variableNames,
+    uniformNames,
+    nodeSpecs
+  );
 
-  for (const conn of graph.connections) {
-    if (conn.targetNodeId === node.id && conn.targetParameter) {
-      const paramSpec = nodeSpec.parameters[conn.targetParameter];
-      if (!paramSpec || paramSpec.type !== 'float') continue;
-
-      const sourceNode = graph.nodes.find((n) => n.id === conn.sourceNodeId);
-
-      if (!sourceNode) {
-        // Virtual audio node (no NodeInstance in graph): map directly to its uniform.
-        if (isVirtualNodeId(conn.sourceNodeId)) {
-          const uniformName = uniformNames.get(conn.sourceNodeId);
-          if (uniformName) {
-            parameterInputVars.set(conn.targetParameter, uniformName);
-          }
-        }
-        continue;
-      }
-
-      const sourceSpec = nodeSpecs.get(sourceNode.type);
-      if (!sourceSpec) continue;
-
-      const sourceOutput =
-        sourceSpec.outputs.find((o) => o.name === conn.sourcePort) ??
-        sourceSpec.outputs[0];
-      if (!sourceOutput) continue;
-
-      const sourcePortName = sourceOutput.name;
-
-      if (!variableNames.has(conn.sourceNodeId)) continue;
-
-      const sourceVarName = variableNames
-        .get(conn.sourceNodeId)
-        ?.get(sourcePortName);
-      if (!sourceVarName) continue;
-
-      let promotedVar = sourceVarName;
-      if (sourceOutput.type === 'int') {
-        promotedVar = `float(${sourceVarName})`;
-      } else if (sourceOutput.type !== 'float') {
-        promotedVar = `${sourceVarName}.x`;
-      }
-      parameterInputVars.set(conn.targetParameter, promotedVar);
-    }
-  }
-
-  // CRITICAL VALIDATION: Verify all variable references in parameterInputVars will exist
+  // Best-effort check: list declared node output globals (same names FunctionGenerator will validate).
   const allValidVars = new Set<string>();
   for (const nodeVars of variableNames.values()) {
     for (const varName of nodeVars.values()) {
@@ -106,17 +79,17 @@ export function buildFloatParamExpressions(
   const paramVarNamePattern = /\bnode_[a-zA-Z0-9_]+_[a-zA-Z0-9_]+\b/g;
   for (const [paramName, varRef] of parameterInputVars.entries()) {
     const matches = varRef.match(paramVarNamePattern);
-    if (matches) {
-      for (const varName of matches) {
-        if (!allValidVars.has(varName)) {
-          console.error(
-            `[NodeShaderCompiler] CRITICAL: Node ${node.id} (${nodeSpec.id}), parameter ${paramName}: ` +
-              `Variable ${varName} referenced in expression "${varRef}" will not be declared. ` +
-              `Source connection may be invalid or variable name mismatch. Removing invalid reference.`
-          );
-          parameterInputVars.delete(paramName);
-          break;
-        }
+    if (!matches) continue;
+    for (const varName of matches) {
+      if (!allValidVars.has(varName)) {
+        // Do not drop the mapping: dropping makes $param.* fall through to 0.0 in function bodies
+        // (e.g. box-torus-sdf sceneSDF) while the UI still shows a correct CPU-evaluated live value.
+        // FunctionGenerator already replaces undeclared node_* refs with 0.0 when truly invalid.
+        console.warn(
+          `[NodeShaderCompiler] Parameter ${paramName} on ${node.id} (${nodeSpec.id}): ` +
+            `GLSL expression "${varRef}" references "${varName}" which is not in the emitted output set. ` +
+            `If this is a false positive, the connection is kept; otherwise compilation may warn or substitute 0.0.`
+        );
       }
     }
   }
@@ -138,7 +111,7 @@ export function buildFloatParamExpressions(
         paramSpec.inputMode ||
         'override';
       if (inputMode === 'override') {
-        expressions[paramName] = paramInputVar;
+        expressions[paramName] = clampFloatExpression(paramInputVar, paramSpec);
       } else {
         const automationExpr = getAutomationExpressionForParam(
           node.id,
@@ -162,7 +135,7 @@ export function buildFloatParamExpressions(
           inputMode,
           paramType
         );
-        expressions[paramName] = combinedExpr;
+        expressions[paramName] = clampFloatExpression(combinedExpr, paramSpec);
       }
     } else {
       const automationExpr = getAutomationExpressionForParam(
@@ -172,11 +145,11 @@ export function buildFloatParamExpressions(
         paramSpec
       );
       if (automationExpr) {
-        expressions[paramName] = automationExpr;
+        expressions[paramName] = clampFloatExpression(automationExpr, paramSpec);
       } else {
         const uniformName = uniformNames.get(`${node.id}.${paramName}`);
         if (uniformName) {
-          expressions[paramName] = uniformName;
+          expressions[paramName] = clampFloatExpression(uniformName, paramSpec);
         }
       }
     }

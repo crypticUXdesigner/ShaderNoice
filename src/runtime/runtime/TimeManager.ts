@@ -1,27 +1,37 @@
 /**
  * Time Manager
- * 
+ *
  * Manages time tracking and dirty state for conditional rendering.
  * Extracted from RuntimeManager to improve separation of concerns.
  */
 
-import type { IRenderer } from '../types';
+import type { IRenderer, PreviewDependencyMask } from '../types';
 import type { ShaderInstance } from '../ShaderInstance';
+
+export interface TimeManagerUpdateOptions {
+  /** From last successful compile (WP 02B); null = legacy full-rate behavior. */
+  previewDependencies: PreviewDependencyMask | null;
+  /** Timeline transport playing (full-rate preview while true). */
+  timelinePlaying: boolean;
+}
 
 /**
  * Time Manager
- * 
+ *
  * Tracks time for shader uniforms and manages dirty state for rendering.
  */
 export class TimeManager {
   private lastTime: number = 0;
   private isDirty: boolean = false;
   private readonly TIME_CHANGE_THRESHOLD = 0.01; // Only update if change > 0.01s
+  /** Last time we ran an audio-uniform pass when paused + audio-reactive (plan §3.6 cap). */
+  private lastPausedAudioUniformMs = 0;
+  private static readonly PAUSED_AUDIO_MIN_INTERVAL_MS = 1000 / 15;
 
   /**
    * Update time uniform if it changed meaningfully or if dirty.
-   * Audio uniforms are always updated every frame when a shader exists, so
-   * audio-reactive parameters stay live regardless of time or dirty state.
+   * When `previewDependencies` is set, skips per-frame audio uniform work unless the shader
+   * uses audio uniforms or the timeline is playing (pattern B — no orphan uploads when idle).
    *
    * @param time - Current time value
    * @param shaderInstance - Shader instance to update
@@ -33,36 +43,59 @@ export class TimeManager {
     time: number,
     shaderInstance: ShaderInstance | null,
     renderer: IRenderer,
-    updateAudioUniforms?: (shaderInstance: ShaderInstance) => void
+    updateAudioUniforms?: (shaderInstance: ShaderInstance) => void,
+    options?: TimeManagerUpdateOptions
   ): boolean {
     if (!shaderInstance) return false;
 
-    // Always update audio uniforms every frame when we have a shader, so
-    // parameter connections to audio (analyzer, remap, etc.) stay reactive
-    // even when time hasn't changed or nothing is dirty.
+    const deps = options?.previewDependencies ?? null;
+    const playing = options?.timelinePlaying ?? false;
+    const hasDeps = deps !== null;
+    const audioInShader = !hasDeps || deps.usesAudioUniforms;
+
+    let shouldRunAudioUniformPass = false;
     if (updateAudioUniforms) {
+      if (!hasDeps) {
+        shouldRunAudioUniformPass = true;
+      } else if (playing) {
+        shouldRunAudioUniformPass = true;
+      } else if (this.isDirty) {
+        shouldRunAudioUniformPass = true;
+      } else if (audioInShader) {
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        if (now - this.lastPausedAudioUniformMs >= TimeManager.PAUSED_AUDIO_MIN_INTERVAL_MS) {
+          shouldRunAudioUniformPass = true;
+          this.lastPausedAudioUniformMs = now;
+        }
+      }
+    }
+
+    if (shouldRunAudioUniformPass && updateAudioUniforms) {
       updateAudioUniforms(shaderInstance);
     }
 
-    // Only update time uniform and render if time changed meaningfully or dirty
     const timeChanged = Math.abs(time - this.lastTime) > this.TIME_CHANGE_THRESHOLD;
-    if (!timeChanged && !this.isDirty) {
-      return false; // Skip time/render - time hasn't changed and nothing else is dirty
+    const wallOrTimelineDrives = !hasDeps || deps.usesWallTime || deps.usesTimelineTime;
+    const needRenderByClock = timeChanged && wallOrTimelineDrives;
+    const needRenderForPausedAudio = shouldRunAudioUniformPass && audioInShader && !playing;
+
+    if (!this.isDirty && !playing && !needRenderByClock && !needRenderForPausedAudio) {
+      return false;
     }
 
     this.lastTime = time;
     shaderInstance.setTime(time);
 
-    // Mark as dirty and render
     renderer.markDirty('time');
     renderer.render();
+    this.isDirty = false;
 
     return true;
   }
 
   /**
    * Mark runtime as dirty (something changed that requires render).
-   * 
+   *
    * @param renderer - Renderer to mark dirty
    * @param reason - Reason for marking dirty
    */
@@ -73,7 +106,7 @@ export class TimeManager {
 
   /**
    * Render if dirty.
-   * 
+   *
    * @param renderer - Renderer to use
    * @returns true if rendered, false if not dirty
    */
@@ -113,5 +146,6 @@ export class TimeManager {
   reset(): void {
     this.lastTime = 0;
     this.isDirty = false;
+    this.lastPausedAudioUniformMs = 0;
   }
 }

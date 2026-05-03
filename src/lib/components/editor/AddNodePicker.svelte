@@ -394,7 +394,7 @@
     color: var(--print-highlight);
     font-size: var(--text-sm);
     cursor: default;
-    transition: background 0.12s ease;
+    transition: background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
   }
 
   .node-row:hover,

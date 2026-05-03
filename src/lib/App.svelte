@@ -62,7 +62,13 @@
   import EditorParameterValueOverlay from './components/editor/EditorParameterValueOverlay.svelte';
   import EditorLabelEditOverlay from './components/editor/EditorLabelEditOverlay.svelte';
   import { HelpCallout, NodeRightClickMenu, ColorPickerPopover, AudioSignalPicker } from './components';
-  import { getStoredPosition, setStoredPosition } from './components/floating-panel';
+  import {
+    getStoredPosition,
+    setStoredPosition,
+    clampPanelCenterToViewport,
+    AUDIO_SIGNAL_PICKER_LARGE_CLAMP_BOX,
+    AUDIO_SIGNAL_PICKER_COMPACT_CLAMP_BOX,
+  } from './components/floating-panel';
   import { Button, DropdownMenu, ModalDialog } from './components/ui';
   import type { DropdownMenuItem } from './components/ui';
   import type { NodeEditorCanvasWrapperAPI } from './components/editor/NodeEditorCanvasWrapper.types';
@@ -310,8 +316,44 @@
   let runtimeManager = $state<Awaited<ReturnType<typeof createRuntimeManager>> | null>(null);
   let runtimeDispatcher = $state<RuntimeMessageDispatcher | null>(null);
   let waveformService = $state<WaveformService | null>(null);
-  let undoRedoManager!: UndoRedoManager;
+  let undoRedoManager = $state<UndoRedoManager | null>(null);
+  let undoStackRevision = $state(0);
+  const canUndoGraph = $derived.by(() => {
+    void undoStackRevision;
+    return undoRedoManager?.canUndo() ?? false;
+  });
+  const canRedoGraph = $derived.by(() => {
+    void undoStackRevision;
+    return undoRedoManager?.canRedo() ?? false;
+  });
   let canvasApi = $state<NodeEditorCanvasWrapperAPI | null>(null);
+
+  async function applyGraphHistorySnapshot(g: NodeGraph): Promise<void> {
+    canvasApi?.beginGraphHistoryRestore();
+    try {
+      graphStore.clearPatchPicks();
+      graphStore.setGraph(g, { skipGraphChangedListener: true });
+      localRevision++;
+      await runtimeDispatcher?.loadGraph(g);
+    } finally {
+      undoStackRevision++;
+      canvasApi?.completeGraphHistoryRestore(graphStore.graph);
+    }
+  }
+
+  async function performGraphUndo(): Promise<void> {
+    if (!runtimeDispatcher || !undoRedoManager) return;
+    const g = undoRedoManager.undo();
+    if (!g) return;
+    await applyGraphHistorySnapshot(g);
+  }
+
+  async function performGraphRedo(): Promise<void> {
+    if (!runtimeDispatcher || !undoRedoManager) return;
+    const g = undoRedoManager.redo();
+    if (!g) return;
+    await applyGraphHistorySnapshot(g);
+  }
 
   /** API exposed by BottomBar via bind:this (exported functions). */
   interface BottomBarRef {
@@ -407,6 +449,9 @@
   let signalPickerOnSelect = $state<((payload: SignalSelectPayload) => void) | null>(null);
   let signalPickerTriggerElement = $state<HTMLElement | null>(null);
 
+  /** Load picker, shortcuts modal, preset import confirm (see NodeEditorLayout). */
+  let layoutBlockingCanvasShortcuts = $state(false);
+
   const overlayBridge: CanvasOverlayBridge = {
     showParameterValueInput(screenX, screenY, value, size, paramType, onCommit, onCancel) {
       parameterValueOverlayX = screenX;
@@ -469,7 +514,8 @@
     },
     showSignalPicker(_screenX, _screenY, targetNodeId, targetParameter, onSelect, triggerElement) {
       const center = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-      const posLarge = getStoredPosition('audio-signal-picker', {
+      const inset = 16;
+      const rawLarge = getStoredPosition('audio-signal-picker', {
         variant: 'large',
         fallback: center,
         legacyKey: [
@@ -477,7 +523,7 @@
           'shader-composer.audioSignalPickerPosition',
         ],
       });
-      const posCompact = getStoredPosition('audio-signal-picker', {
+      const rawCompact = getStoredPosition('audio-signal-picker', {
         variant: 'compact',
         fallback: center,
         legacyKey: [
@@ -485,6 +531,24 @@
           'shader-composer.audioSignalPickerPosition',
         ],
       });
+      const posLarge = clampPanelCenterToViewport(
+        rawLarge,
+        AUDIO_SIGNAL_PICKER_LARGE_CLAMP_BOX.width,
+        AUDIO_SIGNAL_PICKER_LARGE_CLAMP_BOX.height,
+        inset
+      );
+      const posCompact = clampPanelCenterToViewport(
+        rawCompact,
+        AUDIO_SIGNAL_PICKER_COMPACT_CLAMP_BOX.width,
+        AUDIO_SIGNAL_PICKER_COMPACT_CLAMP_BOX.height,
+        inset
+      );
+      if (posLarge.x !== rawLarge.x || posLarge.y !== rawLarge.y) {
+        setStoredPosition('audio-signal-picker', posLarge.x, posLarge.y, 'large');
+      }
+      if (posCompact.x !== rawCompact.x || posCompact.y !== rawCompact.y) {
+        setStoredPosition('audio-signal-picker', posCompact.x, posCompact.y, 'compact');
+      }
       signalPickerXLarge = posLarge.x;
       signalPickerYLarge = posLarge.y;
       signalPickerXCompact = posCompact.x;
@@ -504,6 +568,21 @@
       return signalPickerVisible;
     },
   };
+
+  function isCanvasBlockingDialogVisible(): boolean {
+    if (layoutBlockingCanvasShortcuts) return true;
+    if (splashOverlayVisible) return true;
+    if (leaveSaveBlockedOpen) return true;
+    if (helpVisible) return true;
+    if (curveEditorLaneId != null) return true;
+    if (canvasColorPickerVisible) return true;
+    if (parameterValueOverlayVisible) return true;
+    if (labelEditOverlayVisible) return true;
+    if (signalPickerVisible) return true;
+    if (overlayBridge.isEnumDropdownVisible()) return true;
+    if (bottomBarRef?.isTimelinePanelVisible() ?? false) return true;
+    return false;
+  }
 
   function remapGraphIds(g: NodeGraph): NodeGraph {
     const newGraphId = `graph-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
@@ -615,13 +694,14 @@
 
   async function applyResolvedHubToRuntime(resolved: HubResolveResult): Promise<void> {
     hydrating = true;
-    undoRedoManager.clear();
+    undoRedoManager?.clear();
     graphStore.setGraph(resolved.graph);
     graphStore.setAudioSetup(resolved.audioSetup);
     activeSession = resolved.activeSession;
     selectedPreset = resolved.selectedPreset;
     hydrating = false;
-    undoRedoManager.pushState(graphStore.graph);
+    undoRedoManager?.pushState(graphStore.graph);
+    undoStackRevision++;
     localRevision = 0;
     persistedRevision = 0;
     lastSuccessfulPersistAt = Date.now();
@@ -962,13 +1042,14 @@
       }
       const graph = result.graph;
       hydrating = true;
-      undoRedoManager.clear();
+      undoRedoManager?.clear();
       graphStore.setGraph(graph);
       graphStore.setAudioSetup(audioSetup);
       activeSession = { kind: 'userProject', projectId };
       selectedPreset = null;
       hydrating = false;
-      undoRedoManager.pushState(graphStore.graph);
+      undoRedoManager?.pushState(graphStore.graph);
+      undoStackRevision++;
       localRevision = 0;
       persistedRevision = 0;
       lastSuccessfulPersistAt = Date.now();
@@ -1226,8 +1307,9 @@
       undoRedoManager = new UndoRedoManager();
       graphStore.setGraphChangedListener((g) => {
         if (hydrating) return;
-        undoRedoManager.pushState(g);
+        undoRedoManager?.pushState(g);
         localRevision++;
+        undoStackRevision++;
       });
       graphStore.setAudioChangedListener(() => {
         if (hydrating) return;
@@ -1484,6 +1566,18 @@
     zoom={zoom}
     fps={fps}
     isVideoExportSupported={isVideoExportSupported()}
+    graphHistoryControls={runtimeManager !== null}
+    canUndoGraph={canUndoGraph}
+    canRedoGraph={canRedoGraph}
+    onGraphUndo={() => {
+      void performGraphUndo();
+    }}
+    onGraphRedo={() => {
+      void performGraphRedo();
+    }}
+    onLayoutBlockingOverlaysChange={(blocked) => {
+      layoutBlockingCanvasShortcuts = blocked;
+    }}
     callbacks={{
       onDownloadPreset: handleDownloadPreset,
       onExport: handleExport,
@@ -1541,9 +1635,15 @@
           onSelectionChanged: (ids) => {
             graphStore.updateViewState({ selectedNodeIds: ids });
           },
-          isDialogVisible: () => bottomBarRef?.isTimelinePanelVisible() ?? false,
+          isDialogVisible: isCanvasBlockingDialogVisible,
           onToggleFullscreen: () => {
             void toggleFullscreen();
+          },
+          onUndo: () => {
+            void performGraphUndo();
+          },
+          onRedo: () => {
+            void performGraphRedo();
           },
         }}
       />

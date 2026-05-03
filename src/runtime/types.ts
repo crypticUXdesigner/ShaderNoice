@@ -7,6 +7,19 @@
 /**
  * Uniform metadata from compiler output.
  */
+/**
+ * What drives live preview updates for a compiled program (plan §4).
+ * Snapshot at compile success; runtime must not re-infer from the graph each frame.
+ */
+export interface PreviewDependencyMask {
+  usesWallTime: boolean;
+  usesTimelineTime: boolean;
+  usesAudioUniforms: boolean;
+  usesResolutionUniform: boolean;
+  usesMouseUniforms: boolean;
+  usesFrameIndex: boolean;
+}
+
 export interface UniformMetadata {
   // Uniform identifier in shader
   name: string;  // e.g., "uNodeN1Scale"
@@ -38,6 +51,8 @@ export interface CompilationResult {
     errors: string[];
     executionOrder: string[];  // Node IDs in execution order
     finalOutputNodeId: string | null;  // ID of final output node
+    /** Present on successful compiles (WP 02B); omitted when compile failed early. */
+    previewDependencies?: PreviewDependencyMask;
   };
 }
 
@@ -331,4 +346,9 @@ export interface ICompilationManager {
    * Set callback invoked with the new shader instance before its first render (e.g. to push audio uniforms).
    */
   setOnBeforeFirstRender(callback: (instance: import('./ShaderInstance').ShaderInstance) => void): void;
+
+  /**
+   * Last successful compile's preview dependency snapshot (WP 02B); null if never compiled or failed.
+   */
+  getPreviewDependencyMask(): PreviewDependencyMask | null;
 }

@@ -8,6 +8,12 @@
 import { ShaderInstance } from './ShaderInstance';
 import { WebGLContextError } from './errors';
 import type { Disposable } from '../utils/Disposable';
+import {
+  previewPerformanceMark,
+  PreviewPerfMark,
+  previewPerfCounters
+} from './previewPerformanceMarks';
+import { getPreviewScheduler } from './PreviewScheduler';
 
 export class Renderer implements Disposable {
   private canvas: HTMLCanvasElement;
@@ -68,6 +74,7 @@ export class Renderer implements Disposable {
   markDirty(reason: string = 'unknown'): void {
     this.isDirty = true;
     this.dirtyReasons.add(reason);
+    getPreviewScheduler().recordDirty(reason, { source: 'Renderer' });
   }
   
   /**
@@ -96,6 +103,10 @@ export class Renderer implements Disposable {
       this.clearDirty();
       return;
     }
+    if (getPreviewScheduler().consumeAdaptiveSettleFullDprOnce()) {
+      this.setupViewport();
+      this.markDirty('resize');
+    }
     // Always process pending resize
     if (this.pendingResize) {
       this.setupViewport();
@@ -112,19 +123,26 @@ export class Renderer implements Disposable {
       this.clearDirty();
       return; // No shader to render
     }
-    
-    // Update resolution if changed
-    const width = this.canvas.width;
-    const height = this.canvas.height;
-    this.shaderInstance.setResolution(width, height);
-    
-    // Clear
-    this.gl.clearColor(0, 0, 0, 1);
-    this.gl.clear(this.gl.COLOR_BUFFER_BIT);
-    
-    // Render
-    this.shaderInstance.render(width, height);
-    
+
+    previewPerformanceMark(PreviewPerfMark.previewFrameStart);
+    try {
+      // Update resolution if changed
+      const width = this.canvas.width;
+      const height = this.canvas.height;
+      this.shaderInstance.setResolution(width, height);
+
+      // Clear
+      this.gl.clearColor(0, 0, 0, 1);
+      this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+
+      // Render (uniform + draw marks are inside ShaderInstance.render)
+      this.shaderInstance.render(width, height);
+      previewPerfCounters.previewFrameCommits += 1;
+      getPreviewScheduler().recordPreviewFrameCommit();
+    } finally {
+      previewPerformanceMark(PreviewPerfMark.previewFrameEnd);
+    }
+
     // Clear dirty flags after rendering
     this.clearDirty();
     this.forceRender = false;
@@ -152,13 +170,20 @@ export class Renderer implements Disposable {
    * Setup viewport based on canvas size.
    */
   private setupViewport(): void {
-    const dpr = window.devicePixelRatio || 1;
+    const sched = getPreviewScheduler();
+    let dpr = window.devicePixelRatio || 1;
+    if (sched.consumeAdaptiveSettleFullDprOnce()) {
+      dpr = window.devicePixelRatio || 1;
+    } else if (sched.isAdaptivePreviewEnabled() && sched.getState().mode === 'interactionReduced') {
+      dpr = Math.min(dpr, 1.25);
+    }
     const width = this.canvas.clientWidth * dpr;
     const height = this.canvas.clientHeight * dpr;
     
     this.canvas.width = width;
     this.canvas.height = height;
     this.gl.viewport(0, 0, width, height);
+    previewPerformanceMark(PreviewPerfMark.previewViewportLayout);
   }
   
   /**

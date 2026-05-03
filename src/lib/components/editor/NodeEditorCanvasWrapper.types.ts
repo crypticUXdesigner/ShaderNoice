@@ -34,6 +34,8 @@ export interface NodeEditorCanvasWrapperCallbacks {
   onSelectionChanged?: (selectedNodeIds: string[]) => void;
   /** When true, canvas skips Delete/Backspace so timeline can delete selected regions. */
   isDialogVisible?: () => boolean;
+  onUndo?: () => void | Promise<void>;
+  onRedo?: () => void | Promise<void>;
 }
 
 export interface NodeEditorCanvasWrapperAPI {
@@ -67,4 +69,8 @@ export interface NodeEditorCanvasWrapperAPI {
   clearSmartGuides(): void;
   /** Start connection drag from a port (DOM nodes capture pointer events, so canvas needs this to initiate drag). pointerId enables document pointer capture so release is received. */
   startConnectionFromPort?(screenX: number, screenY: number, pointerId?: number): void;
+  /** Skip the next reactive `setGraph` from the graph prop (call before replacing the graph for undo/redo). */
+  beginGraphHistoryRestore(): void;
+  /** Apply restored snapshot to canvas pan/zoom/selection from `graph.viewState`. */
+  completeGraphHistoryRestore(graph: NodeGraph): void;
 }

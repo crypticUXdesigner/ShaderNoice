@@ -238,10 +238,60 @@
     {#each layoutElements as element}
       {#if element.type === 'grid'}
         {@const gridEl = element}
+        {@const headerToggle = gridEl.headerToggleParameter}
+        {@const headerToggleSpec = headerToggle ? spec.parameters[headerToggle] : undefined}
+        {@const headerToggleUi =
+          headerToggle && headerToggleSpec
+            ? getParamUIType(headerToggle, headerToggleSpec, gridEl.parameterUI)
+            : null}
+        {@const useHeaderToggle = Boolean(
+          gridEl.label &&
+            headerToggle &&
+            headerToggleSpec &&
+            headerToggleUi === 'toggle'
+        )}
         {#if gridEl.label}
-          <div class="group-header">{gridEl.label}</div>
+          {#if useHeaderToggle}
+            <div class="group-header group-header-with-actions">
+              <span class="group-header-label">{gridEl.label}</span>
+              <div class="group-header-actions">
+                <ParamPortWithAudioState
+                  nodeId={nodeId}
+                  paramName={headerToggle}
+                  label={headerToggleSpec.label ?? headerToggle}
+                  portId="{nodeId}-{headerToggle}"
+                  portType="float"
+                  showPort={false}
+                  inlineControl={true}
+                  inputMode={getInputMode(headerToggle)}
+                  onParameterInputModeChanged={onParameterInputModeChanged
+                    ? (mode) => onParameterInputModeChanged(headerToggle, mode)
+                    : undefined}
+                  {node}
+                  {graph}
+                  {audioSetup}
+                  {nodeSpecs}
+                  {getAudioManager}
+                  getTimelineCurrentTime={getTimelineCurrentTime}
+                  disabled={false}
+                >
+                  {#snippet children({ displayValue, useConfigForInput })}
+                    <Toggle
+                      value={displayValue}
+                      onChange={(v) =>
+                        onParameterChange(headerToggle, useConfigForInput ? v : effectiveToConfig(headerToggle, v))}
+                    />
+                  {/snippet}
+                </ParamPortWithAudioState>
+              </div>
+            </div>
+          {:else}
+            <div class="group-header">{gridEl.label}</div>
+          {/if}
         {/if}
-        {@const validParams = gridEl.parameters.filter((p) => spec.parameters[p])}
+        {@const validParams = gridEl.parameters.filter(
+          (p) => spec.parameters[p] && (!useHeaderToggle || p !== gridEl.headerToggleParameter)
+        )}
         {@const gridCols = gridEl.layout?.columns}
         <div
           class="param-grid"
@@ -916,7 +966,10 @@
 
             /* Other */
             cursor: default;
-            transition: background 0.15s, border-color 0.15s, color 0.15s;
+            transition:
+              background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+              border-color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+              color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
           }
 
           :global(.group-header-btn:hover) {

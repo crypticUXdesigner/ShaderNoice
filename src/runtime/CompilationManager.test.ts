@@ -30,7 +30,7 @@ vi.mock('./ShaderInstance', () => ({
   },
 }));
 
-function minimalCompilationResult(): CompilationResult {
+function minimalCompilationResult(finalOutputNodeId: string | null = 'n2'): CompilationResult {
   return {
     shaderCode: 'void main() { gl_FragColor = vec4(0.0); }',
     uniforms: [],
@@ -38,7 +38,15 @@ function minimalCompilationResult(): CompilationResult {
       warnings: [],
       errors: [],
       executionOrder: [],
-      finalOutputNodeId: null,
+      finalOutputNodeId,
+      previewDependencies: {
+        usesWallTime: false,
+        usesTimelineTime: false,
+        usesAudioUniforms: false,
+        usesResolutionUniform: false,
+        usesMouseUniforms: false,
+        usesFrameIndex: false
+      }
     },
   };
 }
@@ -110,10 +118,168 @@ describe('CompilationManager', () => {
       expect(compiler.compile).toHaveBeenCalledWith(minimalGraph(), null);
       expect(renderer.setShaderInstance).toHaveBeenCalled();
       expect(cm.getShaderInstance()).not.toBeNull();
+      expect(cm.getPreviewDependencyMask()).toEqual({
+        usesWallTime: false,
+        usesTimelineTime: false,
+        usesAudioUniforms: false,
+        usesResolutionUniform: false,
+        usesMouseUniforms: false,
+        usesFrameIndex: false
+      });
+    });
+
+    it('skips recompilation when only disconnected nodes change', () => {
+      const compiler = createMockCompiler();
+      const renderer = createMockRenderer();
+      const cm = createCompilationManager(compiler, renderer);
+
+      const g1 = minimalGraph();
+      cm.setGraph(g1);
+      cm.onGraphStructureChange(true);
+      vi.runAllTimers();
+
+      expect(compiler.compile).toHaveBeenCalledTimes(1);
+
+      // Add a disconnected node (idle slice): no connections added/removed.
+      const g2: NodeGraph = {
+        ...g1,
+        nodes: [...g1.nodes, { id: 'idle1', type: 'float', position: { x: 10, y: 10 }, parameters: { value: 1 } }],
+      };
+      cm.setGraph(g2);
+      cm.onGraphStructureChange(true);
+      vi.runAllTimers();
+
+      // Should not recompile because output-reachable slice is unchanged.
+      expect(compiler.compile).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips recompilation when only idle-to-idle connections change', () => {
+      const compiler = createMockCompiler();
+      const renderer = createMockRenderer();
+      const cm = createCompilationManager(compiler, renderer);
+
+      const g1: NodeGraph = {
+        ...minimalGraph(),
+        nodes: [
+          ...minimalGraph().nodes,
+          { id: 'idle1', type: 'float', position: { x: 1, y: 1 }, parameters: { value: 0.5 } },
+          { id: 'idle2', type: 'float', position: { x: 2, y: 2 }, parameters: { value: 0.25 } },
+        ],
+      };
+      cm.setGraph(g1);
+      cm.onGraphStructureChange(true);
+      vi.runAllTimers();
+      expect(compiler.compile).toHaveBeenCalledTimes(1);
+
+      const g2: NodeGraph = {
+        ...g1,
+        connections: [
+          ...g1.connections,
+          {
+            id: 'cIdle',
+            sourceNodeId: 'idle2',
+            sourcePort: 'out',
+            targetNodeId: 'idle1',
+            targetParameter: 'value',
+          },
+        ],
+      };
+      cm.setGraph(g2);
+      cm.onGraphStructureChange(true);
+      vi.runAllTimers();
+
+      expect(compiler.compile).toHaveBeenCalledTimes(1);
+    });
+
+    it('recompiles when output path is rewired to a previously idle node', () => {
+      const compiler = createMockCompiler();
+      const renderer = createMockRenderer();
+      const cm = createCompilationManager(compiler, renderer);
+
+      const g1: NodeGraph = {
+        ...minimalGraph(),
+        nodes: [
+          ...minimalGraph().nodes,
+          { id: 'idle1', type: 'float', position: { x: 1, y: 1 }, parameters: { value: 0.9 } },
+        ],
+      };
+      cm.setGraph(g1);
+      cm.onGraphStructureChange(true);
+      vi.runAllTimers();
+      expect(compiler.compile).toHaveBeenCalledTimes(1);
+
+      const g2: NodeGraph = {
+        ...g1,
+        connections: [
+          {
+            id: 'c2',
+            sourceNodeId: 'idle1',
+            sourcePort: 'out',
+            targetNodeId: 'n2',
+            targetPort: 'in',
+          },
+        ],
+      };
+      cm.setGraph(g2);
+      cm.onGraphStructureChange(true);
+      vi.runAllTimers();
+
+      expect(compiler.compile).toHaveBeenCalledTimes(2);
+    });
+
+    it('ignores parameter updates for nodes outside the preview slice', () => {
+      const compiler = createMockCompiler();
+      const renderer = createMockRenderer();
+      const cm = createCompilationManager(compiler, renderer);
+
+      const g1: NodeGraph = {
+        ...minimalGraph(),
+        nodes: [
+          ...minimalGraph().nodes,
+          { id: 'idle1', type: 'float', position: { x: 1, y: 1 }, parameters: { value: 1 } },
+        ],
+      };
+      cm.setGraph(g1);
+      cm.onGraphStructureChange(true);
+      vi.runAllTimers();
+
+      mockInstanceMethods.setParameter.mockClear();
+      cm.onParameterChange('idle1', 'value', 2);
+      vi.runAllTimers();
+
+      expect(mockInstanceMethods.setParameter).not.toHaveBeenCalled();
+    });
+
+    it('coalesces multiple immediate structure changes into one compile', () => {
+      const compiler = createMockCompiler();
+      const renderer = createMockRenderer();
+      const cm = createCompilationManager(compiler, renderer);
+
+      cm.setGraph(minimalGraph());
+      cm.onGraphStructureChange(true);
+      cm.onGraphStructureChange(true);
+      cm.onGraphStructureChange(true);
+
+      vi.runAllTimers();
+
+      expect(compiler.compile).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('worker path (mock)', () => {
+    /** Node test env may lack rAF; stub so worker path runs, with immediate callback like production's next frame. */
+    beforeEach(() => {
+      vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+        cb(0);
+        return 0;
+      });
+      vi.stubGlobal('cancelAnimationFrame', () => {});
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
     it('posts compile payload and applies result when worker replies with matching id', () => {
       const postMessageCalls: unknown[] = [];
       const mockWorker = {
@@ -152,6 +318,7 @@ describe('CompilationManager', () => {
 
       expect(renderer.setShaderInstance).toHaveBeenCalled();
       expect(cm.getShaderInstance()).not.toBeNull();
+      expect(cm.getPreviewDependencyMask()).toEqual(result.metadata.previewDependencies);
     });
 
     it('ignores worker result when id does not match', () => {

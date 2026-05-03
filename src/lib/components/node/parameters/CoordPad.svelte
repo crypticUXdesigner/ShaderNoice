@@ -308,7 +308,10 @@
         box-shadow: 0 0 2px 6px color-mix(in srgb, var(--param-control-value-color) 30%, transparent 70%);
         transform: translate(-50%, 50%);
         pointer-events: none;
-        transition: background 0.15s, box-shadow 0.15s, transform 0.1s;
+        transition:
+          background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+          box-shadow var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+          transform var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
       }
 
       &:hover .knob {

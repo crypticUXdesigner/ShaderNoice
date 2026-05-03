@@ -63,7 +63,9 @@
     border-radius: var(--toggle-border-radius);
     background: var(--toggle-bg-off);
     cursor: default;
-    transition: background 0.15s, border-color 0.15s;
+    transition:
+      background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
+      border-color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
 
     &:hover:not(:disabled) {
       background: var(--toggle-bg-hover);
@@ -89,7 +91,7 @@
       border-radius: 50%;
       background: var(--toggle-slider-bg);
       border: var(--toggle-slider-border);
-      transition: transform 0.15s;
+      transition: transform var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
     }
 
     &.on .slider {

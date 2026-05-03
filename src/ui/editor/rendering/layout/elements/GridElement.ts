@@ -69,10 +69,22 @@ export class GridElementRenderer implements LayoutElementRenderer {
     const respectMinWidth = layout.respectMinWidth !== false; // Default true
     const parameterSpan = layout.parameterSpan;
     
-    // Filter parameters - skip missing ones with warning
+    const headerToggle = element.headerToggleParameter;
+    const headerToggleSpec = headerToggle ? spec.parameters[headerToggle] : undefined;
+    const useHeaderToggle = (() => {
+      if (!element.label?.trim() || !headerToggle || !headerToggleSpec) return false;
+      return (
+        headerToggleSpec.type === 'int' &&
+        headerToggleSpec.min === 0 &&
+        headerToggleSpec.max === 1
+      );
+    })();
+
+    // Filter parameters - skip missing ones with warning; omit header toggle when shown in header
     const validParams: string[] = [];
     for (const paramName of element.parameters) {
       if (spec.parameters[paramName]) {
+        if (useHeaderToggle && paramName === headerToggle) continue;
         validParams.push(paramName);
       } else {
         console.warn(`Parameter "${paramName}" not found in node "${spec.id}", skipping from grid`);

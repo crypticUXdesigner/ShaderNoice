@@ -142,8 +142,49 @@ describe('computeEffectiveParameterValue with signal model', () => {
       0.25,
     );
 
-    // automationValue (0.25) is config; input is 2; add mode → 0.25 + 2
+    // automationValue (0.25) is config; input is 2; add mode → 0.25 + 2 (within 0..4 range)
     expect(value).toBeCloseTo(2.25);
+  });
+
+  it('clamps effective value to spec min/max after input-mode composition', () => {
+    const source: NodeInstance = {
+      id: 'src',
+      type: 'constant-float',
+      position: { x: 0, y: 0 },
+      parameters: { value: 10 },
+    };
+    const target: NodeInstance = {
+      id: 'dst',
+      type: 'noise',
+      position: { x: 0, y: 0 },
+      parameters: { gain: 1 },
+      parameterInputModes: { gain: 'add' },
+    };
+    const graph: NodeGraph = {
+      id: 'g1',
+      name: 'Test',
+      version: '2.0',
+      nodes: [source, target],
+      connections: [
+        {
+          id: 'c1',
+          sourceNodeId: 'src',
+          sourcePort: 'out',
+          targetNodeId: 'dst',
+          targetParameter: 'gain',
+        },
+      ],
+    };
+    const gainSpec = makeParamSpec({ default: 1, min: 0, max: 4, inputMode: 'add' });
+    const constSpec = makeParamSpec({ default: 0, min: 0, max: 10 });
+    const nodeSpecs = new Map<string, NodeSpec>([
+      ['constant-float', makeNodeSpec('constant-float', { value: constSpec })],
+      ['noise', makeNodeSpec('noise', { gain: gainSpec })],
+    ]);
+
+    // config = 1, input = 10, add -> 11, clamped to max 4
+    const value = computeEffectiveParameterValue(target, 'gain', gainSpec, graph, nodeSpecs);
+    expect(value).toBeCloseTo(4);
   });
 
   it('resolves audio-connected parameter via virtual node input', () => {

@@ -10,6 +10,7 @@ import { VariableNameGenerator } from './compilation/VariableNameGenerator';
 import { UniformGenerator } from './compilation/UniformGenerator';
 import { FunctionGenerator } from './compilation/FunctionGenerator';
 import { MainCodeGenerator } from './compilation/MainCodeGenerator';
+import { computePreviewDependencyMask } from './compilation/previewDependencyMask';
 import {
   audioNodesFirst as audioNodesFirstHelper,
   isAudioNode as isAudioNodeHelper,
@@ -19,6 +20,18 @@ import {
   generateParameterCombination as generateParameterCombinationHelper,
   generateSwizzleCode as generateSwizzleCodeHelper
 } from './compilation/NodeShaderCompilerHelpers';
+
+/**
+ * True if `prev` appears in order as a subsequence of `next` (same relative order for all previous nodes).
+ * Used so incremental compile can run after **node additions** without reordering the existing pipeline.
+ */
+function isExecutionOrderSubsequencePreserved(prev: string[], next: string[]): boolean {
+  let i = 0;
+  for (let k = 0; k < next.length && i < prev.length; k++) {
+    if (next[k] === prev[i]) i++;
+  }
+  return i === prev.length;
+}
 
 /**
  * Node-based shader compiler
@@ -34,7 +47,7 @@ import {
  * - MainCodeGenerator: Generates main shader code
  */
 export class NodeShaderCompiler {
-  // nodeSpecs is passed to components but not stored as field (components hold references)
+  private readonly nodeSpecs: Map<string, NodeSpec>;
   private graphValidator: GraphValidator;
   private typeValidator: TypeValidator;
   private graphAnalyzer: GraphAnalyzer;
@@ -44,6 +57,7 @@ export class NodeShaderCompiler {
   private mainCodeGenerator: MainCodeGenerator;
 
   constructor(nodeSpecs: Map<string, NodeSpec>) {
+    this.nodeSpecs = nodeSpecs;
     // Initialize components with shared helper methods
     this.graphValidator = new GraphValidator(nodeSpecs);
     this.typeValidator = new TypeValidator(nodeSpecs);
@@ -71,14 +85,16 @@ export class NodeShaderCompiler {
   }
 
   /**
-   * Incremental compilation - only regenerate code for changed parts.
-   * Uses dependency tracking to identify affected nodes and allows execution
-   * order changes when they don't affect the changed nodes.
-   * 
+   * Incremental compilation: same full codegen as {@link compile} after cheap structural checks,
+   * so the GPU still links a full program, but the worker can skip work when the change is unsafe
+   * (falls back to {@link compile} via caller).
+   *
+   * Supports **node additions** when the new execution order keeps the previous order as a subsequence
+   * (no removals; existing pipeline order preserved among old nodes).
+   *
    * @param graph - Current node graph
-   * @param previousResult - Previous compilation result (for reference)
-   * @param affectedNodeIds - Set of node IDs that are affected (changed nodes + their dependents)
-   * @returns CompilationResult or null if incremental compilation not possible
+   * @param previousResult - Last successful compilation result (must match graph history for execution order)
+   * @param affectedNodeIds - Changed / added nodes and dependents (from GraphChangeDetector)
    */
   compileIncremental(
     graph: NodeGraph,
@@ -129,53 +145,61 @@ export class NodeShaderCompiler {
       
       // Step 3: Use affected nodes (already calculated by GraphChangeDetector)
       // Note: affectedNodeIds already includes changed nodes + their dependents
-      
-      // Step 4: Check if execution order changed in a way that affects incremental compilation
-      // Allow execution order changes if:
-      // 1. Node count is the same (no nodes added/removed)
-      // 2. Affected nodes maintain their relative order
-      // 3. Unaffected nodes can move freely (they don't affect compilation)
-      
-      // If node count changed, fall back to full compilation
-      if (executionOrder.length !== previousExecutionOrder.length) {
-        return null;
-      }
-      
-      // Check if execution order changed
-      const executionOrderChanged = executionOrder.some((id, idx) => id !== previousExecutionOrder[idx]);
-      
-      if (executionOrderChanged) {
-        // Check if affected nodes maintain their relative order
-        const previousAffectedOrder = previousExecutionOrder.filter(id => affectedNodeIds.has(id));
-        const currentAffectedOrder = executionOrder.filter(id => affectedNodeIds.has(id));
-        
-        // If affected nodes changed order, fall back to full compilation
-        if (previousAffectedOrder.length !== currentAffectedOrder.length ||
-            previousAffectedOrder.some((id, idx) => id !== currentAffectedOrder[idx])) {
-          // Affected nodes changed order - fall back to full compilation
+
+      // Step 4: Execution-order safety (same length, or **pure additions** preserving previous order)
+      const graphNodeIds = new Set(graph.nodes.map((n) => n.id));
+      for (const id of previousExecutionOrder) {
+        if (!graphNodeIds.has(id)) {
           return null;
         }
-        
-        // Execution order changed but affected nodes maintain order - safe to proceed
-        // Unaffected nodes can move freely without affecting incremental compilation
       }
-      
-      // Step 5: Generate code incrementally
-      // Note: True incremental code patching (reusing unchanged sections) is complex
-      // and may not provide significant benefits due to:
-      // - Variable name generation dependencies
-      // - Function deduplication dependencies  
-      // - Uniform name generation dependencies
-      // 
-      // Instead, we optimize by:
-      // - Skipping validation (already done)
-      // - Reusing topological sort result (already calculated)
-      // - The real performance benefit comes from change detection preventing
-      //   unnecessary compilations in CompilationManager
-      //
-      // For future optimization, we could cache code sections per node and patch them,
-      // but this requires careful handling of dependencies and may not be worth the complexity.
-      
+
+      if (executionOrder.length < previousExecutionOrder.length) {
+        return null;
+      }
+
+      const orderSameLength = executionOrder.length === previousExecutionOrder.length;
+      const isPureNodeAddition =
+        executionOrder.length > previousExecutionOrder.length &&
+        isExecutionOrderSubsequencePreserved(previousExecutionOrder, executionOrder);
+
+      if (!orderSameLength && !isPureNodeAddition) {
+        return null;
+      }
+
+      const executionOrderChanged = executionOrder.some((id, idx) => id !== previousExecutionOrder[idx]);
+
+      if (orderSameLength) {
+        if (executionOrderChanged) {
+          const previousAffectedOrder = previousExecutionOrder.filter((id) => affectedNodeIds.has(id));
+          const currentAffectedOrder = executionOrder.filter((id) => affectedNodeIds.has(id));
+          if (
+            previousAffectedOrder.length !== currentAffectedOrder.length ||
+            previousAffectedOrder.some((id, idx) => id !== currentAffectedOrder[idx])
+          ) {
+            return null;
+          }
+        }
+      } else {
+        const prevIdSet = new Set(previousExecutionOrder);
+        const previousAffectedOrder = previousExecutionOrder.filter((id) => affectedNodeIds.has(id));
+        const currentAffectedAmongPrev = executionOrder.filter(
+          (id) => affectedNodeIds.has(id) && prevIdSet.has(id)
+        );
+        if (
+          previousAffectedOrder.length !== currentAffectedAmongPrev.length ||
+          previousAffectedOrder.some((id, idx) => id !== currentAffectedAmongPrev[idx])
+        ) {
+          return null;
+        }
+      }
+
+      const typeErrors = this.typeValidator.validateTypes(graph);
+      if (typeErrors.length > 0) {
+        return null;
+      }
+
+      // Step 5: Generate shader (full graph; incremental path skips redundant graph validation only above)
       // Generate variable names
       const variableNames = this.variableNameGenerator.generateVariableNames(graph);
       
@@ -183,7 +207,12 @@ export class NodeShaderCompiler {
       const uniformNames = this.uniformGenerator.generateUniformNameMapping(graph, audioSetup ?? null);
       
       // Collect functions
-      let { functions, functionNameMap } = this.functionGenerator.collectAndDeduplicateFunctions(graph, uniformNames, variableNames);
+      let { functions, functionNameMap } = this.functionGenerator.collectAndDeduplicateFunctions(
+      graph,
+      uniformNames,
+      variableNames,
+      executionOrder
+    );
       
       // Generate main code (includes generic-raymarcher SDF function code)
       const { variableDeclarations, mainCode, genericRaymarcherSdfFunctions } = this.mainCodeGenerator.generateMainCode(graph, executionOrder, variableNames, uniformNames, functionNameMap);
@@ -226,7 +255,14 @@ export class NodeShaderCompiler {
           warnings,
           errors: [],
           executionOrder,
-          finalOutputNodeId: finalOutputNode?.id || null
+          finalOutputNodeId: finalOutputNode?.id || null,
+          previewDependencies: computePreviewDependencyMask(
+            graph,
+            uniforms,
+            shaderCode,
+            this.nodeSpecs,
+            audioSetup
+          )
         }
       };
       
@@ -263,7 +299,14 @@ export class NodeShaderCompiler {
           warnings: ['[WARNING] Empty graph - outputting black'],
           errors: [],
           executionOrder: [],
-          finalOutputNodeId: null
+          finalOutputNodeId: null,
+          previewDependencies: computePreviewDependencyMask(
+            graph,
+            [],
+            emptyShader,
+            this.nodeSpecs,
+            audioSetup
+          )
         }
       };
     }
@@ -328,7 +371,12 @@ export class NodeShaderCompiler {
     const uniformNames = this.uniformGenerator.generateUniformNameMapping(graph, audioSetup ?? null);
 
     // Step 6: Collect functions (with uniform placeholders replaced)
-    let { functions, functionNameMap } = this.functionGenerator.collectAndDeduplicateFunctions(graph, uniformNames, variableNames);
+    let { functions, functionNameMap } = this.functionGenerator.collectAndDeduplicateFunctions(
+      graph,
+      uniformNames,
+      variableNames,
+      executionOrder
+    );
 
     // Step 7: Generate main code (returns variable declarations, main code, and generic-raymarcher SDF functions)
     const { variableDeclarations, mainCode, genericRaymarcherSdfFunctions } = this.mainCodeGenerator.generateMainCode(graph, executionOrder, variableNames, uniformNames, functionNameMap);
@@ -371,7 +419,14 @@ export class NodeShaderCompiler {
         warnings,
         errors: [],
         executionOrder,
-        finalOutputNodeId: finalOutputNode?.id || null
+        finalOutputNodeId: finalOutputNode?.id || null,
+        previewDependencies: computePreviewDependencyMask(
+          graph,
+          uniforms,
+          shaderCode,
+          this.nodeSpecs,
+          audioSetup
+        )
       }
     };
   }

@@ -420,30 +420,25 @@
 
 <style>
   .playback-scrubber {
-    display: contents;
-  }
-
-  .timeline-preview-block {
-    position: relative;
+    justify-self: flex-end;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: flex-end;
+    min-height: fit-content;
+    padding-bottom: var(--pd-xl);
   }
 
-  .timeline-preview-block :global(.timeline-toggle) {
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    margin-bottom: var(--pd-xs);
+  .timeline-preview-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--pd-sm);
   }
+
 
   .time-display {
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    margin-top: var(--pd-xs);
     font-family: var(--font-mono);
     font-optical-sizing: auto;
     font-size: var(--text-2xs);

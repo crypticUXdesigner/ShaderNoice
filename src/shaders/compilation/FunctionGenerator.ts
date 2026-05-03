@@ -5,6 +5,16 @@ import {
   getAutomationExpressionForParam,
   type FloatParamExpressionMap
 } from './FloatParamExpressions';
+import { formatParamLiteralForGlsl } from './MainCodeGeneratorUtils';
+
+function clampFloatExpression(expr: string, paramSpec: NodeSpec['parameters'][string] | undefined): string {
+  if (!paramSpec || paramSpec.type !== 'float') return expr;
+  const min = typeof paramSpec.min === 'number' ? paramSpec.min : 0;
+  const max = typeof paramSpec.max === 'number' ? paramSpec.max : 1;
+  const minStr = formatParamLiteralForGlsl(min, { type: 'float' });
+  const maxStr = formatParamLiteralForGlsl(max, { type: 'float' });
+  return `clamp((${expr}), ${minStr}, ${maxStr})`;
+}
 
 /**
  * Generates and deduplicates function code
@@ -27,10 +37,11 @@ export class FunctionGenerator {
    * Deduplicates at the individual function level by signature
    */
   collectAndDeduplicateFunctions(
-    graph: NodeGraph, 
+    graph: NodeGraph,
     uniformNames: Map<string, string>,
-    variableNames: Map<string, Map<string, string>>
-  ): { functions: string, functionNameMap: Map<string, Map<string, string>> } {
+    variableNames: Map<string, Map<string, string>>,
+    executionOrder: string[]
+  ): { functions: string; functionNameMap: Map<string, Map<string, string>> } {
     const processedFunctions: Array<{ nodeId: string; funcCode: string }> = [];
     // Map: nodeId -> (originalFunctionName -> nodeSpecificFunctionName)
     const functionNameMap = new Map<string, Map<string, string>>();
@@ -47,6 +58,7 @@ export class FunctionGenerator {
         node,
         nodeSpec,
         graph,
+        executionOrder,
         uniformNames,
         variableNames,
         this.nodeSpecs,
@@ -76,16 +88,16 @@ export class FunctionGenerator {
         const paramSpec = nodeSpec.parameters[paramName];
         const automationExpr = getAutomationExpressionForParam(node.id, paramName, graph, paramSpec);
         if (automationExpr) {
-          return automationExpr;
+          return clampFloatExpression(automationExpr, paramSpec);
         }
         const uniformName = uniformNames.get(`${node.id}.${paramName}`);
         // Prefer uniform so runtime parameter changes (e.g. enum dropdown) take effect
         if (uniformName) {
-          return uniformName;
+          return clampFloatExpression(uniformName, paramSpec);
         }
         const paramValue = node.parameters[paramName];
         if (paramValue !== undefined) {
-          return String(paramValue);
+          return clampFloatExpression(String(paramValue), paramSpec);
         }
         return paramSpec?.type === 'int' ? '0' : '0.0';
       });

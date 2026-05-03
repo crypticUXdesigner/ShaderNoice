@@ -1,5 +1,5 @@
 /**
- * IndexedDB schema for local user projects (see docs/projects/local-project-storage).
+ * IndexedDB schema for local user projects (see docs/implementation/ for related specs when present).
  */
 
 export const PROJECT_DB_NAME = 'shadernoice-projects';
