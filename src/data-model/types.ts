@@ -7,6 +7,11 @@
 
 import type { ParameterInputMode } from '../types/nodeSpec';
 import type { AudioSetup } from './audioSetupTypes';
+import type {
+  MidiEnvelopeBinding,
+  MidiEnvelopePreset,
+  MidiEnvelopeRemapper,
+} from './midiEnvelopeTypes';
 
 /**
  * Parameter value types that can be stored in a node instance.
@@ -120,6 +125,11 @@ export interface AutomationLane {
   nodeId: string;
   paramName: string;
   regions: AutomationRegion[];
+  /**
+   * Optional. When true, lane data is preserved but ignored by evaluation and GLSL
+   * float-param expressions (driver bypass).
+   */
+  disabled?: boolean;
 }
 
 /**
@@ -173,6 +183,15 @@ export interface NodeGraph {
   
   // Timeline automation (optional; lanes/regions/curves)
   automation?: AutomationState;
+
+  /** MIDI envelope driver presets (parameter-drivers-v1); semantically separate from audioSetup. */
+  midiEnvelopePresets?: MidiEnvelopePreset[];
+
+  /** MIDI envelope remappers — output range per preset (midi-envelope-remappers-v1). */
+  midiEnvelopeRemappers?: MidiEnvelopeRemapper[];
+
+  /** MIDI envelope bindings — one row per parameter port wired to a remapper. */
+  midiEnvelopeBindings?: MidiEnvelopeBinding[];
 }
 
 /** Canonical on-disk format for new saves (ShaderNoice). */

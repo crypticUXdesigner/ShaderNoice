@@ -53,6 +53,10 @@ export interface NodeEditorCanvasWrapperAPI {
   getNodeMetrics(nodeId: string): NodeRenderMetrics | undefined;
   /** Check if a node is visible in viewport (for DOM layer culling). */
   isNodeVisible?(node: import('../../../data-model/types').NodeInstance, metrics: NodeRenderMetrics): boolean;
+  /** Duplicate the given nodes (and wires fully inside the set) with the same offset as Ctrl/Cmd+D. */
+  duplicateNodes?(nodeIds: string[]): void;
+  /** Open inline label edit on the node header (DOM layer). */
+  beginNodeLabelEdit?(nodeId: string): void;
   /** Start connection drag from a port (DOM nodes capture pointer events, so canvas needs this to initiate drag). pointerId enables document pointer capture so release is received. */
   startConnectionFromPort?(screenX: number, screenY: number, pointerId?: number): void;
   /** Skip the next reactive `setGraph` from the graph prop (call before replacing the graph for undo/redo). */

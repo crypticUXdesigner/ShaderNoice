@@ -59,7 +59,7 @@
     width: var(--toggle-width);
     height: var(--toggle-height);
     padding: 0;
-    border: 1px solid var(--color-gray-70);
+    border: var(--toggle-border);
     border-radius: var(--toggle-border-radius);
     background: var(--toggle-bg-off);
     cursor: default;
@@ -69,7 +69,7 @@
 
     &:hover:not(:disabled):not(.on) {
       background: var(--toggle-bg-hover-off);
-      border-color: var(--toggle-bg-hover-off);
+      border-color: var(--toggle-border-color);
     }
 
     &.on {

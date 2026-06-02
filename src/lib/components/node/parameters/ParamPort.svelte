@@ -1,7 +1,13 @@
 <script lang="ts">
   import { IconSvg } from '../../ui';
   import { createStrictDoubleClickHandler } from '../../../utils/strictDoubleClick';
+  import { getParameterDriverKindMeta } from '../../../../utils/parameterDriverKindMeta';
+
+  const animationDriverIcon = getParameterDriverKindMeta('animation');
+  const midiDriverIcon = getParameterDriverKindMeta('midi');
+  const audioDriverIcon = getParameterDriverKindMeta('audio');
   export type ParamPortState = 'default' | 'graph-connected' | 'audio-connected';
+  export type AttachedDriverKind = 'audio' | 'animation' | 'midi' | null;
 
   interface Props {
     portId: string;
@@ -11,6 +17,8 @@
     paramName?: string;
     state?: ParamPortState;
     signalName?: string;
+    /** Primary driver kind attached to this port (audio or animation). */
+    attachedDriverKind?: AttachedDriverKind;
     /** When true, indicate the parameter is driven by timeline automation (not a connection). */
     timelineDriven?: boolean;
     /** When false, hide signal name in port (parent may show it elsewhere, e.g. bottom row) */
@@ -19,6 +27,8 @@
     onPointerDown?: (e: PointerEvent) => void;
     /** Open connection menu (signal picker); strict double-click (MouseEvent). */
     onDoubleClick?: (e: MouseEvent) => void;
+    /** Driver bypassed but still connected — dim port chrome. */
+    driverBypassed?: boolean;
     disabled?: boolean;
     class?: string;
   }
@@ -30,29 +40,46 @@
     paramName = '',
     state = 'default',
     signalName = '',
+    attachedDriverKind = null,
     timelineDriven = false,
     showSignalName = true,
     onPointerDown,
     onDoubleClick,
+    driverBypassed = false,
     disabled = false,
     class: className = ''
   }: Props = $props();
 
   function getA11yText(opts: { includeInstructions: boolean }) {
     const parts: string[] = [];
+    const hasAnimationDriver = attachedDriverKind === 'animation' || timelineDriven;
+    const hasAudioDriver = attachedDriverKind === 'audio' || state === 'audio-connected';
+    const hasMidiDriver = attachedDriverKind === 'midi';
 
-    if (timelineDriven) parts.push('Timeline automation.');
+    if (hasAnimationDriver) {
+      parts.push('Animation driver.');
+    }
 
-    if (state === 'default') {
-      parts.push('Port not connected.');
+    if (hasMidiDriver) {
+      parts.push('MIDI driver.');
+    }
+
+    if (hasAudioDriver) {
+      parts.push(
+        signalName ? `Audio driver: ${signalName}.` : 'Audio driver.'
+      );
     } else if (state === 'graph-connected') {
       parts.push('Port connected to graph.');
-    } else if (state === 'audio-connected') {
-      parts.push(signalName ? `Port connected to audio: ${signalName}.` : 'Port connected to audio.');
+    } else if (state === 'default' && !hasAnimationDriver && !hasMidiDriver) {
+      parts.push('Port not connected.');
     }
 
     if (opts.includeInstructions) {
-      parts.push('Drag to connect. Double-click to change connection.');
+      parts.push(
+        hasAnimationDriver || hasAudioDriver || hasMidiDriver
+          ? 'Double-click to edit driver.'
+          : 'Double-click to add driver.'
+      );
     }
 
     return parts.join(' ');
@@ -86,7 +113,10 @@
   type="button"
   class="param-port {state} type-{portType} {className}"
   class:disabled
-  class:timeline-driven={timelineDriven}
+  class:is-driver-bypassed={driverBypassed}
+  class:driver-kind-audio={attachedDriverKind === 'audio'}
+  class:driver-kind-animation={attachedDriverKind === 'animation' || timelineDriven}
+  class:driver-kind-midi={attachedDriverKind === 'midi'}
   data-port-id={portId}
   data-port-type={portType}
   data-node-id={nodeId}
@@ -99,10 +129,24 @@
   title={getTooltipText()}
 >
   <span class="port-circle" aria-hidden="true">
-    {#if timelineDriven}
-      <IconSvg name="line-segments" variant="line" class="port-timeline-icon" />
-    {:else if state === 'audio-connected'}
-      <IconSvg name="waveform" variant="line" class="port-audio-icon" />
+    {#if attachedDriverKind === 'animation' || timelineDriven}
+      <IconSvg
+        name={animationDriverIcon.icon}
+        variant={animationDriverIcon.iconVariant ?? 'line'}
+        class="port-animation-icon"
+      />
+    {:else if attachedDriverKind === 'midi'}
+      <IconSvg
+        name={midiDriverIcon.icon}
+        variant={midiDriverIcon.iconVariant ?? 'line'}
+        class="port-midi-icon"
+      />
+    {:else if attachedDriverKind === 'audio' || state === 'audio-connected'}
+      <IconSvg
+        name={audioDriverIcon.icon}
+        variant={audioDriverIcon.iconVariant ?? 'line'}
+        class="port-audio-icon"
+      />
     {/if}
   </span>
   {#if showSignalName && state === 'audio-connected' && signalName}
@@ -130,6 +174,10 @@
     &:disabled {
       opacity: var(--opacity-disabled);
       cursor: not-allowed;
+    }
+
+    &.is-driver-bypassed:not(:disabled) {
+      opacity: var(--opacity-disabled);
     }
 
     &:focus {
@@ -163,7 +211,8 @@
         transform var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
 
       :global(.port-audio-icon),
-      :global(.port-timeline-icon) {
+      :global(.port-animation-icon),
+      :global(.port-midi-icon) {
         width: var(--icon-size-sm);
         height: var(--icon-size-sm);
         color: currentColor;
@@ -171,8 +220,10 @@
 
       :global(.port-audio-icon svg),
       :global(.port-audio-icon svg *),
-      :global(.port-timeline-icon svg),
-      :global(.port-timeline-icon svg *) {
+      :global(.port-animation-icon svg),
+      :global(.port-animation-icon svg *),
+      :global(.port-midi-icon svg),
+      :global(.port-midi-icon svg *) {
         stroke-width: 3;
       }
     }
@@ -212,28 +263,68 @@
       --port-color: var(--port-connected-color-vec4);
     }
 
-    &.timeline-driven .port-circle,
-    &.timeline-driven.graph-connected .port-circle,
-    &.timeline-driven.audio-connected .port-circle,
-    &.timeline-driven.type-vec2 .port-circle,
-    &.timeline-driven.type-vec3 .port-circle,
-    &.timeline-driven.type-vec4 .port-circle {
-      --port-color: var(--color-yellow-100);
-      --shadow-color: var(--color-yellow-100);
-      color: var(--color-yellow-10);
-      border-color: color-mix(in srgb, var(--color-yellow-10) 25%, transparent 75%);
+    &.driver-kind-audio .port-circle,
+    &.driver-kind-audio.graph-connected .port-circle,
+    &.driver-kind-audio.audio-connected .port-circle,
+    &.driver-kind-audio.type-vec2 .port-circle,
+    &.driver-kind-audio.type-vec3 .port-circle,
+    &.driver-kind-audio.type-vec4 .port-circle {
+      --port-color: var(--driver-kind-audio-port-bg);
+      --shadow-color: var(--driver-kind-audio-accent);
+      color: var(--driver-kind-audio-port-icon);
+      border-color: var(--driver-kind-audio-port-border);
     }
 
-    &:not(:disabled):not(.timeline-driven):hover .port-circle {
+    &.driver-kind-animation .port-circle,
+    &.driver-kind-animation.graph-connected .port-circle,
+    &.driver-kind-animation.audio-connected .port-circle,
+    &.driver-kind-animation.type-vec2 .port-circle,
+    &.driver-kind-animation.type-vec3 .port-circle,
+    &.driver-kind-animation.type-vec4 .port-circle {
+      --port-color: var(--driver-kind-animation-port-bg);
+      --shadow-color: var(--driver-kind-animation-accent);
+      color: var(--driver-kind-animation-port-icon);
+      border-color: var(--driver-kind-animation-port-border);
+    }
+
+    &.driver-kind-midi .port-circle,
+    &.driver-kind-midi.graph-connected .port-circle,
+    &.driver-kind-midi.audio-connected .port-circle,
+    &.driver-kind-midi.type-vec2 .port-circle,
+    &.driver-kind-midi.type-vec3 .port-circle,
+    &.driver-kind-midi.type-vec4 .port-circle {
+      --port-color: var(--driver-kind-midi-port-bg);
+      --shadow-color: var(--driver-kind-midi-accent);
+      color: var(--driver-kind-midi-port-icon);
+      border-color: var(--driver-kind-midi-port-border);
+    }
+
+    &:not(:disabled):not(.driver-kind-audio):not(.driver-kind-animation):not(.driver-kind-midi):hover
+      .port-circle {
       background: var(--port-hover-color);
       transform: scale(1.15);
       box-shadow: 0 0 2px 6px var(--color-teal-gray-40);
     }
 
-    &:not(:disabled).timeline-driven:hover .port-circle {
+    &:not(:disabled).driver-kind-audio:hover .port-circle {
       transform: scale(1.15);
-      background: var(--color-yellow-110);
-      box-shadow: 0 0 2px 6px color-mix(in srgb, var(--color-yellow-100) 45%, transparent 55%);
+      background: var(--driver-kind-audio-port-bg-hover);
+      color: var(--driver-kind-audio-port-icon-hover);
+      box-shadow: 0 0 2px 6px var(--driver-kind-audio-accent-glow);
+    }
+
+    &:not(:disabled).driver-kind-animation:hover .port-circle {
+      transform: scale(1.15);
+      background: var(--driver-kind-animation-port-bg-hover);
+      color: var(--driver-kind-animation-port-icon-hover);
+      box-shadow: 0 0 2px 6px var(--driver-kind-animation-accent-glow);
+    }
+
+    &:not(:disabled).driver-kind-midi:hover .port-circle {
+      transform: scale(1.15);
+      background: var(--driver-kind-midi-port-bg-hover);
+      color: var(--driver-kind-midi-port-icon-hover);
+      box-shadow: 0 0 2px 6px var(--driver-kind-midi-accent-glow);
     }
 
     .signal-name {

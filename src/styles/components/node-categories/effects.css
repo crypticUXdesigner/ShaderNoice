@@ -56,7 +56,7 @@
   --node-icon-box-color-effects-stylize: var(--color-yellow-110);
 
   /* Param group header */
-  --param-group-header-color-effects-stylize: var(--color-red-purple-gray-70);
+  --param-group-header-color-effects-stylize: var(--color-red-purple-gray-110);
 
   /* Param cell */
   --node-param-cell-bg-effects-stylize: transparent;
@@ -66,9 +66,9 @@
   /* Knob */
   --node-knob-value-bg-effects-stylize: var(--color-red-purple-50);
   --node-knob-value-color-effects-stylize: var(--color-red-purple-120);
-  --node-knob-ring-color-effects-stylize: var(--color-red-purple-gray-40);
-  --node-knob-arc-active-effects-stylize: var(--color-yellow-110);
-  --node-knob-marker-effects-stylize: var(--color-red-purple-120);
+  --node-knob-ring-color-effects-stylize: var(--color-red-purple-gray-50);
+  --node-knob-arc-active-effects-stylize: var(--color-orange-90);
+  --node-knob-marker-effects-stylize: var(--color-yellow-120);
 
   /* Bezier editor */
   --node-bezier-curve-effects-stylize: var(--color-red-purple-90);
@@ -85,6 +85,7 @@
   --node-body-shadow-color-outer: var(--node-body-shadow-color-outer-effects);
   --node-header-name-color: var(--node-header-print-effects);
   --param-group-header-color: var(--param-group-header-color-effects);
+  --param-label-color: var(--node-param-label-color-effects);
   --knob-ring-color: var(--node-knob-ring-color-effects);
   --knob-ring-active-color-static: var(--node-knob-arc-active-effects);
   --knob-marker-color: var(--node-knob-marker-effects);
@@ -98,6 +99,15 @@
   --knob-ring-active-width: var(--knob-ring-active-width-effects);
   --knob-marker-size: var(--knob-marker-size-effects);
   --knob-marker-radius-offset: var(--knob-marker-radius-offset-effects);
+
+  --embed-slot-bg: var(--color-red-purple-gray-50);
+  --bezier-editor-grid-color: var(--color-red-purple-gray-80);
+  --bezier-editor-grid-border-color: var(--color-red-purple-gray-70);
+  --bezier-editor-control-line-color: var(--color-red-purple-gray-90);
+  --vector2d-editor-grid-color: var(--color-red-purple-gray-80);
+  --vector2d-editor-axis-color: var(--color-orange-red-110);
+  --vector3d-editor-view-bg: var(--color-red-purple-gray-40);
+  --range-editor-slider-track-color: var(--color-red-purple-gray-80);
 
   /* Node header (outermost) */
   background: radial-gradient(

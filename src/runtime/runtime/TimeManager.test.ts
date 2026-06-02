@@ -41,7 +41,7 @@ describe('TimeManager (preview scheduling)', () => {
     const shader = { setTime: vi.fn() };
 
     tm.markDirty(renderer, 'compilation');
-    tm.updateTime(0, shader as never, renderer, updateAudio, {
+    tm.updateTime(0, shader as never, renderer, { audioUniforms: updateAudio }, {
       previewDependencies: staticDeps(),
       timelinePlaying: false
     });
@@ -49,7 +49,7 @@ describe('TimeManager (preview scheduling)', () => {
 
     render.mockClear();
     updateAudio.mockClear();
-    tm.updateTime(1, shader as never, renderer, updateAudio, {
+    tm.updateTime(1, shader as never, renderer, { audioUniforms: updateAudio }, {
       previewDependencies: staticDeps(),
       timelinePlaying: false
     });
@@ -68,17 +68,17 @@ describe('TimeManager (preview scheduling)', () => {
     const opts = { previewDependencies: audioDeps(), timelinePlaying: false };
 
     tm.markDirty(renderer, 'compilation');
-    tm.updateTime(0, shader as never, renderer, updateAudio, opts);
+    tm.updateTime(0, shader as never, renderer, { audioUniforms: updateAudio }, opts);
     expect(updateAudio).toHaveBeenCalledTimes(1);
     updateAudio.mockClear();
     render.mockClear();
 
     nowSpy.mockReturnValue(20);
-    tm.updateTime(0.02, shader as never, renderer, updateAudio, opts);
+    tm.updateTime(0.02, shader as never, renderer, { audioUniforms: updateAudio }, opts);
     expect(updateAudio).not.toHaveBeenCalled();
 
     nowSpy.mockReturnValue(100);
-    tm.updateTime(0.04, shader as never, renderer, updateAudio, opts);
+    tm.updateTime(0.04, shader as never, renderer, { audioUniforms: updateAudio }, opts);
     expect(updateAudio).toHaveBeenCalledTimes(1);
   });
 
@@ -93,16 +93,62 @@ describe('TimeManager (preview scheduling)', () => {
     const opts = { previewDependencies: radialDriveDeps(), timelinePlaying: false };
 
     tm.markDirty(renderer, 'compilation');
-    tm.updateTime(0, shader as never, renderer, updateAudio, opts);
+    tm.updateTime(0, shader as never, renderer, { audioUniforms: updateAudio }, opts);
     expect(updateAudio).toHaveBeenCalledTimes(1);
     updateAudio.mockClear();
 
     nowSpy.mockReturnValue(20);
-    tm.updateTime(0.02, shader as never, renderer, updateAudio, opts);
+    tm.updateTime(0.02, shader as never, renderer, { audioUniforms: updateAudio }, opts);
     expect(updateAudio).not.toHaveBeenCalled();
 
     nowSpy.mockReturnValue(100);
-    tm.updateTime(0.04, shader as never, renderer, updateAudio, opts);
+    tm.updateTime(0.04, shader as never, renderer, { audioUniforms: updateAudio }, opts);
     expect(updateAudio).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs MIDI envelope pass on timeline scrub without audio deps', () => {
+    const tm = new TimeManager();
+    const render = vi.fn();
+    const renderer = { markDirty: vi.fn(), render } as import('./TimeManager').ITimeManagerRasterSink;
+    const updateMidi = vi.fn();
+    const shader = { setTime: vi.fn() };
+
+    tm.markDirty(renderer, 'compilation');
+    tm.updateTime(0, shader as never, renderer, { midiEnvelopeUniforms: updateMidi }, {
+      previewDependencies: staticDeps(),
+      timelinePlaying: false,
+      midiEnvelopeDriversActive: true,
+      timelineTime: 0,
+    });
+    expect(updateMidi).toHaveBeenCalledTimes(1);
+    updateMidi.mockClear();
+    render.mockClear();
+
+    tm.updateTime(0.02, shader as never, renderer, { midiEnvelopeUniforms: updateMidi }, {
+      previewDependencies: staticDeps(),
+      timelinePlaying: false,
+      midiEnvelopeDriversActive: true,
+      timelineTime: 0.02,
+    });
+    expect(updateMidi).toHaveBeenCalledTimes(1);
+    expect(render).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not run audio pass when only MIDI callback is registered', () => {
+    const tm = new TimeManager();
+    const renderer = { markDirty: vi.fn(), render: vi.fn() } as import('./TimeManager').ITimeManagerRasterSink;
+    const updateAudio = vi.fn();
+    const updateMidi = vi.fn();
+    const shader = { setTime: vi.fn() };
+
+    tm.markDirty(renderer, 'compilation');
+    tm.updateTime(0, shader as never, renderer, { midiEnvelopeUniforms: updateMidi }, {
+      previewDependencies: staticDeps(),
+      timelinePlaying: true,
+      midiEnvelopeDriversActive: true,
+      timelineTime: 0,
+    });
+    expect(updateMidi).toHaveBeenCalledTimes(1);
+    expect(updateAudio).not.toHaveBeenCalled();
   });
 });

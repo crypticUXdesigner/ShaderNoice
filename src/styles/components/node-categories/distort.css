@@ -25,7 +25,8 @@
 
   /* Param cell */
   --node-param-label-color-distort: var(--color-clean-gray-10);
-  --node-param-value-color-connected-distort: var(--color-teal-110);
+  --node-param-value-color-connected-distort: var(--reserved-animated-connected);
+  --node-param-cell-bg-connected-distort: var(--color-red-orange-100);
 
   /* Knob */
   --node-knob-value-bg-distort: var(--color-clean-gray-60);
@@ -59,7 +60,7 @@
 
   /* Icon box */
   --node-icon-box-bg-distort-warp: var(--color-clean-gray-70);
-  --node-icon-box-color-distort-warp: var(--color-red-orange-100);
+  --node-icon-box-color-distort-warp: var(--color-red-orange-110);
 
   /* Param group header */
   --param-group-header-color-distort-warp: var(--color-clean-gray-20);
@@ -69,14 +70,14 @@
 
   /* Param cell */
   --node-param-label-color-distort-warp: var(--color-clean-gray-10);
-  --node-param-value-color-connected-distort-warp: var(--color-teal-110);
+  --node-param-value-color-connected-distort-warp: var(--reserved-animated-connected);
 
   /* Knob */
   --node-knob-value-bg-distort-warp: var(--color-clean-gray-60);
   --node-knob-value-color-distort-warp: var(--color-clean-gray-120);
-  --node-knob-ring-color-distort-warp: var(--color-clean-gray-120);
-  --node-knob-arc-active-distort-warp: var(--color-clean-gray-60);
-  --node-knob-marker-distort-warp: var(--color-clean-gray-60);
+  --node-knob-ring-color-distort-warp: var(--color-clean-gray-100);
+  --node-knob-arc-active-distort-warp: var(--color-clean-gray-20);
+  --node-knob-marker-distort-warp: var(--color-clean-gray-20);
   --node-knob-center-bg-distort-warp: var(--color-clean-gray-80);
   --node-knob-center-border-color-distort-warp: var(--color-clean-gray-100);
   --knob-ring-bg-width-distort-warp: 6px;
@@ -98,6 +99,7 @@
   --node-body-shadow-color-outer: var(--node-body-shadow-color-outer-distort);
   --node-header-name-color: var(--node-header-print-distort);
   --param-group-header-color: var(--param-group-header-color-distort);
+  --param-label-color: var(--node-param-label-color-distort);
   --knob-ring-color: var(--node-knob-ring-color-distort);
   --knob-ring-active-color-static: var(--node-knob-arc-active-distort);
   --knob-marker-color: var(--node-knob-marker-distort);
@@ -117,6 +119,20 @@
   --knob-center-bg: transparent;
   --knob-center-border-width: var(--knob-center-border-width-distort);
   --knob-center-border-color: var(--color-clean-gray-60);
+
+  --embed-slot-bg: var(--color-clean-gray-80);
+  --bezier-editor-label-color: var(--color-clean-gray-120);
+  --range-editor-label-color: var(--color-clean-gray-120);
+  --vector2d-editor-label-color: var(--color-clean-gray-120);
+  --vector3d-editor-label-color: var(--color-clean-gray-120);
+  --remap-range-input-label-color: var(--color-clean-gray-120);
+  --bezier-editor-grid-color: var(--color-clean-gray-100);
+  --bezier-editor-grid-border-color: var(--color-clean-gray-90);
+  --bezier-editor-control-line-color: var(--color-clean-gray-110);
+  --vector2d-editor-grid-color: var(--color-clean-gray-100);
+  --vector2d-editor-axis-color: var(--color-clean-gray-120);
+  --vector3d-editor-view-bg: var(--color-clean-gray-70);
+  --range-editor-slider-track-color: var(--color-clean-gray-100);
 
   /* Node header (outermost) */
   background: radial-gradient(
@@ -253,7 +269,7 @@
     padding: var(--pd-lg);
 
     &.connected {
-      background: var(--color-red-orange-120);
+      background: var(--node-param-cell-bg-connected-distort);
 
       .control-slot.param-controls {
         --param-control-value-color: var(--node-param-value-color-connected-distort);

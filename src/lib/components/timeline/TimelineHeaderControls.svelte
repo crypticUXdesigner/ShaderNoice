@@ -155,6 +155,7 @@
 <header class="timeline-header" class:is-floating-panel-chrome={layoutVariant === 'floatingPanel'}>
   <div class="header-left">
     <div class="actions">
+      <p class="lane-hint">You can also add and edit drivers from a parameter port.</p>
       <div bind:this={addLaneButtonEl} class="add-lane-btn-anchor">
         <Button
           variant="ghost"
@@ -339,6 +340,16 @@
 
   .actions {
     position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--pd-2xs);
+  }
+
+  .lane-hint {
+    margin: 0;
+    font-size: var(--text-xs);
+    color: var(--color-gray-90);
+    line-height: var(--line-height-normal);
   }
 
   :global(.add-lane-btn) {

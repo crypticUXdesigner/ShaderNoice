@@ -353,6 +353,8 @@ export function applyBezierDrag(ctx: MouseEventMoveContext, state: MouseEventFul
  */
 export function applyConnectionHover(ctx: MouseEventMoveContext, state: MouseEventFullState, mouseX: number, mouseY: number): void {
   if (!state.connection.isConnecting) return;
+  ctx.deps.handlerContext.applyConnectingCursor?.() ??
+    (ctx.deps.canvas.style.cursor = 'crosshair');
   ctx.setState({ connection: { connectionMouseX: mouseX, connectionMouseY: mouseY } });
   if (state.connection.connectionStartIsOutput) {
     const portHit = ctx.deps.hitTestManager.hitTestPort(mouseX, mouseY);

@@ -208,6 +208,16 @@
 
 /* === SEARCH DIALOG TOKENS === */
 --search-dialog-overlay: color-mix(in srgb, var(--color-gray-80) 75%, transparent);
+/* Modal backdrop sheen — light highlights on dim overlay (see Modal.svelte) */
+--modal-backdrop-sheen-core: rgba(255, 255, 255, 0.09);
+--modal-backdrop-sheen-mid: rgba(255, 255, 255, 0.038);
+--modal-backdrop-sheen-fade: rgba(255, 255, 255, 0.01);
+--modal-backdrop-sheen-brightness-min: 0.88;
+--modal-backdrop-sheen-brightness-max: 1.16;
+--modal-backdrop-sheen-opacity-min: 0.78;
+--modal-backdrop-sheen-opacity-max: 1;
+--modal-backdrop-sheen-duration: 18s;
+--modal-backdrop-sheen-duration-secondary: 27s;
 --search-dialog-bg: var(--frame-bg);
 --search-dialog-border: var(--color-gray-20);
 --search-dialog-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
@@ -307,6 +317,40 @@
 --timeline-panel-border: 1px solid var(--layout-divider-bg);
 --timeline-panel-z-index: 501;
 
+/* === PARAMETER DRIVER KIND (panel header + param ports) === */
+--driver-kind-audio-accent: var(--color-cyan-100);
+--driver-kind-audio-accent-strong: var(--color-cyan-110);
+--driver-kind-audio-on-accent: var(--color-cyan-10);
+--driver-kind-audio-accent-border: color-mix(in srgb, var(--color-cyan-10) 25%, transparent 75%);
+--driver-kind-audio-accent-glow: color-mix(in srgb, var(--color-cyan-100) 45%, transparent 55%);
+--driver-kind-audio-port-bg: var(--color-cyan-20);
+--driver-kind-audio-port-bg-hover: var(--color-cyan-30);
+--driver-kind-audio-port-icon: var(--color-cyan-110);
+--driver-kind-audio-port-icon-hover: var(--color-cyan-120);
+--driver-kind-audio-port-border: color-mix(in srgb, var(--color-cyan-70) 55%, var(--color-cyan-40) 45%);
+
+--driver-kind-animation-accent: var(--color-yellow-100);
+--driver-kind-animation-accent-strong: var(--color-yellow-110);
+--driver-kind-animation-on-accent: var(--color-yellow-10);
+--driver-kind-animation-accent-border: color-mix(in srgb, var(--color-yellow-10) 25%, transparent 75%);
+--driver-kind-animation-accent-glow: color-mix(in srgb, var(--color-yellow-100) 45%, transparent 55%);
+--driver-kind-animation-port-bg: var(--color-yellow-20);
+--driver-kind-animation-port-bg-hover: var(--color-yellow-30);
+--driver-kind-animation-port-icon: var(--color-yellow-110);
+--driver-kind-animation-port-icon-hover: var(--color-yellow-120);
+--driver-kind-animation-port-border: color-mix(in srgb, var(--color-yellow-70) 55%, var(--color-yellow-40) 45%);
+
+--driver-kind-midi-accent: var(--color-violet-100);
+--driver-kind-midi-accent-strong: var(--color-violet-110);
+--driver-kind-midi-on-accent: var(--color-violet-10);
+--driver-kind-midi-accent-border: color-mix(in srgb, var(--color-violet-10) 25%, transparent 75%);
+--driver-kind-midi-accent-glow: color-mix(in srgb, var(--color-violet-100) 45%, transparent 55%);
+--driver-kind-midi-port-bg: var(--color-violet-20);
+--driver-kind-midi-port-bg-hover: var(--color-violet-30);
+--driver-kind-midi-port-icon: var(--color-violet-110);
+--driver-kind-midi-port-icon-hover: var(--color-violet-120);
+--driver-kind-midi-port-border: color-mix(in srgb, var(--color-violet-70) 55%, var(--color-violet-40) 45%);
+
 /* === PARAMETER INPUT TOKENS === */
 --param-input-bg: var(--color-gray-20);
 --param-input-border: 2px solid var(--color-blue-90);
@@ -317,8 +361,9 @@
 --param-control-bg: var(--input-bg);
 --param-control-bg-hover: var(--color-gray-50);
 --param-control-bg-active: var(--color-gray-60);
---param-control-border: var(--input-border);
---param-control-border-active: var(--node-border-selected);
+--param-control-border: var(--color-gray-70);
+--param-control-border-hover: var(--color-gray-100);
+--param-control-border-active: var(--color-teal-90);
 --param-control-value-color: var(--print-default);
 --param-control-value-color-hover: var(--print-highlight);
 --param-control-value-color-active: var(--print-light);

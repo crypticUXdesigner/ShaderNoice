@@ -334,6 +334,7 @@
 --knob-marker-size: 9px;
 --knob-marker-color: var(--color-gray-130);
 --knob-marker-radius-offset: -16px; /* Offset from arc radius (positive = further out, negative = further in) */
+--knob-readonly-ring-opacity: 0.7;
 --knob-center-size: 0; /* Center circle diameter in px; 0 = hidden */
 --knob-center-bg: transparent;
 --knob-center-border-width: 0;
@@ -364,16 +365,16 @@
 --param-mode-button-size: 24px;
 --param-mode-button-font-size: var(--text-md);
 --param-mode-button-font-weight: 900;
---param-mode-button-color-static: #00000034; /* Color when parameter is NOT connected (clicking does nothing) */
+--param-mode-button-color-static: var(--color-gray-90); /* Color when parameter is NOT connected (clicking does nothing) */
 --param-mode-button-color-connected: var(--reserved-animated-connected); /* Color when parameter IS connected (clicking has effect) */
---param-mode-button-bg: #ffffff32;
---param-mode-button-bg-hover: var(--color-gray-130);
+--param-mode-button-bg: var(--color-gray-50);
+--param-mode-button-bg-hover: var(--color-gray-70);
 --param-mode-button-text-offset-y: 2px; /* Vertical offset adjustment for symbol centering (positive = down) */
 
 /* Parameter Group */
 --param-group-header-height: 18px;
 --param-group-header-font-size: var(--text-lg);
---param-group-header-color: var(--color-gray-40);
+--param-group-header-color: var(--color-gray-110);
 --param-group-header-weight: 600;
 --param-group-header-margin-top: 12px;
 --param-group-header-margin-bottom: 12px;
@@ -436,7 +437,7 @@
 
 /* === 2D VECTOR EDITOR TOKENS === */
 --vector2d-editor-size: 160px;
---vector2d-editor-bg: var(--color-gray-20);
+--vector2d-editor-bg: var(--embed-slot-bg);
 --vector2d-editor-border: 0 solid var(--color-gray-70);
 --vector2d-editor-radius: 12px;
 --vector2d-editor-padding: 12px;
@@ -460,7 +461,7 @@
 
 /* === 3D VECTOR EDITOR TOKENS === */
 --vector3d-editor-size: 140px;
---vector3d-editor-bg: var(--color-gray-20);
+--vector3d-editor-bg: var(--embed-slot-bg);
 --vector3d-editor-border: 0 solid var(--color-gray-70);
 --vector3d-editor-radius: 12px;
 --vector3d-editor-padding: 12px;
@@ -486,7 +487,7 @@
 
 /* === RANGE EDITOR TOKENS === */
 --range-editor-height: 300px;
---range-editor-bg: var(--color-gray-20);
+--range-editor-bg: var(--embed-slot-bg);
 --range-editor-border: 0 solid var(--color-gray-70);
 --range-editor-radius: var(--radius-lg);
 --range-editor-padding: var(--pd-lg);
@@ -526,11 +527,12 @@
 /* === TOGGLE SWITCH TOKENS === */
 --toggle-width: 48px;
 --toggle-height: 24px;
---toggle-bg-off: var(--color-gray-50);
+--toggle-bg-off: var(--color-gray-80);
 --toggle-bg-on: var(--color-blue-90);
---toggle-bg-hover-off: var(--color-gray-80);
+--toggle-bg-hover-off: var(--color-gray-90);
 --toggle-bg-hover-on: var(--color-blue-100);
---toggle-border: 1px solid var(--color-gray-70);
+--toggle-border-color: var(--color-gray-90);
+--toggle-border: 1px solid var(--toggle-border-color);
 --toggle-border-radius: 12px;
 --toggle-slider-size: 20px;
 --toggle-slider-bg: var(--color-gray-130);

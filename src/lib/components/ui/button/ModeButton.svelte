@@ -44,15 +44,15 @@
     justify-content: center;
 
     /* Box model */
-    width: var(--size-sm);
-    height: var(--size-sm);
+    width: var(--param-mode-button-size, var(--size-sm));
+    height: var(--param-mode-button-size, var(--size-sm));
     padding: 0;
     border: none;
     border-radius: 50%;
 
     /* Visual */
-    background: var(--color-teal-110);
-    color: var(--color-teal-10);
+    background: var(--param-mode-button-bg);
+    color: var(--param-mode-button-color-static);
 
     /* Typography */
     font-family: inherit;
@@ -76,13 +76,12 @@
       stroke-width: 3;
     }
 
-
+    &.connected {
+      color: var(--param-mode-button-color-connected);
+    }
 
     &:not(:disabled):hover {
-      background: var(--color-teal-120);
-    }
-    &:not(:disabled):active {
-      background: var(--color-teal-130);
+      background: var(--param-mode-button-bg-hover);
     }
 
     &:disabled {

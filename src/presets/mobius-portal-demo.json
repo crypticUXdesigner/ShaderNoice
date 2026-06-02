@@ -1,0 +1,101 @@
+{
+  "format": "shadernoice-node-graph",
+  "formatVersion": "2.0",
+  "graph": {
+    "id": "graph-preset-mobius-portal-demo",
+    "name": "Mobius Portal Demo",
+    "version": "2.0",
+    "nodes": [
+      {
+        "id": "node-uv",
+        "type": "uv-coordinates",
+        "position": { "x": -1100, "y": 0 },
+        "parameters": {}
+      },
+      {
+        "id": "node-kal",
+        "type": "kaleidoscope",
+        "position": { "x": -650, "y": 0 },
+        "parameters": {
+          "kaleidSegments": 6,
+          "kaleidCenterX": 0.0,
+          "kaleidCenterY": 0.0,
+          "kaleidRotation": 0.0,
+          "kaleidEdgeSmooth": 0.02
+        }
+      },
+      {
+        "id": "node-portal",
+        "type": "mobius-portal",
+        "position": { "x": -200, "y": 0 },
+        "parameters": {
+          "mobiusPortalCenterX": 0.0,
+          "mobiusPortalCenterY": 0.0,
+          "mobiusPortalPoleX": 0.35,
+          "mobiusPortalPoleY": 0.12,
+          "mobiusPortalPoleRadius": 0.8,
+          "mobiusPortalRotation": 20.0,
+          "mobiusPortalZoom": 1.1,
+          "mobiusPortalBoundarySoft": 0.12,
+          "mobiusPortalBlend": 0.65
+        }
+      },
+      {
+        "id": "node-noise",
+        "type": "noise",
+        "position": { "x": 350, "y": 0 },
+        "parameters": {
+          "noiseMode": 0,
+          "noiseScale": 3.5,
+          "noiseOctaves": 4,
+          "noiseLacunarity": 2.0,
+          "noiseGain": 0.5,
+          "noiseTimeSpeed": 0.1,
+          "noiseIntensity": 1.0
+        }
+      },
+      {
+        "id": "node-output",
+        "type": "final-output",
+        "position": { "x": 900, "y": 0 },
+        "parameters": {}
+      }
+    ],
+    "connections": [
+      {
+        "id": "conn-uv-kal",
+        "sourceNodeId": "node-uv",
+        "sourcePort": "out",
+        "targetNodeId": "node-kal",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-kal-portal",
+        "sourceNodeId": "node-kal",
+        "sourcePort": "out",
+        "targetNodeId": "node-portal",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-portal-noise",
+        "sourceNodeId": "node-portal",
+        "sourcePort": "out",
+        "targetNodeId": "node-noise",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-noise-out",
+        "sourceNodeId": "node-noise",
+        "sourcePort": "out",
+        "targetNodeId": "node-output",
+        "targetPort": "in"
+      }
+    ],
+    "viewState": {
+      "zoom": 0.8,
+      "panX": 280,
+      "panY": 100,
+      "selectedNodeIds": []
+    }
+  }
+}

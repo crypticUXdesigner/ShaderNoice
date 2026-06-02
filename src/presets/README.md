@@ -39,6 +39,8 @@ Presets must follow the `SerializedGraphFile` format:
 
 The `audioSetup` field is optional. When present, it stores the audio configuration (files, bands, remappers). Downloading the graph as JSON includes it automatically. Add an audio file via the bottom bar Upload button.
 
+**Arrangement pattern demos** (`note-ripple-field-demo.json`, `note-gravity-warp-demo.json`, `arrangement-patterns-showcase.json`) embed a baked **arrangement snapshot** in `audioSetup` so MIDI-driven **MIDI** category nodes compile with data out of the box. Re-import from Audiotool if the primary playlist track changes.
+
 ## Naming
 
 Preset filenames should be descriptive and use kebab-case (e.g., `sphere-shader.json`, `colorful-noise.json`).

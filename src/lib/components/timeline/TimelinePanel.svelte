@@ -15,8 +15,10 @@
     removeAutomationLane,
     setAutomationBpm,
     generateUUID,
+    buildDefaultAutomationCurveForParam,
   } from '../../../data-model';
   import { snapToGrid, SNAP_GRID_OPTIONS } from '../../../utils/timelineSnap';
+  import { prepareGraphForAnimationDriverAttach } from '../../../utils/parameterDriverAttach';
   import type { NodeGraph } from '../../../data-model/types';
   import type { NodeSpec } from '../../../types/nodeSpec';
   import type { TimelineState } from '../../../runtime/types';
@@ -641,32 +643,12 @@
     const start = snapEnabled ? snapToGrid(startTime, bpm, snapGridBars) : startTime;
     const regionId = generateUUID();
     const paramSpec = lane ? spec?.parameters?.[lane.paramName] : undefined;
-    const isFloat = paramSpec && paramSpec.type === 'float';
-    const rawValue =
-      isFloat && node && lane
-        ? (node.parameters?.[lane.paramName] ?? paramSpec?.default)
-        : undefined;
-    const numValue = typeof rawValue === 'number' ? rawValue : undefined;
-    const min = typeof paramSpec?.min === 'number' ? paramSpec.min : 0;
-    const max = typeof paramSpec?.max === 'number' ? paramSpec.max : 1;
-    const range = max - min;
-    const normalized =
-      numValue !== undefined
-        ? range === 0
-          ? 0.5
-          : Math.max(0, Math.min(1, (numValue - min) / range))
-        : undefined;
-    const curve =
-      normalized !== undefined
-        ? {
-            keyframes: [
-              { time: 0, value: normalized },
-              { time: 1, value: normalized },
-            ],
-            interpolation: 'bezier' as const,
-          }
-        : undefined;
-    const updated = addAutomationRegion(graph, laneId, {
+    const curve = buildDefaultAutomationCurveForParam(node, lane?.paramName ?? '', paramSpec);
+    const prepared =
+      lane != null
+        ? prepareGraphForAnimationDriverAttach(graph, lane.nodeId, lane.paramName)
+        : graph;
+    const updated = addAutomationRegion(prepared, laneId, {
       id: regionId,
       startTime: start,
       duration: durationSec,

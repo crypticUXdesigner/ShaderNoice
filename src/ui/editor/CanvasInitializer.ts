@@ -172,6 +172,10 @@ export function initializeCanvas(
   });
   (c.effectiveValueUpdateRunner as EffectiveValueUpdateRunner).start();
 
+  (c.connectionStateManager as ConnectionStateManager).updateDependencies({
+    requestRender: () => (c.renderingOrchestrator as RenderingOrchestrator).requestRender(),
+  });
+
   c.overlayManager = new OverlayManager({
     uiElementManager: c.uiElementManager as UIElementManager,
     hitTestManager: c.hitTestManager as HitTestManager,

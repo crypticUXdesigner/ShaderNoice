@@ -13,8 +13,8 @@
   --node-header-print-output: var(--color-red-gray-130);
 
   /* Icon box */
-  --node-icon-box-bg-output: var(--color-red-90);
-  --node-icon-box-color-output: var(--color-red-gray-130);
+  --node-icon-box-bg-output: var(--color-red-80);
+  --node-icon-box-color-output: var(--color-gray-130);
 
   /* Param group header */
   --param-group-header-color-output: var(--color-red-110);
@@ -43,6 +43,7 @@
   --node-body-shadow-color-outer: var(--node-body-shadow-color-outer-output);
   --node-header-name-color: var(--node-header-print-output);
   --param-group-header-color: var(--param-group-header-color-output);
+  --param-label-color: var(--node-param-label-color-output);
   --knob-ring-color: var(--node-knob-ring-color-output);
   --knob-ring-active-color-static: var(--node-knob-arc-active-output);
   --knob-marker-color: var(--node-knob-marker-output);

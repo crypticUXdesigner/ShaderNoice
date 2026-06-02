@@ -5,9 +5,11 @@
 
 import type { CanvasState } from './NodeEditorCanvas';
 import type { NodeInstance } from '../../data-model/types';
+import { applyEditorCursor } from './canvas/editorCanvasCursor';
 
 export interface ManagerContextSetupDeps {
   canvas: HTMLCanvasElement;
+  getCursorRoot?: () => HTMLElement | null;
   state: CanvasState;
   viewStateManager: {
     addPan: (dx: number, dy: number) => void;
@@ -114,12 +116,14 @@ export interface ManagerContextSetupDepsSource {
   onToggleFullscreen?: () => void;
   onUndo?: () => void;
   onRedo?: () => void;
+  getCursorRoot?: () => HTMLElement | null;
 }
 
 export function buildManagerContextDeps(source: ManagerContextSetupDepsSource): ManagerContextSetupDeps {
   const ist = source.interactionState;
   return {
     canvas: source.canvas,
+    getCursorRoot: source.getCursorRoot,
     state: source.state,
     getCurrentMouse: () => ist.getCurrentMouse(),
     viewStateManager: source.viewStateManager,
@@ -244,7 +248,10 @@ export function setupManagerContexts(deps: ManagerContextSetupDeps): void {
       deps.onSpacebarStateChange?.(isPressed);
     },
     setCursor: (cursor: string) => {
-      deps.canvas.style.cursor = cursor;
+      applyEditorCursor(
+        { canvas: deps.canvas, cursorRoot: deps.getCursorRoot?.() ?? null },
+        cursor
+      );
     },
     isPanning: deps.getIsPanning,
     isDraggingNode: deps.getIsDraggingNode,

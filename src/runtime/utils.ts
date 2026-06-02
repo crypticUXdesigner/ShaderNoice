@@ -36,7 +36,7 @@ export function digestAutomationForCompileIdentity(automation: AutomationState |
     jsonNumber(automation.durationSeconds),
   ];
   for (const lane of lanes) {
-    parts.push('|L:', lane.id, '|', lane.nodeId, '|', lane.paramName);
+    parts.push('|L:', lane.id, '|', lane.nodeId, '|', lane.paramName, '|d:', lane.disabled ? '1' : '0');
     const regions = [...(lane.regions ?? [])].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     for (const r of regions) {
       parts.push(
@@ -95,7 +95,10 @@ export function hashGraph(graph: import('../data-model/types').NodeGraph): strin
     .join(',');
   const connectionIds = graph.connections.map(c => c.id).sort().join(',');
   const connections = graph.connections
-    .map(c => `${c.sourceNodeId}:${c.sourcePort}->${c.targetNodeId}:${c.targetPort ?? ''}:${c.targetParameter ?? ''}`)
+    .map(
+      (c) =>
+        `${c.sourceNodeId}:${c.sourcePort}->${c.targetNodeId}:${c.targetPort ?? ''}:${c.targetParameter ?? ''}:${c.disabled ? '1' : '0'}`
+    )
     .sort()
     .join(',');
   const automation = digestAutomationForCompileIdentity(graph.automation);

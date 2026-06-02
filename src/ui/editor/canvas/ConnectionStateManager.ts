@@ -9,6 +9,16 @@ import type { NodeGraph } from '../../../data-model/types';
 import type { NodeSpec } from '../../../types/nodeSpec';
 import type { NodeRenderMetrics } from '../NodeRenderer';
 import { getCSSColor, getCSSVariableAsNumber, getCSSColorRGBA } from '../../../utils/cssTokens';
+import {
+  computeConnectionBezierControlPoints,
+  connectionPreviewMarchForward,
+  portSideFromEndpoint,
+  previewTargetPortSide,
+} from '../connectionBezier';
+import {
+  ConnectionPreviewAnimator,
+  CONNECTION_PREVIEW_DASH_PATTERN,
+} from '../ConnectionPreviewAnimator';
 
 export interface ConnectionState {
   isConnecting: boolean;
@@ -42,14 +52,20 @@ export interface ConnectionStateManagerDependencies {
     parameter?: string;
     snapPosition?: { x: number; y: number };
   } | null;
+  requestRender?: () => void;
+  onConnectingChange?: (isConnecting: boolean) => void;
 }
 
 export class ConnectionStateManager {
   private state: ConnectionState;
   private dependencies: ConnectionStateManagerDependencies;
+  private previewAnimator: ConnectionPreviewAnimator;
 
   constructor(dependencies: ConnectionStateManagerDependencies) {
     this.dependencies = dependencies;
+    this.previewAnimator = new ConnectionPreviewAnimator(() => {
+      this.dependencies.requestRender?.();
+    });
     this.state = {
       isConnecting: false,
       connectionStartNodeId: null,
@@ -73,7 +89,20 @@ export class ConnectionStateManager {
    * Set connection state
    */
   setState(state: Partial<ConnectionState>): void {
+    const wasConnecting = this.state.isConnecting;
     this.state = { ...this.state, ...state };
+    const isConnecting = this.state.isConnecting;
+
+    if (state.isConnecting === true && !wasConnecting) {
+      this.previewAnimator.setMarchForward(connectionPreviewMarchForward(this.state.connectionStartIsOutput));
+      this.previewAnimator.start(connectionPreviewMarchForward(this.state.connectionStartIsOutput));
+      this.dependencies.onConnectingChange?.(true);
+    } else if (state.isConnecting === false && wasConnecting) {
+      this.previewAnimator.stop();
+      this.dependencies.onConnectingChange?.(false);
+    } else if (isConnecting && state.connectionStartIsOutput !== undefined) {
+      this.previewAnimator.setMarchForward(connectionPreviewMarchForward(this.state.connectionStartIsOutput));
+    }
   }
 
   /**
@@ -176,29 +205,33 @@ export class ConnectionStateManager {
     mouseX: number,
     mouseY: number
   ): void {
-    this.state.isConnecting = true;
-    this.state.connectionStartNodeId = nodeId;
-    this.state.connectionStartPort = port;
-    this.state.connectionStartParameter = parameter;
-    this.state.connectionStartIsOutput = isOutput;
-    this.state.connectionMouseX = mouseX;
-    this.state.connectionMouseY = mouseY;
-    this.state.hoveredPort = null;
+    this.setState({
+      isConnecting: true,
+      connectionStartNodeId: nodeId,
+      connectionStartPort: port,
+      connectionStartParameter: parameter,
+      connectionStartIsOutput: isOutput,
+      connectionMouseX: mouseX,
+      connectionMouseY: mouseY,
+      hoveredPort: null
+    });
   }
 
   /**
    * End connection
    */
   endConnection(): void {
-    this.state.isConnecting = false;
-    this.state.connectionStartNodeId = null;
-    this.state.connectionStartPort = null;
-    this.state.connectionStartParameter = null;
-    this.state.connectionStartIsOutput = false;
-    this.state.connectionStartSnapPosition = undefined;
-    this.state.connectionMouseX = 0;
-    this.state.connectionMouseY = 0;
-    this.state.hoveredPort = null;
+    this.setState({
+      isConnecting: false,
+      connectionStartNodeId: null,
+      connectionStartPort: null,
+      connectionStartParameter: null,
+      connectionStartIsOutput: false,
+      connectionStartSnapPosition: undefined,
+      connectionMouseX: 0,
+      connectionMouseY: 0,
+      hoveredPort: null
+    });
   }
 
   /**
@@ -241,6 +274,7 @@ export class ConnectionStateManager {
     const canvasPos = this.dependencies.screenToCanvas(this.state.connectionMouseX, this.state.connectionMouseY);
     let targetX = canvasPos.x;
     let targetY = canvasPos.y;
+    let targetSide = previewTargetPortSide(this.state.connectionStartIsOutput);
     
     let isSnapped = false;
     
@@ -278,6 +312,7 @@ export class ConnectionStateManager {
         if (snappedPortPos) {
           targetX = snappedPortPos.x;
           targetY = snappedPortPos.y;
+          targetSide = portSideFromEndpoint(portHit.isOutput);
           isSnapped = true;
         }
       }
@@ -290,14 +325,14 @@ export class ConnectionStateManager {
     const dragThreshold = 8;
     const distFromStart = Math.hypot(canvasPos.x - sourceX, canvasPos.y - sourceY);
     if (distFromStart < dragThreshold) return;
-    
-    // Bezier curve with strong horizontal movement
-    // Output connections: move straight right first (100px), then come in from left
-    // Input connections: move straight left first (100px), then come in from right
-    const cp1X = this.state.connectionStartIsOutput ? sourceX + 100 : sourceX - 100;
-    const cp1Y = sourceY;
-    const cp2X = this.state.connectionStartIsOutput ? targetX - 100 : targetX + 100;
-    const cp2Y = targetY;
+
+    const sourceSide = portSideFromEndpoint(this.state.connectionStartIsOutput);
+    const { cp1, cp2 } = computeConnectionBezierControlPoints(
+      { x: sourceX, y: sourceY },
+      { x: targetX, y: targetY },
+      sourceSide,
+      targetSide
+    );
     
     // Get connection color based on source port type
     let portType: string = 'float';
@@ -335,52 +370,49 @@ export class ConnectionStateManager {
     }
     const connectionColor = getCSSColor(connectionColorToken, getCSSColor('connection-color-default', getCSSColor('color-gray-100', '#747e87')));
     
-    // Draw preview port at cursor position first (smaller, slightly transparent)
-    // We'll render it directly here since renderPort is private
-    const previewScale = 0.8; // 80% size
-    const previewOpacity = 0.7; // 70% opacity
+    // Ghost port at cursor / snap target
+    const previewScale = isSnapped ? 0.85 : 0.75;
+    const previewOpacity = isSnapped ? 0.85 : 0.65;
     const previewRadius = getCSSVariableAsNumber('port-radius', 4) * previewScale;
     
-    // Draw highlight circle (connecting state) - use green color from token
-    const highlightRadius = previewRadius * 3.5;
+    const highlightRadius = previewRadius * (isSnapped ? 3.5 : 2.8);
     const draggingColorRGBA = getCSSColorRGBA('port-dragging-color', { r: 0, g: 255, b: 136, a: 1 });
     const draggingOuterOpacity = getCSSVariableAsNumber('port-dragging-outer-opacity', 0.6);
+    const actualOuterOpacity = draggingOuterOpacity * previewOpacity * (isSnapped ? 1 : 0.65);
     
-    // Calculate actual opacity value (multiply before using in string)
-    const actualOuterOpacity = draggingOuterOpacity * previewOpacity;
-    
-    // Draw larger transparent circle behind (outer highlight)
     targetCtx.fillStyle = `rgba(${draggingColorRGBA.r}, ${draggingColorRGBA.g}, ${draggingColorRGBA.b}, ${actualOuterOpacity})`;
     targetCtx.beginPath();
     targetCtx.arc(targetX, targetY, highlightRadius, 0, Math.PI * 2);
     targetCtx.fill();
     
-    // Draw solid green port on top (inner circle)
     targetCtx.fillStyle = `rgba(${draggingColorRGBA.r}, ${draggingColorRGBA.g}, ${draggingColorRGBA.b}, ${previewOpacity})`;
     targetCtx.beginPath();
     targetCtx.arc(targetX, targetY, previewRadius, 0, Math.PI * 2);
     targetCtx.fill();
     
-    const tempConnectionWidth = getCSSVariableAsNumber('connection-width-preview', 4);
+    const tempConnectionWidth = isSnapped
+      ? getCSSVariableAsNumber('connection-width', 6)
+      : getCSSVariableAsNumber('connection-width-preview', 4);
     targetCtx.strokeStyle = connectionColor;
     targetCtx.lineWidth = tempConnectionWidth;
+    targetCtx.lineCap = 'round';
+    targetCtx.lineJoin = 'round';
     
-    // Use dotted line when not snapped, solid when snapped
     if (isSnapped) {
-      // Solid line when snapped
       targetCtx.setLineDash([]);
+      targetCtx.lineDashOffset = 0;
     } else {
-      // Dotted line when not snapped
-      const dashPattern = [12, 6]; // 2px dash, 10px gap
-      targetCtx.setLineDash(dashPattern);
+      targetCtx.setLineDash([...CONNECTION_PREVIEW_DASH_PATTERN]);
+      targetCtx.lineDashOffset = -this.previewAnimator.getDashOffset();
     }
     
     targetCtx.beginPath();
     targetCtx.moveTo(sourceX, sourceY);
-    targetCtx.bezierCurveTo(cp1X, cp1Y, cp2X, cp2Y, targetX, targetY);
+    targetCtx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, targetX, targetY);
     targetCtx.stroke();
     
     // Reset line dash pattern to prevent state leakage
     targetCtx.setLineDash([]);
+    targetCtx.lineDashOffset = 0;
   }
 }

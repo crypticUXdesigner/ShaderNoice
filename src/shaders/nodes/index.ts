@@ -15,6 +15,15 @@ import {
 import { mixedWaveSignalNodeSpec } from './mixed-wave-signal';
 import { arrangementLanesNodeSpec } from './arrangement-lanes';
 import { arrangementNotesNodeSpec } from './arrangement-notes';
+import { noteRippleFieldNodeSpec } from './note-ripple-field';
+import { pitchClassCompassNodeSpec } from './pitch-class-compass';
+import { rhythmStripeFieldNodeSpec } from './rhythm-stripe-field';
+import { velocitySparkGridNodeSpec } from './velocity-spark-grid';
+import { trackHaloLatticeNodeSpec } from './track-halo-lattice';
+import { boundaryShutterRaysNodeSpec } from './boundary-shutter-rays';
+import { durationCometTrailsNodeSpec } from './duration-comet-trails';
+import { chordVoronoiBloomNodeSpec } from './chord-voronoi-bloom';
+import { noteGravityWarpNodeSpec } from './note-gravity-warp';
 import { oscillator2dNodeSpec } from './oscillator-2d';
 import { pathDriveNodeSpec } from './path-drive';
 import { orbitCameraNodeSpec } from './orbit-camera';
@@ -24,6 +33,11 @@ import { polarCoordinatesNodeSpec } from './polar-coordinates';
 import { vectorFieldNodeSpec } from './vector-field';
 import { turbulenceNodeSpec } from './turbulence';
 import { kaleidoscopeNodeSpec } from './kaleidoscope';
+import { creaseFoldNodeSpec } from './crease-fold';
+import { cellularSlipNodeSpec } from './cellular-slip';
+import { mobiusPortalNodeSpec } from './mobius-portal';
+import { wakeSmearNodeSpec } from './wake-smear';
+import { circleInversionNodeSpec } from './circle-inversion';
 import { radialUvWarpNodeSpec } from './radial-uv-warp';
 import { rippleNodeSpec } from './ripple';
 import { displaceNodeSpec } from './displace';
@@ -173,6 +187,15 @@ export const nodeSystemSpecs: NodeSpec[] = [
   mixedWaveSignalNodeSpec,
   arrangementLanesNodeSpec,
   arrangementNotesNodeSpec,
+  noteRippleFieldNodeSpec,
+  pitchClassCompassNodeSpec,
+  rhythmStripeFieldNodeSpec,
+  velocitySparkGridNodeSpec,
+  trackHaloLatticeNodeSpec,
+  boundaryShutterRaysNodeSpec,
+  durationCometTrailsNodeSpec,
+  chordVoronoiBloomNodeSpec,
+  noteGravityWarpNodeSpec,
   oscillator2dNodeSpec,
   pathDriveNodeSpec,
   orbitCameraNodeSpec,
@@ -186,6 +209,11 @@ export const nodeSystemSpecs: NodeSpec[] = [
   vectorFieldNodeSpec,
   turbulenceNodeSpec,
   kaleidoscopeNodeSpec,
+  creaseFoldNodeSpec,
+  cellularSlipNodeSpec,
+  mobiusPortalNodeSpec,
+  wakeSmearNodeSpec,
+  circleInversionNodeSpec,
   radialUvWarpNodeSpec,
   rippleNodeSpec,
   displaceNodeSpec,

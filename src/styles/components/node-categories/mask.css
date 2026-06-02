@@ -15,10 +15,10 @@
 
   /* Icon box */
   --node-icon-box-bg-mask: var(--color-violet-gray-80);
-  --node-icon-box-color-mask: var(--color-violet-gray-40);
+  --node-icon-box-color-mask: var(--color-violet-gray-120);
 
   /* Param group header */
-  --param-group-header-color-mask: var(--color-violet-gray-110);
+  --param-group-header-color-mask: var(--color-violet-gray-130);
 
   /* Param grid */
   --node-param-grid-bg-mask: var(--color-violet-gray-80);
@@ -32,7 +32,7 @@
   --node-knob-value-bg-mask: var(--color-violet-gray-40);
   --node-knob-value-color-mask: var(--color-violet-gray-120);
   --node-knob-ring-color-mask: var(--color-violet-gray-80);
-  --node-knob-arc-active-mask: var(--color-leaf-120);
+  --node-knob-arc-active-mask: var(--color-yellow-120);
   --node-knob-marker-mask: var(--color-violet-gray-gray-60);
   --knob-ring-bg-width-mask: 8px;
   --knob-ring-active-width-mask: 3px;
@@ -56,6 +56,7 @@
   --node-body-shadow-color-outer: var(--node-body-shadow-color-outer-mask);
   --node-header-name-color: var(--node-header-print-mask);
   --param-group-header-color: var(--param-group-header-color-mask);
+  --param-label-color: var(--node-param-label-color-mask);
   --knob-ring-color: var(--node-knob-ring-color-mask);
   --knob-ring-active-color-static: var(--node-knob-arc-active-mask);
   --knob-marker-color: var(--node-knob-marker-mask);
@@ -74,6 +75,20 @@
   --knob-center-border-width: var(--knob-center-border-width-mask);
   --knob-center-border-color: var(--node-knob-center-border-color-mask);
   --knob-center-filter: var(--knob-center-filter-mask);
+
+  --embed-slot-bg: var(--color-violet-gray-80);
+  --bezier-editor-label-color: var(--color-violet-gray-130);
+  --range-editor-label-color: var(--color-violet-gray-130);
+  --vector2d-editor-label-color: var(--color-violet-gray-130);
+  --vector3d-editor-label-color: var(--color-violet-gray-130);
+  --remap-range-input-label-color: var(--color-violet-gray-130);
+  --bezier-editor-grid-color: var(--color-violet-gray-100);
+  --bezier-editor-grid-border-color: var(--color-violet-gray-90);
+  --bezier-editor-control-line-color: var(--color-violet-gray-110);
+  --vector2d-editor-grid-color: var(--color-violet-gray-100);
+  --vector2d-editor-axis-color: var(--color-violet-gray-120);
+  --vector3d-editor-view-bg: var(--color-violet-gray-70);
+  --range-editor-slider-track-color: var(--color-violet-gray-100);
 
   /* Node header (outermost) */
   background: radial-gradient(

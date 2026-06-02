@@ -1,0 +1,339 @@
+{
+  "format": "shadernoice-node-graph",
+  "formatVersion": "2.0",
+  "graph": {
+    "id": "graph-1780442247189-iqnxr5iif",
+    "name": "Note Gravity Warp Demo",
+    "version": "2.0",
+    "nodes": [
+      {
+        "id": "node-uv",
+        "type": "uv-coordinates",
+        "position": {
+          "x": -1500,
+          "y": 0
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-gravity",
+        "type": "note-gravity-warp",
+        "position": {
+          "x": -900,
+          "y": 0
+        },
+        "parameters": {
+          "windowSeconds": 2,
+          "strength": 0.16,
+          "reach": 0.26,
+          "swirl": 0.5,
+          "maxWarp": 0.16,
+          "centerX": 0.5,
+          "centerY": 0.5,
+          "trackFilterMode": 0,
+          "trackFilterList": ""
+        }
+      },
+      {
+        "id": "node-split-warp",
+        "type": "split-vector",
+        "position": {
+          "x": -500,
+          "y": -160
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-displace",
+        "type": "displace",
+        "position": {
+          "x": -500,
+          "y": 80
+        },
+        "parameters": {
+          "displaceMode": 0,
+          "displaceScale": 2.5,
+          "offsetX": 0,
+          "offsetY": 0
+        }
+      },
+      {
+        "id": "node-stripes",
+        "type": "stripes",
+        "position": {
+          "x": 0,
+          "y": 80
+        },
+        "parameters": {
+          "waveScale": 1,
+          "waveFrequency": 14,
+          "waveAmplitude": 1,
+          "waveDirection": 35,
+          "waveIntensity": 1
+        }
+      },
+      {
+        "id": "node-lut",
+        "type": "color-lut",
+        "position": {
+          "x": 500,
+          "y": 80
+        },
+        "parameters": {
+          "preset": 5,
+          "reverse": 0,
+          "gamma": 1,
+          "contrast": 0.12,
+          "intensity": 1
+        }
+      },
+      {
+        "id": "node-black",
+        "type": "constant-vec3",
+        "position": {
+          "x": 500,
+          "y": -160
+        },
+        "parameters": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        }
+      },
+      {
+        "id": "node-mix",
+        "type": "mix",
+        "position": {
+          "x": 900,
+          "y": 0
+        },
+        "parameters": {
+          "a": 0,
+          "b": 1,
+          "t": 0.5
+        }
+      },
+      {
+        "id": "node-output",
+        "type": "final-output",
+        "position": {
+          "x": 1300,
+          "y": 0
+        },
+        "parameters": {}
+      }
+    ],
+    "connections": [
+      {
+        "id": "c-uv-gravity",
+        "sourceNodeId": "node-uv",
+        "sourcePort": "out",
+        "targetNodeId": "node-gravity",
+        "targetPort": "in"
+      },
+      {
+        "id": "c-uv-displace",
+        "sourceNodeId": "node-uv",
+        "sourcePort": "out",
+        "targetNodeId": "node-displace",
+        "targetPort": "in"
+      },
+      {
+        "id": "c-warp-split",
+        "sourceNodeId": "node-gravity",
+        "sourcePort": "warp",
+        "targetNodeId": "node-split-warp",
+        "targetPort": "in"
+      },
+      {
+        "id": "c-split-offset-x",
+        "sourceNodeId": "node-split-warp",
+        "sourcePort": "x",
+        "targetNodeId": "node-displace",
+        "targetParameter": "offsetX"
+      },
+      {
+        "id": "c-split-offset-y",
+        "sourceNodeId": "node-split-warp",
+        "sourcePort": "y",
+        "targetNodeId": "node-displace",
+        "targetParameter": "offsetY"
+      },
+      {
+        "id": "c-displace-stripes",
+        "sourceNodeId": "node-displace",
+        "sourcePort": "out",
+        "targetNodeId": "node-stripes",
+        "targetPort": "in"
+      },
+      {
+        "id": "c-stripes-lut",
+        "sourceNodeId": "node-stripes",
+        "sourcePort": "out",
+        "targetNodeId": "node-lut",
+        "targetPort": "in"
+      },
+      {
+        "id": "c-black-mix",
+        "sourceNodeId": "node-black",
+        "sourcePort": "out",
+        "targetNodeId": "node-mix",
+        "targetPort": "a"
+      },
+      {
+        "id": "c-lut-mix",
+        "sourceNodeId": "node-lut",
+        "sourcePort": "out",
+        "targetNodeId": "node-mix",
+        "targetPort": "b"
+      },
+      {
+        "id": "c-value-mix",
+        "sourceNodeId": "node-gravity",
+        "sourcePort": "out",
+        "targetNodeId": "node-mix",
+        "targetPort": "t"
+      },
+      {
+        "id": "c-mix-out",
+        "sourceNodeId": "node-mix",
+        "sourcePort": "out",
+        "targetNodeId": "node-output",
+        "targetPort": "in"
+      }
+    ],
+    "viewState": {
+      "zoom": 0.85,
+      "panX": 200,
+      "panY": 80,
+      "selectedNodeIds": []
+    }
+  },
+  "audioSetup": {
+    "files": [],
+    "bands": [],
+    "remappers": [],
+    "primarySource": {
+      "type": "playlist",
+      "trackId": "tracks/spike-fixture"
+    },
+    "arrangementSnapshot": {
+      "tracks": [
+        {
+          "id": "track-note-1",
+          "kind": "note",
+          "orderAmongTracks": 0,
+          "enabled": true,
+          "label": "Lead",
+          "colorIndex": 4
+        },
+        {
+          "id": "track-audio-1",
+          "kind": "audio",
+          "orderAmongTracks": 1,
+          "enabled": true,
+          "label": "Vocal chop",
+          "colorIndex": 12
+        },
+        {
+          "id": "track-note-2",
+          "kind": "note",
+          "orderAmongTracks": 2,
+          "enabled": false,
+          "colorIndex": 7
+        },
+        {
+          "id": "track-pattern-1",
+          "kind": "pattern",
+          "orderAmongTracks": 3,
+          "enabled": true,
+          "label": "Drums",
+          "colorIndex": 1
+        }
+      ],
+      "regions": [
+        {
+          "id": "region-note-1",
+          "trackId": "track-note-1",
+          "kind": "note",
+          "startSeconds": 0,
+          "durationSeconds": 1.875,
+          "enabled": true,
+          "label": "Intro",
+          "colorIndex": 4
+        },
+        {
+          "id": "region-pattern-1",
+          "trackId": "track-pattern-1",
+          "kind": "pattern",
+          "startSeconds": 0,
+          "durationSeconds": 7.5,
+          "enabled": true,
+          "colorIndex": 1,
+          "patternIndex": 2
+        },
+        {
+          "id": "region-audio-1",
+          "trackId": "track-audio-1",
+          "kind": "audio",
+          "startSeconds": 0.9375,
+          "durationSeconds": 5.625,
+          "enabled": true,
+          "label": "Vox",
+          "colorIndex": 12
+        },
+        {
+          "id": "region-note-2",
+          "trackId": "track-note-2",
+          "kind": "note",
+          "startSeconds": 1.875,
+          "durationSeconds": 3.75,
+          "enabled": true,
+          "colorIndex": 7
+        }
+      ],
+      "notes": [
+        {
+          "id": "note-1@region-note-1",
+          "collectionId": "collection-note-1",
+          "trackId": "track-note-1",
+          "startSeconds": 0,
+          "durationSeconds": 0.234375,
+          "pitch": 60,
+          "velocity": 0.85
+        },
+        {
+          "id": "note-2@region-note-1",
+          "collectionId": "collection-note-1",
+          "trackId": "track-note-1",
+          "startSeconds": 0.46875,
+          "durationSeconds": 0.234375,
+          "pitch": 64,
+          "velocity": 0.7
+        },
+        {
+          "id": "note-3@region-note-1",
+          "collectionId": "collection-note-1",
+          "trackId": "track-note-1",
+          "startSeconds": 0.9375,
+          "durationSeconds": 0.1171875,
+          "pitch": 67,
+          "velocity": 0.55
+        }
+      ],
+      "bpm": 128,
+      "durationSeconds": 150,
+      "timeSignature": {
+        "numerator": 4,
+        "denominator": 4
+      },
+      "source": {
+        "trackName": "tracks/spike-fixture",
+        "projectName": "projects/spike-fixture-uuid",
+        "commitIndex": 42
+      },
+      "automationTracks": []
+    },
+    "arrangementImportedAt": "2026-05-30T12:00:00.000Z"
+  }
+}

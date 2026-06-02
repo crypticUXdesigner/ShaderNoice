@@ -10,6 +10,7 @@ export const NODE_PANEL_CATEGORY_ORDER: readonly string[] = [
   'Mask',
   'Effects',
   'Audio',
+  'MIDI',
   'Inputs',
   'Output',
   'Math',

@@ -11,14 +11,14 @@
   /* Node header */
   --node-header-bg-blend: var(--color-red-gray-gray-90);
   --node-header-bg-end-blend: var(--color-red-gray-gray-80);
-  --node-header-print-blend: var(--color-gray-40);
+  --node-header-print-blend: var(--color-red-gray-gray-120);
 
   /* Icon box */
   --node-icon-box-bg-blend: var(--color-gray-60);
   --node-icon-box-color-blend: var(--color-red-100);
 
   /* Param group header */
-  --param-group-header-color-blend: var(--color-red-gray-gray-80);
+  --param-group-header-color-blend: var(--color-red-gray-gray-110);
 
   /* Param cell */
   --node-param-cell-bg-blend: rgba(255, 255, 255, 0.01);
@@ -53,6 +53,7 @@
   --node-body-shadow-color-outer: var(--node-body-shadow-color-outer-blend);
   --node-header-name-color: var(--node-header-print-blend);
   --param-group-header-color: var(--param-group-header-color-blend);
+  --param-label-color: var(--node-param-label-color-blend);
   --knob-ring-color: var(--node-knob-ring-color-blend);
   --knob-ring-active-color-static: var(--node-knob-arc-active-blend);
   --knob-marker-color: var(--node-knob-marker-blend);

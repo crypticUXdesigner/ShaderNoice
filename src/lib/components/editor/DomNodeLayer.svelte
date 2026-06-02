@@ -38,6 +38,12 @@
       value: import('../../../data-model/types').ParameterValue,
       options?: GraphUndoRecordingOptions
     ) => void;
+    onTrackFilterChange?: (
+      nodeId: string,
+      trackFilterMode: number,
+      trackFilterList: string,
+      options?: GraphUndoRecordingOptions
+    ) => void;
     onParameterGestureCommit?: () => void;
     onParameterInputModeChanged?: (nodeId: string, paramName: string, mode: import('../../../types/nodeSpec').ParameterInputMode) => void;
     onNodeContextMenu?: (nodeId: string, clientX: number, clientY: number) => void;
@@ -45,12 +51,16 @@
     onPatchIntoDoubleClick?: (nodeId: string) => void;
     /** Patch tool: graph node id waiting for a cable click (insert-this-node flow). */
     patchInsertNodeId?: string | null;
+    /** Open inline label edit when seq bumps for matching nodeId. */
+    labelEditRequest?: { nodeId: string; seq: number } | null;
     onNodePowerToggle?: (nodeId: string, bypassed: boolean) => void;
+    onParamDriverBypassToggle?: (nodeId: string, paramName: string, bypassed: boolean) => void;
   }
 
   let {
     landedNodeId = null,
     patchInsertNodeId = null,
+    labelEditRequest = null,
     graph,
     nodeSpecs,
     audioSetup = { files: [], bands: [], remappers: [] },
@@ -66,11 +76,13 @@
     onNodeSelected,
     onNodeLabelChanged,
     onParameterChange,
+    onTrackFilterChange,
     onParameterGestureCommit,
     onParameterInputModeChanged,
     onNodeContextMenu,
     onPatchIntoDoubleClick,
     onNodePowerToggle,
+    onParamDriverBypassToggle,
   }: Props = $props();
 
   const nodeSpecsMap = $derived(new Map(nodeSpecs.map((s) => [s.id, s])));
@@ -243,11 +255,14 @@
           onSelect={onNodeSelected}
           onLabelChange={onNodeLabelChanged}
           onParameterChange={onParameterChange ?? (() => {})}
+          onTrackFilterChange={onTrackFilterChange}
           onParameterGestureCommit={onParameterGestureCommit}
           onParameterInputModeChanged={onParameterInputModeChanged}
           onContextMenu={onNodeContextMenu}
           onPatchIntoDoubleClick={onPatchIntoDoubleClick}
           onPowerToggle={onNodePowerToggle}
+          onParamDriverBypassToggle={onParamDriverBypassToggle}
+          labelEditRequestSeq={labelEditRequest?.nodeId === node.id ? labelEditRequest.seq : 0}
         />
       {/if}
     {/each}

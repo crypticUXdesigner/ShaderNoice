@@ -14,6 +14,8 @@
     disabled?: boolean;
     size?: 'sm' | 'md';
     class?: string;
+    /** Optional display formatter; edit/drag still use raw `value`. */
+    formatDisplay?: (value: number) => string;
     onChange?: (value: number) => void;
     onCommit?: (value: number) => void;
   }
@@ -28,6 +30,7 @@
     disabled = false,
     size = 'md',
     class: className = '',
+    formatDisplay,
     onChange,
     onCommit
   }: Props = $props();
@@ -59,12 +62,13 @@
     return v;
   }
 
-  function formatDisplay(v: number): string {
+  function formatDisplayValue(v: number): string {
+    if (formatDisplay) return formatDisplay(v);
     if (decimals === 0) return Math.round(v).toString();
     return v.toFixed(decimals);
   }
 
-  const displayText = $derived(editMode ? editText : formatDisplay(value));
+  const displayText = $derived(editMode ? editText : formatDisplayValue(value));
 
   function handleDisplayFocus(ev: FocusEvent) {
     if (disabled || editMode) return;
@@ -83,7 +87,7 @@
     valueTapStrictDouble.reset();
     if (wrapperEl) lockedWidthPx = wrapperEl.offsetWidth;
     editMode = true;
-    editText = formatDisplay(valueForEdit ?? value);
+    editText = formatDisplayValue(valueForEdit ?? value);
     await tick();
     inputEl?.focus();
     inputEl?.select();
@@ -297,14 +301,16 @@
         font-size: var(--text-xs);
       }
 
-      &:hover {
-        background: var(--param-control-bg-hover);
-        color: var(--param-control-value-color-hover);
+      &:hover:not(:disabled) {
+        background: var(--param-control-bg);
+        border-color: var(--param-control-border-hover, var(--param-control-border));
+        color: var(--param-control-value-color);
       }
 
-      &:active {
-        background: var(--param-control-bg-active);
-        color: var(--param-control-value-color-active);
+      &:active:not(:disabled) {
+        background: var(--param-control-bg);
+        border-color: var(--param-control-border-active);
+        color: var(--param-control-value-color);
       }
 
       &:disabled {
@@ -320,6 +326,7 @@
         }
 
         &:focus-visible {
+          background: var(--param-control-bg);
           border-color: var(--param-control-border-active);
           box-shadow: 0 0 0 1px var(--param-control-border-active);
         }
@@ -336,6 +343,7 @@
 
         &:focus {
           outline: none;
+          background: var(--param-control-bg);
           border-color: var(--param-control-border-active);
           box-shadow: 0 0 0 1px var(--param-control-border-active);
         }

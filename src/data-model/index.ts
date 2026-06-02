@@ -37,6 +37,23 @@ export type {
   AutomationLane,
   AutomationState,
 } from './types';
+export type {
+  MidiEnvelopeAdsr,
+  MidiEnvelopeDefinition,
+  MidiEnvelopePreset,
+  MidiEnvelopeRemapper,
+  MidiEnvelopeBinding,
+  ResolvedMidiEnvelopeBinding,
+  MidiEnvelopeCreateEnvelope,
+} from './midiEnvelopeTypes';
+export {
+  DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT,
+  isLegacyPresetIdMidiEnvelopeBinding,
+} from './midiEnvelopeTypes';
+export {
+  defaultRemapperIdForPreset,
+  migrateMidiEnvelopePresetToRemappers,
+} from './midiEnvelopeRemapperMigration';
 export {
   GRAPH_FILE_FORMAT,
   LEGACY_GRAPH_FILE_FORMAT,
@@ -126,8 +143,38 @@ export {
   removeAutomationLane,
   setAutomationBpm,
   setAutomationDuration,
+  buildDefaultAutomationCurveForParam,
+  resolveDefaultAutomationRegionDurationSeconds,
+  addDefaultAutomationDriverForParam,
   addConnectionWithValidation,
+  findMidiEnvelopePreset,
+  findMidiEnvelopeRemapper,
+  envelopePresetIdForBinding,
+  findBindingsForPreset,
+  findBindingsForRemapper,
+  defaultOutputRangeForPreset,
+  resolveMidiEnvelopeBinding,
+  updateMidiEnvelopeRemapper,
+  bindMidiEnvelopeRemapperToParam,
+  connectMidiEnvelopeRemapperToParam,
+  findMidiEnvelopeBindingForParam,
+  hasMidiEnvelopeBindingForParam,
+  addMidiEnvelopePreset,
+  addMidiEnvelopeRemapper,
+  removeMidiEnvelopeRemapper,
+  duplicateMidiEnvelopeRemapper,
+  bindMidiEnvelopePresetToParam,
+  addMidiEnvelopeBinding,
+  updateMidiEnvelopePreset,
+  updateMidiEnvelopeBinding,
+  removeMidiEnvelopeBinding,
+  removeMidiEnvelopePreset,
+  removeMidiEnvelopeBindingForParam,
+  unbindMidiEnvelopeBindingForParam,
+  connectMidiEnvelopeBindingToParam,
+  connectMidiEnvelopePresetToParam,
 } from './immutableUpdates';
+export { removeStaleVirtualAudioConnections } from './removeStaleVirtualAudioConnections';
 export type {
   AddConnectionWithValidationResult,
   AddConnectionWithValidationOptions,
@@ -243,3 +290,19 @@ export { migrateMixedWaveSignalShapes } from './mixedWaveSignalShapeMigration';
 
 // Legacy color-map (float→vec3 broadcast) removal — splice through on load
 export { migrateRemoveColorMapNodes } from './colorMapNodeRemovalMigration';
+
+export {
+  NODE_PARAMETER_CONFIG_FORMAT,
+  NODE_PARAMETER_CONFIG_VERSION,
+  extractNodeParameterConfig,
+  applyNodeParameterConfig,
+  applyNodeParameterConfigToNodes,
+  resolvePasteTargetNodeIds,
+  serializeNodeParameterConfig,
+  parseNodeParameterConfig,
+  getNodeParameterConfigClipboard,
+  setNodeParameterConfigClipboard,
+  clearNodeParameterConfigClipboard,
+  isNodeParameterConfigClipboardPayload,
+  type NodeParameterConfigSnapshot,
+} from './nodeParameterConfigClipboard';

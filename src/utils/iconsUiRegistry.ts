@@ -41,6 +41,7 @@ export type IconName =
   | 'transition-left'
   | 'square-x'
   | 'preset'
+  | 'prohibit'
   | 'folder-open'
   | 'house'
   | 'search'
@@ -69,7 +70,11 @@ export type IconName =
   | 'trash'
   | 'wave-sine'
   | 'waveform'
+  | 'bezier-curve'
+  | 'music-note-simple'
   | 'line-segments'
+  | 'trend-up'
+  | 'trend-down'
   | 'flame'
   | 'lock-access'
   | 'lock-access-off'
@@ -87,7 +92,9 @@ export type IconName =
   | 'sign-out'
   | 'graph-undo'
   | 'graph-redo'
-  | 'arrow-u-up-left';
+  | 'arrow-u-up-left'
+  | 'selection-plus'
+  | 'selection-all';
 
 /** IconName → Phosphor icon name (kebab-case) */
 export const iconNameMap: Record<IconName, string> = {
@@ -129,6 +136,7 @@ export const iconNameMap: Record<IconName, string> = {
   'transition-left': 'arrow-left',
   'square-x': 'x-square',
   'preset': 'bookmark',
+  'prohibit': 'prohibit',
   'folder-open': 'folder-open',
   'house': 'house',
   'multiply': 'asterisk',
@@ -158,7 +166,11 @@ export const iconNameMap: Record<IconName, string> = {
   'trash': 'trash',
   'wave-sine': 'wave-sine',
   'waveform': 'waveform',
+  'bezier-curve': 'bezier-curve',
+  'music-note-simple': 'music-note-simple',
   'line-segments': 'line-segments',
+  'trend-up': 'trend-up',
+  'trend-down': 'trend-down',
   'flame': 'flame',
   'lock-access': 'lock',
   'lock-access-off': 'lock-open',
@@ -176,4 +188,6 @@ export const iconNameMap: Record<IconName, string> = {
   'graph-undo': 'arrow-counter-clockwise',
   'graph-redo': 'arrow-clockwise',
   'arrow-u-up-left': 'arrow-u-up-left',
+  'selection-plus': 'selection-plus',
+  'selection-all': 'selection-all',
 };

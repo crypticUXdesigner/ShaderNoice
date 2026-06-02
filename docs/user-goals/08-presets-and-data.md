@@ -35,4 +35,6 @@ Load a known graph (and audio setup), download the composition as JSON, and rely
 - [01-overview-and-app-shell.md](./01-overview-and-app-shell.md) — Projects hub splash, preset dropdown, OAuth continue path vs hub.
 - [02-node-graph-canvas.md](./02-node-graph-canvas.md) — Paste position.
 - [06-audio.md](./06-audio.md) — Audio setup in presets.
+- [07-timeline-and-automation.md](./07-timeline-and-automation.md) — Automation lanes on graph in presets.
+- [12-parameter-drivers.md](./12-parameter-drivers.md) — Driver persistence intent (audio remappers, animation, planned MIDI envelopes).
 - [11-undo-redo-and-keyboard.md](./11-undo-redo-and-keyboard.md) — Copy/paste shortcuts.

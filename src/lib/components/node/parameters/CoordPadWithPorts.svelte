@@ -8,7 +8,7 @@
   import CoordPad from './CoordPad.svelte';
   import ParamPort from './ParamPort.svelte';
   import { ModeButton, Button, IconSvg } from '../../ui';
-  import type { ParamPortState } from './ParamPort.svelte';
+  import type { AttachedDriverKind, ParamPortState } from './ParamPort.svelte';
   import type { IconName } from '../../../../utils/icons';
   interface PortGroupProps {
     label: string;
@@ -16,12 +16,25 @@
     portState: ParamPortState;
     signalName: string;
     liveValue: number;
+    attachedDriverKind?: AttachedDriverKind;
+    /** Evaluable automation lane on this axis only. */
+    timelineDriven?: boolean;
     showModeButton: boolean;
     modeButtonIcon: IconName;
     onModeClick?: () => void;
     onPortPointerDown?: (e: PointerEvent) => void;
     onPortDoubleClick?: (e: MouseEvent) => void;
     disabled: boolean;
+  }
+
+  function portGroupIsDriven(group: PortGroupProps): boolean {
+    return (
+      group.portState === 'graph-connected' ||
+      group.portState === 'audio-connected' ||
+      group.attachedDriverKind === 'midi' ||
+      group.attachedDriverKind === 'animation' ||
+      Boolean(group.timelineDriven)
+    );
   }
 
   interface Props {
@@ -83,10 +96,7 @@
   }: Props = $props();
 
   const isConnected = $derived(
-    portGroupX.portState === 'graph-connected' ||
-    portGroupX.portState === 'audio-connected' ||
-    portGroupY.portState === 'graph-connected' ||
-    portGroupY.portState === 'audio-connected'
+    portGroupIsDriven(portGroupX) || portGroupIsDriven(portGroupY)
   );
 
   const showLock1to1 = $derived(origin === 'bottom-left');
@@ -118,6 +128,8 @@
         portType="float"
         state={portGroupX.portState}
         signalName={portGroupX.signalName}
+        attachedDriverKind={portGroupX.attachedDriverKind}
+        timelineDriven={portGroupX.timelineDriven}
         showSignalName={false}
         onPointerDown={portGroupX.onPortPointerDown}
         onDoubleClick={portGroupX.onPortDoubleClick}
@@ -126,7 +138,7 @@
       {#if portGroupX.showModeButton}
         <ModeButton
           icon={portGroupX.modeButtonIcon}
-          connected={portGroupX.portState !== 'default'}
+          connected={portGroupIsDriven(portGroupX)}
           {disabled}
           onclick={handleModeClickX}
           ariaLabel="Center X mode"
@@ -149,6 +161,8 @@
         portType="float"
         state={portGroupY.portState}
         signalName={portGroupY.signalName}
+        attachedDriverKind={portGroupY.attachedDriverKind}
+        timelineDriven={portGroupY.timelineDriven}
         showSignalName={false}
         onPointerDown={portGroupY.onPortPointerDown}
         onDoubleClick={portGroupY.onPortDoubleClick}
@@ -157,7 +171,7 @@
       {#if portGroupY.showModeButton}
         <ModeButton
           icon={portGroupY.modeButtonIcon}
-          connected={portGroupY.portState !== 'default'}
+          connected={portGroupIsDriven(portGroupY)}
           {disabled}
           onclick={handleModeClickY}
           ariaLabel="Center Y mode"

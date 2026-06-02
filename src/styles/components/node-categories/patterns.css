@@ -14,8 +14,8 @@
   --node-header-print-patterns: var(--color-yellow-120);
 
   /* Icon box */
-  --node-icon-box-bg-patterns: var(--color-red-purple-90);
-  --node-icon-box-color-patterns: var(--color-leaf-gray-50);
+  --node-icon-box-bg-patterns: var(--color-red-purple-80);
+  --node-icon-box-color-patterns: var(--color-gray-130);
 
   /* Param group header */
   --param-group-header-color-patterns: var(--color-leaf-gray-50);
@@ -23,14 +23,15 @@
   /* Param cell */
   --node-param-cell-bg-patterns: rgba(0,0,0,0.03);
   --node-param-cell-bg-end-patterns: rgba(0,0,0,0.09);
-  --node-param-label-color-patterns: var(--color-red-purple-90);
+  --node-param-label-color-patterns: var(--color-red-purple-60);
+  --node-param-label-color-connected-patterns: var(--color-red-purple-60);
 
   /* Knob */
   --node-knob-value-bg-patterns: var(--color-leaf-gray-40);
   --node-knob-value-color-patterns: var(--color-leaf-gray-120);
-  --node-knob-ring-color-patterns: var(--color-leaf-gray-100);
+  --node-knob-ring-color-patterns: var(--color-leaf-gray-50);
   --node-knob-arc-active-patterns: var(--color-red-purple-90);
-  --node-knob-marker-patterns: var(--color-red-purple-90);
+  --node-knob-marker-patterns: var(--node-icon-box-color-patterns);
   --knob-ring-bg-width-patterns: 10px;
   --knob-ring-active-width-patterns: 10px;
 
@@ -50,11 +51,11 @@
   --node-header-print-patterns-structured: var(--color-leaf-gray-60);
 
   /* Icon box */
-  --node-icon-box-bg-patterns-structured: var(--color-violet-90);
-  --node-icon-box-color-patterns-structured: var(--color-gray-130);
+  --node-icon-box-bg-patterns-structured: var(--color-violet-80);
+  --node-icon-box-color-patterns-structured: var(--color-cyan-130);
 
   /* Param group header */
-  --param-group-header-color-patterns-structured: var(--color-cyan-40);
+  --param-group-header-color-patterns-structured: var(--color-cyan-120);
 
   /* Param cell */
   --node-param-cell-bg-patterns-structured: rgba(255,255,255,0.09);
@@ -82,6 +83,7 @@
   --node-body-shadow-color-outer: var(--node-body-shadow-color-outer-patterns);
   --node-header-name-color: var(--node-header-print-patterns);
   --param-group-header-color: var(--param-group-header-color-patterns);
+  --param-label-color: var(--node-param-label-color-patterns);
   --knob-ring-color: var(--node-knob-ring-color-patterns);
   --knob-ring-active-color-static: var(--node-knob-arc-active-patterns);
   --knob-ring-bg-width: var(--knob-ring-bg-width-patterns);
@@ -139,6 +141,10 @@
     &.connected {
       background: var(--color-leaf-gray-120);
       border-color: transparent;
+
+      .left-column .top .label {
+        color: var(--node-param-label-color-connected-patterns);
+      }
     }
 
     .left-column .top .label {

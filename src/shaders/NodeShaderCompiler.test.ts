@@ -14,6 +14,8 @@ import { describe, it, expect } from 'vitest';
 import { NodeShaderCompiler } from './NodeShaderCompiler';
 import { WGSL_SUPPORTED_NODE_TYPES, WGSL_WEBGPU_PASS_PLAN_NODE_TYPES } from './compilation/WgslMvpCompiler';
 import { nodeSystemSpecs } from './nodes/index';
+import { WAKE_SMEAR_MAX_EMITTERS } from './nodes/wake-smear';
+import { CIRCLE_INVERSION_MAX_CIRCLES, CIRCLE_INVERSION_MAX_ITERATIONS } from './nodes/circle-inversion';
 import { addConnection } from '../data-model/immutableUpdates';
 import type { NodeGraph, Connection } from '../data-model/types';
 import type { NodeSpec } from '../types/nodeSpec';
@@ -21,6 +23,9 @@ import type { AudioSetup } from '../data-model/audioSetupTypes';
 import { buildArrangementSnapshot } from '../audiotool/arrangement/buildArrangementSnapshot';
 import type { RawArrangementEntities } from '../audiotool/arrangement/rawEntities';
 import spikeFixture from '../audiotool/arrangement/__fixtures__/spike-arrangement-raw.json';
+import { ALL_ARRANGEMENT_TRACK_FILTER } from '../audiotool/arrangement/arrangementTrackFilter';
+import { ARRANGEMENT_NOTES_INTERACTIVE_PACK_LIMIT } from '../audiotool/arrangement/types';
+import type { ArrangementSnapshot } from '../audiotool/arrangement/types';
 import {
   mvpAudioBlurPassPlanGraph,
   mvpAudioBokehPassPlanGraph,
@@ -383,6 +388,1002 @@ describe('NodeShaderCompiler', () => {
       expect(result.code).toContain('fn evalArrangementNotes_n_notes');
       expect(result.code).toContain('globals.v0.y');
       expect(WGSL_SUPPORTED_NODE_TYPES.has('arrangement-notes')).toBe(true);
+    });
+  });
+
+  describe('note-ripple-field (GLSL bake)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildNoteRippleFieldGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const rippleId = 'n-ripple';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-note-ripple',
+        name: 'Note ripple field',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: rippleId, type: 'note-ripple-field', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: rippleId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: rippleId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('bakes onset tables from audioSetup.arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildNoteRippleFieldGraph(), audioSetup);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSET_COUNT_n_ripple');
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSETS_n_ripple');
+      expect(result.shaderCode).toMatch(/evalNoteRippleField_n_ripple\s*\(/);
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildNoteRippleFieldGraph(), null);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSET_COUNT_n_ripple = 0');
+    });
+  });
+
+  describe('pitch-class-compass (GLSL bake)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildPitchClassCompassGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const compassId = 'n-compass';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-pitch-compass',
+        name: 'Pitch class compass',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: compassId, type: 'pitch-class-compass', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: compassId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: compassId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('bakes pitch-class tables from audioSetup.arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildPitchClassCompassGraph(), audioSetup);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSET_COUNT_n_compass');
+      expect(result.shaderCode).toMatch(/evalPitchClassCompass_n_compass\s*\(/);
+      expect(result.shaderCode).toContain('arrPatternPitchToSector');
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildPitchClassCompassGraph(), null);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSET_COUNT_n_compass = 0');
+    });
+  });
+
+  describe('note-ripple-field (WGSL)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildNoteRippleFieldGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const rippleId = 'n-ripple';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-note-ripple-wgsl',
+        name: 'Note ripple field WGSL',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: rippleId,
+            type: 'note-ripple-field',
+            position: { x: 0, y: 0 },
+            parameters: { ...ALL_ARRANGEMENT_TRACK_FILTER },
+          },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: rippleId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: rippleId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('emits WGSL with baked onset table from arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildNoteRippleFieldGraph(), audioSetup, { backend: 'webgpu' });
+
+      expect(result.backend).toBe('webgpu');
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('const ARR_PATTERN_ONSET_COUNT_n_ripple: i32 = 3');
+      expect(result.code).toContain('fn evalNoteRippleField_n_ripple');
+      expect(result.code).toContain('globals.v0.y');
+      expect(WGSL_SUPPORTED_NODE_TYPES.has('note-ripple-field')).toBe(true);
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles WGSL with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildNoteRippleFieldGraph(), null, { backend: 'webgpu' });
+
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('const ARR_PATTERN_ONSET_COUNT_n_ripple: i32 = 0');
+    });
+  });
+
+  describe('pitch-class-compass (WGSL)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildPitchClassCompassGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const compassId = 'n-compass';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-pitch-compass-wgsl',
+        name: 'Pitch class compass WGSL',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: compassId, type: 'pitch-class-compass', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: compassId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: compassId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('emits WGSL with baked pitch-class tables from arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildPitchClassCompassGraph(), audioSetup, { backend: 'webgpu' });
+
+      expect(result.backend).toBe('webgpu');
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('ARR_PATTERN_ONSET_COUNT_n_compass');
+      expect(result.code).toContain('fn evalPitchClassCompass_n_compass');
+      expect(result.code).toContain('globals.v0.y');
+      expect(WGSL_SUPPORTED_NODE_TYPES.has('pitch-class-compass')).toBe(true);
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles WGSL with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildPitchClassCompassGraph(), null, { backend: 'webgpu' });
+
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('const ARR_PATTERN_ONSET_COUNT_n_compass: i32 = 0');
+    });
+  });
+
+  describe('rhythm-stripe-field (GLSL bake)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildRhythmStripeFieldGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const stripeId = 'n-stripe';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-rhythm-stripe',
+        name: 'Rhythm stripe field',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: stripeId, type: 'rhythm-stripe-field', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: stripeId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: stripeId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('bakes time-bin tables from audioSetup.arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildRhythmStripeFieldGraph(), audioSetup);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_TIME_BIN_n_stripe');
+      expect(result.shaderCode).toContain('ARR_PATTERN_BIN_COUNT_n_stripe');
+      expect(result.shaderCode).toMatch(/evalRhythmStripeField_n_stripe\s*\(/);
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildRhythmStripeFieldGraph(), null);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_BIN_COUNT_n_stripe = 0');
+      expect(result.shaderCode).toContain('idleMode == 0');
+      expect(result.shaderCode).toContain('stripe.energy');
+    });
+
+    it('does not redefine result structs when combined with note-ripple-field', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const uvId = 'n-uv';
+      const rippleId = 'n-ripple';
+      const stripeId = 'n-stripe';
+      const mixId = 'n-mix';
+      const outputId = 'n-out';
+      const graph: NodeGraph = {
+        id: 'graph-rhythm-stripe-with-ripple',
+        name: 'Rhythm stripe + ripple',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: rippleId, type: 'note-ripple-field', position: { x: 0, y: 0 }, parameters: {} },
+          { id: stripeId, type: 'rhythm-stripe-field', position: { x: 0, y: 0 }, parameters: {} },
+          { id: mixId, type: 'mix', position: { x: 0, y: 0 }, parameters: { t: 0.5 } },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: rippleId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: stripeId, targetPort: 'in' },
+          { id: 'c3', sourceNodeId: rippleId, sourcePort: 'out', targetNodeId: mixId, targetPort: 'a' },
+          { id: 'c4', sourceNodeId: stripeId, sourcePort: 'out', targetNodeId: mixId, targetPort: 'b' },
+          { id: 'c5', sourceNodeId: mixId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+      const result = compiler.compile(graph, null);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('struct NoteRippleFieldResult_n_ripple');
+      expect(result.shaderCode).toContain('struct RhythmStripeFieldResult_n_stripe');
+      expect(result.shaderCode).toContain('NoteRippleFieldResult_n_ripple ripple = evalNoteRippleField_n_ripple');
+      expect(result.shaderCode).toContain('RhythmStripeFieldResult_n_stripe stripe = evalRhythmStripeField_n_stripe');
+      expect(result.shaderCode).not.toMatch(/struct NoteRippleFieldResult\s*\{/);
+      expect(result.shaderCode).not.toMatch(/struct RhythmStripeFieldResult\s*\{/);
+    });
+  });
+
+  describe('rhythm-stripe-field (WGSL)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildRhythmStripeFieldGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const stripeId = 'n-stripe';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-rhythm-stripe-wgsl',
+        name: 'Rhythm stripe field WGSL',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: stripeId, type: 'rhythm-stripe-field', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: stripeId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: stripeId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('emits WGSL with baked time-bin tables from arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildRhythmStripeFieldGraph(), audioSetup, { backend: 'webgpu' });
+
+      expect(result.backend).toBe('webgpu');
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('ARR_PATTERN_TIME_BIN_n_stripe');
+      expect(result.code).toContain('fn evalRhythmStripeField_n_stripe');
+      expect(result.code).toContain('globals.v0.y');
+      expect(result.code).toContain('energy: f32');
+      expect(WGSL_SUPPORTED_NODE_TYPES.has('rhythm-stripe-field')).toBe(true);
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles WGSL with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildRhythmStripeFieldGraph(), null, { backend: 'webgpu' });
+
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('const ARR_PATTERN_BIN_COUNT_n_stripe: i32 = 0');
+    });
+  });
+
+  describe('velocity-spark-grid (GLSL bake)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildVelocitySparkGridGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const sparkId = 'n-spark';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-velocity-spark',
+        name: 'Velocity spark grid',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: sparkId, type: 'velocity-spark-grid', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: sparkId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: sparkId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('bakes onset tables from audioSetup.arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildVelocitySparkGridGraph(), audioSetup);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSET_COUNT_n_spark');
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSETS_n_spark');
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSET_TRACK_n_spark');
+      expect(result.shaderCode).toMatch(/evalVelocitySparkGrid_n_spark\s*\(/);
+      expect(result.shaderCode).toContain('uv * gridDims - targetCell');
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildVelocitySparkGridGraph(), null);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSET_COUNT_n_spark = 0');
+    });
+  });
+
+  describe('velocity-spark-grid (WGSL)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildVelocitySparkGridGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const sparkId = 'n-spark';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-velocity-spark-wgsl',
+        name: 'Velocity spark grid WGSL',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: sparkId,
+            type: 'velocity-spark-grid',
+            position: { x: 0, y: 0 },
+            parameters: { ...ALL_ARRANGEMENT_TRACK_FILTER },
+          },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: sparkId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: sparkId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('emits WGSL with baked onset table from arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildVelocitySparkGridGraph(), audioSetup, { backend: 'webgpu' });
+
+      expect(result.backend).toBe('webgpu');
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('const ARR_PATTERN_ONSET_COUNT_n_spark: i32 = 3');
+      expect(result.code).toContain('fn evalVelocitySparkGrid_n_spark');
+      expect(result.code).toContain('uv * gridDims - targetCell');
+      expect(result.code).toContain('globals.v0.y');
+      expect(WGSL_SUPPORTED_NODE_TYPES.has('velocity-spark-grid')).toBe(true);
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles WGSL with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildVelocitySparkGridGraph(), null, { backend: 'webgpu' });
+
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('const ARR_PATTERN_ONSET_COUNT_n_spark: i32 = 0');
+    });
+  });
+
+  describe('boundary-shutter-rays (GLSL bake)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildBoundaryShutterRaysGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const shutterId = 'n-shutter';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-boundary-shutter',
+        name: 'Boundary shutter rays',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: shutterId, type: 'boundary-shutter-rays', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: shutterId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: shutterId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('bakes boundary tables from audioSetup.arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildBoundaryShutterRaysGraph(), audioSetup);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_BOUNDARY_COUNT_n_shutter');
+      expect(result.shaderCode).toContain('ARR_PATTERN_BOUNDARIES_n_shutter');
+      expect(result.shaderCode).not.toContain('ARR_PATTERN_TRACK_ENERGY_n_shutter');
+      expect(result.shaderCode).toMatch(/evalBoundaryShutterRays_n_shutter\s*\(/);
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildBoundaryShutterRaysGraph(), null);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_BOUNDARY_COUNT_n_shutter = 0');
+    });
+  });
+
+  describe('boundary-shutter-rays (WGSL)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildBoundaryShutterRaysGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const shutterId = 'n-shutter';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-boundary-shutter-wgsl',
+        name: 'Boundary shutter rays WGSL',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: shutterId, type: 'boundary-shutter-rays', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: shutterId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: shutterId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('emits WGSL with baked boundary table from arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildBoundaryShutterRaysGraph(), audioSetup, { backend: 'webgpu' });
+
+      expect(result.backend).toBe('webgpu');
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('ARR_PATTERN_BOUNDARIES_n_shutter');
+      expect(result.code).toContain('fn evalBoundaryShutterRays_n_shutter');
+      expect(result.code).toContain('globals.v0.y');
+      expect(WGSL_SUPPORTED_NODE_TYPES.has('boundary-shutter-rays')).toBe(true);
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles WGSL with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildBoundaryShutterRaysGraph(), null, { backend: 'webgpu' });
+
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('const ARR_PATTERN_BOUNDARY_COUNT_n_shutter: i32 = 0');
+    });
+  });
+
+  describe('chord-voronoi-bloom (GLSL bake)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildChordVoronoiBloomGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const bloomId = 'n-bloom';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-chord-voronoi',
+        name: 'Chord Voronoi Bloom',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: bloomId, type: 'chord-voronoi-bloom', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: bloomId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: bloomId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('bakes pitch-class tables from audioSetup.arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildChordVoronoiBloomGraph(), audioSetup);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_PC_n_bloom');
+      expect(result.shaderCode).toContain('ARR_PATTERN_BIN_COUNT_n_bloom');
+      expect(result.shaderCode).toMatch(/evalChordVoronoiBloom_n_bloom\s*\(/);
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildChordVoronoiBloomGraph(), null);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_BIN_COUNT_n_bloom = 0');
+    });
+  });
+
+  describe('chord-voronoi-bloom (WGSL)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildChordVoronoiBloomGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const bloomId = 'n-bloom';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-chord-voronoi-wgsl',
+        name: 'Chord Voronoi Bloom WGSL',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: bloomId, type: 'chord-voronoi-bloom', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: bloomId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: bloomId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('emits WGSL with baked pitch-class tables from arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildChordVoronoiBloomGraph(), audioSetup, { backend: 'webgpu' });
+
+      expect(result.backend).toBe('webgpu');
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('ARR_PATTERN_PC_n_bloom');
+      expect(result.code).toContain('fn evalChordVoronoiBloom_n_bloom');
+      expect(result.code).toContain('globals.v0.y');
+      expect(WGSL_SUPPORTED_NODE_TYPES.has('chord-voronoi-bloom')).toBe(true);
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles WGSL with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildChordVoronoiBloomGraph(), null, { backend: 'webgpu' });
+
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('const ARR_PATTERN_BIN_COUNT_n_bloom: i32 = 0');
+    });
+  });
+
+  describe('duration-comet-trails (GLSL bake)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildDurationCometTrailsGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const cometId = 'n-comet';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-duration-comet',
+        name: 'Duration comet trails',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: cometId, type: 'duration-comet-trails', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: cometId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: cometId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('bakes onset tables from audioSetup.arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildDurationCometTrailsGraph(), audioSetup);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSET_COUNT_n_comet');
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSETS_n_comet');
+      expect(result.shaderCode).toMatch(/evalDurationCometTrails_n_comet\s*\(/);
+      expect(result.shaderCode).toContain('durationCometTrailLen');
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildDurationCometTrailsGraph(), null);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSET_COUNT_n_comet = 0');
+    });
+  });
+
+  describe('duration-comet-trails (WGSL)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildDurationCometTrailsGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const cometId = 'n-comet';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-duration-comet-wgsl',
+        name: 'Duration comet trails WGSL',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: cometId,
+            type: 'duration-comet-trails',
+            position: { x: 0, y: 0 },
+            parameters: { ...ALL_ARRANGEMENT_TRACK_FILTER },
+          },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: cometId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: cometId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('emits WGSL with baked onset table from arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildDurationCometTrailsGraph(), audioSetup, { backend: 'webgpu' });
+
+      expect(result.backend).toBe('webgpu');
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('const ARR_PATTERN_ONSET_COUNT_n_comet: i32 = 3');
+      expect(result.code).toContain('fn evalDurationCometTrails_n_comet');
+      expect(result.code).toContain('globals.v0.y');
+      expect(WGSL_SUPPORTED_NODE_TYPES.has('duration-comet-trails')).toBe(true);
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles WGSL with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildDurationCometTrailsGraph(), null, { backend: 'webgpu' });
+
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('const ARR_PATTERN_ONSET_COUNT_n_comet: i32 = 0');
+    });
+  });
+
+  describe('note-gravity-warp (GLSL bake)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildNoteGravityWarpGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const gravityId = 'n-gravity';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-note-gravity',
+        name: 'Note gravity warp',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: gravityId,
+            type: 'note-gravity-warp',
+            position: { x: 0, y: 0 },
+            parameters: { trackFilterMode: 0, trackFilterList: '' },
+          },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: gravityId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: gravityId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('bakes onset tables from audioSetup.arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildNoteGravityWarpGraph(), audioSetup);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSET_COUNT_n_gravity');
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSETS_n_gravity');
+      expect(result.shaderCode).toMatch(/evalNoteGravityWarp_n_gravity\s*\(/);
+      expect(result.shaderCode).toContain('pitchSpread');
+      expect(result.shaderCode).toContain('noteGravityWarpSpatialFalloff');
+      expect(result.shaderCode).toContain('arrPatternClampLength');
+      expect(result.shaderCode).toContain('gravity.warp');
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildNoteGravityWarpGraph(), null);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_ONSET_COUNT_n_gravity = 0');
+    });
+  });
+
+  describe('note-gravity-warp (WGSL)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildNoteGravityWarpGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const gravityId = 'n-gravity';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-note-gravity-wgsl',
+        name: 'Note gravity warp WGSL',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: gravityId,
+            type: 'note-gravity-warp',
+            position: { x: 0, y: 0 },
+            parameters: { trackFilterMode: 0, trackFilterList: '' },
+          },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: gravityId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: gravityId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('emits WGSL with baked onset table and non-zero warp path when snapshot present', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildNoteGravityWarpGraph(), audioSetup, { backend: 'webgpu' });
+
+      expect(result.backend).toBe('webgpu');
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('const ARR_PATTERN_ONSET_COUNT_n_gravity: i32 = 3');
+      expect(result.code).toContain('fn evalNoteGravityWarp_n_gravity');
+      expect(result.code).toContain('noteGravityWarpSpatialFalloffWgsl');
+      expect(result.code).toContain('attackBoost');
+      expect(result.code).toContain('energy: f32');
+      expect(result.code).toContain('arrPattern_clampLength');
+      expect(result.code).toContain('warp: vec2<f32>');
+      expect(WGSL_SUPPORTED_NODE_TYPES.has('note-gravity-warp')).toBe(true);
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles WGSL with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildNoteGravityWarpGraph(), null, { backend: 'webgpu' });
+
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('const ARR_PATTERN_ONSET_COUNT_n_gravity: i32 = 0');
+    });
+  });
+
+  describe('track-halo-lattice (GLSL bake)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildTrackHaloLatticeGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const haloId = 'n-halo';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-track-halo',
+        name: 'Track halo lattice',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: haloId, type: 'track-halo-lattice', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: haloId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: haloId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('bakes track energy tables from audioSetup.arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildTrackHaloLatticeGraph(), audioSetup);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_TRACK_COUNT_n_halo');
+      expect(result.shaderCode).toContain('ARR_PATTERN_TRACK_ENERGY_n_halo');
+      expect(result.shaderCode).toMatch(/evalTrackHaloLattice_n_halo\s*\(/);
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildTrackHaloLatticeGraph(), null);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).toContain('ARR_PATTERN_TRACK_COUNT_n_halo = 0');
+    });
+  });
+
+  describe('track-halo-lattice (WGSL)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    function buildTrackHaloLatticeGraph(): NodeGraph {
+      const uvId = 'n-uv';
+      const haloId = 'n-halo';
+      const outputId = 'n-out';
+      return {
+        id: 'graph-track-halo-wgsl',
+        name: 'Track halo lattice WGSL',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: haloId, type: 'track-halo-lattice', position: { x: 0, y: 0 }, parameters: {} },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: haloId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: haloId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('emits WGSL with baked track energy table from arrangementSnapshot', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(buildTrackHaloLatticeGraph(), audioSetup, { backend: 'webgpu' });
+
+      expect(result.backend).toBe('webgpu');
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('ARR_PATTERN_TRACK_ENERGY_n_halo');
+      expect(result.code).toContain('fn evalTrackHaloLattice_n_halo');
+      expect(result.code).toContain('globals.v0.y');
+      expect(WGSL_SUPPORTED_NODE_TYPES.has('track-halo-lattice')).toBe(true);
+      expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
+    });
+
+    it('compiles WGSL with empty bake when snapshot is missing', () => {
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(buildTrackHaloLatticeGraph(), null, { backend: 'webgpu' });
+
+      expect(result.supported).toBe(true);
+      expect(result.code).toContain('const ARR_PATTERN_TRACK_COUNT_n_halo: i32 = 0');
     });
   });
 
@@ -2107,6 +3108,334 @@ describe('NodeShaderCompiler', () => {
       expect(result.metadata.errors).toHaveLength(0);
       expect(result.code).toContain('uvBandShift_applyVertical');
     });
+
+    it('compiles UV → crease-fold → final-output (WebGL + WebGPU)', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const graph: NodeGraph = {
+        id: 'graph-crease-fold',
+        name: 'Crease fold',
+        version: '2.0',
+        nodes: [
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: 'n-cf',
+            type: 'crease-fold',
+            position: { x: 0, y: 0 },
+            parameters: {
+              creaseFoldAngle: 45.0,
+              creaseFoldOffset: 0.1,
+              creaseFoldAmount: 0.8,
+              creaseFoldSoftness: 0.02,
+              creaseFoldRepeatSpacing: 0.0,
+              creaseFoldRepeatCount: 1,
+              creaseFoldPhase: 0.0,
+              creaseFoldBlend: 1.0,
+            },
+          },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-cf', targetPort: 'in' },
+          { id: 'c2', sourceNodeId: 'n-cf', sourcePort: 'out', targetNodeId: 'n-out', targetPort: 'in' },
+        ],
+      };
+
+      const webgl = compiler.compile(structuredClone(graph));
+      expect(webgl.metadata.errors).toHaveLength(0);
+      expect(webgl.shaderCode).toContain('creaseFoldUv');
+
+      const webgpu = compiler.compile(structuredClone(graph), null, { backend: 'webgpu' });
+      expect(webgpu.supported).toBe(true);
+      expect(webgpu.metadata.errors).toHaveLength(0);
+      expect(webgpu.code).toContain('creaseFoldUv');
+    });
+
+    it('compiles UV → cellular-slip → final-output (WebGL + WebGPU)', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const graph: NodeGraph = {
+        id: 'graph-cellular-slip',
+        name: 'Cellular slip',
+        version: '2.0',
+        nodes: [
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: 'n-cs',
+            type: 'cellular-slip',
+            position: { x: 0, y: 0 },
+            parameters: {
+              cellularSlipScale: 4.0,
+              cellularSlipJitter: 1.0,
+              cellularSlipAmount: 0.15,
+              cellularSlipRotation: 45.0,
+              cellularSlipEdge: 0.05,
+              cellularSlipEdgeLock: 1,
+              cellularSlipSeed: 0.0,
+              cellularSlipStepHz: 0.0,
+              cellularSlipBlend: 1.0,
+            },
+          },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-cs', targetPort: 'in' },
+          { id: 'c2', sourceNodeId: 'n-cs', sourcePort: 'out', targetNodeId: 'n-out', targetPort: 'in' },
+        ],
+      };
+
+      const webgl = compiler.compile(structuredClone(graph));
+      expect(webgl.metadata.errors).toHaveLength(0);
+      expect(webgl.shaderCode).toContain('struct UvWarpVoronoiCell');
+      expect(webgl.shaderCode).toContain('uvWarp_voronoiCellLookup');
+      expect(webgl.shaderCode).toContain('cellularSlipUv');
+      // GLSL ES 3.0 has no vec2(scalar); seed offset must use vec2(seedBase, seedBase).
+      expect(webgl.shaderCode).toContain('vec2(seedBase, seedBase)');
+
+      const webgpu = compiler.compile(structuredClone(graph), null, { backend: 'webgpu' });
+      expect(webgpu.supported).toBe(true);
+      expect(webgpu.metadata.errors).toHaveLength(0);
+      expect(webgpu.code).toContain('uvWarp_voronoiCellLookup');
+      expect(webgpu.code).toContain('cellularSlipUv');
+    });
+
+    it('compiles UV → cellular-slip → dots → final-output with voronoi struct in preamble', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const graph: NodeGraph = {
+        id: 'graph-cellular-slip-dots',
+        name: 'Cellular slip dots',
+        version: '2.0',
+        nodes: [
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: 'n-cs',
+            type: 'cellular-slip',
+            position: { x: 0, y: 0 },
+            parameters: {
+              cellularSlipScale: 4.0,
+              cellularSlipJitter: 1.0,
+              cellularSlipAmount: 0.15,
+              cellularSlipRotation: 45.0,
+              cellularSlipEdge: 0.05,
+              cellularSlipEdgeLock: 1,
+              cellularSlipSeed: 0.0,
+              cellularSlipStepHz: 0.0,
+              cellularSlipBlend: 1.0,
+            },
+          },
+          {
+            id: 'n-dots',
+            type: 'dots',
+            position: { x: 0, y: 0 },
+            parameters: {
+              dotsSpacing: 0.1,
+              dotsSize: 0.03,
+              dotsFeather: 0.01,
+              dotsIntensity: 1.0,
+            },
+          },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-cs', targetPort: 'in' },
+          { id: 'c2', sourceNodeId: 'n-cs', sourcePort: 'out', targetNodeId: 'n-dots', targetPort: 'in' },
+          { id: 'c3', sourceNodeId: 'n-dots', sourcePort: 'out', targetNodeId: 'n-out', targetPort: 'in' },
+        ],
+      };
+
+      const webgl = compiler.compile(structuredClone(graph));
+      expect(webgl.metadata.errors).toHaveLength(0);
+      expect(webgl.shaderCode).toContain('struct UvWarpVoronoiCell');
+      expect(webgl.shaderCode).toContain('dotsPattern');
+      expect(webgl.shaderCode).toContain('cellularSlipUv');
+    });
+
+    it('compiles UV → mobius-portal → final-output (WebGL + WebGPU)', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const graph: NodeGraph = {
+        id: 'graph-mobius-portal',
+        name: 'Möbius portal',
+        version: '2.0',
+        nodes: [
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: 'n-mp',
+            type: 'mobius-portal',
+            position: { x: 0, y: 0 },
+            parameters: {
+              mobiusPortalCenterX: 0.0,
+              mobiusPortalCenterY: 0.0,
+              mobiusPortalPoleX: 0.3,
+              mobiusPortalPoleY: 0.0,
+              mobiusPortalPoleRadius: 0.85,
+              mobiusPortalRotation: 45.0,
+              mobiusPortalZoom: 1.0,
+              mobiusPortalBoundarySoft: 0.1,
+              mobiusPortalBlend: 0.5,
+            },
+          },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-mp', targetPort: 'in' },
+          { id: 'c2', sourceNodeId: 'n-mp', sourcePort: 'out', targetNodeId: 'n-out', targetPort: 'in' },
+        ],
+      };
+
+      const webgl = compiler.compile(structuredClone(graph));
+      expect(webgl.metadata.errors).toHaveLength(0);
+      expect(webgl.shaderCode).toContain('mobiusPortalUv');
+
+      const webgpu = compiler.compile(structuredClone(graph), null, { backend: 'webgpu' });
+      expect(webgpu.supported).toBe(true);
+      expect(webgpu.metadata.errors).toHaveLength(0);
+      expect(webgpu.code).toContain('mobiusPortalUv');
+    });
+
+    it('compiles UV → wake-smear → final-output (WebGL + WebGPU)', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const graph: NodeGraph = {
+        id: 'graph-wake-smear',
+        name: 'Wake Smear',
+        version: '2.0',
+        nodes: [
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: 'n-ws',
+            type: 'wake-smear',
+            position: { x: 0, y: 0 },
+            parameters: {
+              wakeSmearEmitterCount: 3,
+              wakeSmearPathPreset: 1,
+              wakeSmearSpeed: 0.5,
+              wakeSmearTrailLength: 0.4,
+              wakeSmearTrailWidth: 0.08,
+              wakeSmearDragStrength: 0.3,
+              wakeSmearCurl: 0.0,
+              wakeSmearDecay: 2.0,
+              wakeSmearQuantizeHz: 0.0,
+              wakeSmearBlend: 1.0,
+            },
+          },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-ws', targetPort: 'in' },
+          { id: 'c2', sourceNodeId: 'n-ws', sourcePort: 'out', targetNodeId: 'n-out', targetPort: 'in' },
+        ],
+      };
+
+      const webgl = compiler.compile(structuredClone(graph));
+      expect(webgl.metadata.errors).toHaveLength(0);
+      expect(webgl.shaderCode).toContain(`i < ${WAKE_SMEAR_MAX_EMITTERS}`);
+      expect(webgl.shaderCode).toContain('ws_capsuleDrag');
+
+      const webgpu = compiler.compile(structuredClone(graph), null, { backend: 'webgpu' });
+      expect(webgpu.supported).toBe(true);
+      expect(webgpu.metadata.errors).toHaveLength(0);
+      expect(webgpu.code).toContain(`WAKE_SMEAR_MAX_EMITTERS: i32 = ${WAKE_SMEAR_MAX_EMITTERS}`);
+      expect(webgpu.code).toContain('wakeSmearUv');
+    });
+
+    it('compiles UV → circle-inversion → final-output (WebGL + WebGPU)', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const graph: NodeGraph = {
+        id: 'graph-circle-inversion',
+        name: 'Circle Inversion',
+        version: '2.0',
+        nodes: [
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: 'n-ci',
+            type: 'circle-inversion',
+            position: { x: 0, y: 0 },
+            parameters: {
+              circleInversionLayoutPreset: 0,
+              circleInversionCircleCount: 3,
+              circleInversionRadius: 0.35,
+              circleInversionStrength: 1.0,
+              circleInversionIterations: 2,
+              circleInversionSoftBoundary: 0.1,
+              circleInversionGlobalRotation: 0.0,
+              circleInversionGlobalScale: 1.0,
+              circleInversionEscapeLimit: 4.0,
+              circleInversionBlend: 0.7,
+            },
+          },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-ci', targetPort: 'in' },
+          { id: 'c2', sourceNodeId: 'n-ci', sourcePort: 'out', targetNodeId: 'n-out', targetPort: 'in' },
+        ],
+      };
+
+      const webgl = compiler.compile(structuredClone(graph));
+      expect(webgl.metadata.errors).toHaveLength(0);
+      expect(webgl.shaderCode).toContain('uvWarp_circleInversionUv');
+      expect(webgl.shaderCode).toContain(`circleIdx < ${CIRCLE_INVERSION_MAX_CIRCLES}`);
+      expect(webgl.shaderCode).toContain(`iter < ${CIRCLE_INVERSION_MAX_ITERATIONS}`);
+      expect(webgl.shaderCode).toContain('circleInversionLayoutCenter');
+
+      const webgpu = compiler.compile(structuredClone(graph), null, { backend: 'webgpu' });
+      expect(webgpu.supported).toBe(true);
+      expect(webgpu.metadata.errors).toHaveLength(0);
+      expect(webgpu.code).toContain('uvWarp_circleInversionUv');
+      expect(webgpu.code).toContain('circleInversionMultiUv');
+    });
+
+    it('circle-inversion with wired Strength keeps helper names intact (WebGL)', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const graph: NodeGraph = {
+        id: 'graph-circle-inversion-wired',
+        name: 'Circle Inversion wired',
+        version: '2.0',
+        nodes: [
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-float', type: 'constant-float', position: { x: 0, y: 0 }, parameters: { value: 0.5 } },
+          {
+            id: 'n-ci',
+            type: 'circle-inversion',
+            position: { x: 0, y: 0 },
+            parameters: {
+              circleInversionLayoutPreset: 0,
+              circleInversionCircleCount: 3,
+              circleInversionRadius: 0.35,
+              circleInversionStrength: 1.0,
+              circleInversionIterations: 2,
+              circleInversionSoftBoundary: 0.1,
+              circleInversionGlobalRotation: 0.0,
+              circleInversionGlobalScale: 1.0,
+              circleInversionEscapeLimit: 4.0,
+              circleInversionBlend: 0.7,
+            },
+          },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-ci', targetPort: 'in' },
+          {
+            id: 'c2',
+            sourceNodeId: 'n-float',
+            sourcePort: 'out',
+            targetNodeId: 'n-ci',
+            targetParameter: 'circleInversionStrength',
+          },
+          { id: 'c3', sourceNodeId: 'n-ci', sourcePort: 'out', targetNodeId: 'n-out', targetPort: 'in' },
+        ],
+      };
+
+      const webgl = compiler.compile(structuredClone(graph));
+      expect(webgl.metadata.errors).toHaveLength(0);
+      expect(webgl.shaderCode).toContain('circleInversionLayoutCenter');
+      expect(webgl.shaderCode).not.toMatch(/\bci_[a-zA-Z0-9_]+layoutCenter/);
+      expect(webgl.shaderCode).toContain('uvWarp_circleInversionUv');
+    });
   });
 
   describe('mixed-wave-signal input node', () => {
@@ -3594,6 +4923,94 @@ describe('NodeShaderCompiler', () => {
       };
       const incr = compiler.compileIncremental(broken, prev, new Set(['n2']));
       expect(incr).toBeNull();
+    });
+  });
+
+  describe('arrangement pattern nodes — dense snapshot compile budget', () => {
+    function denseSnapshot(noteCount: number): ArrangementSnapshot {
+      const notes = Array.from({ length: noteCount }, (_, i) => ({
+        id: `n-${i}`,
+        collectionId: 'c',
+        trackId: 'ta',
+        startSeconds: i * 0.01,
+        durationSeconds: 0.05,
+        pitch: 60 + (i % 12),
+        velocity: 0.8,
+      }));
+      return {
+        tracks: [{ id: 'ta', kind: 'note', orderAmongTracks: 0, enabled: true }],
+        regions: [],
+        notes,
+        bpm: 120,
+        durationSeconds: noteCount * 0.01 + 1,
+        timeSignature: { numerator: 4, denominator: 4 },
+        source: { trackName: 'tracks/dense', projectName: 'projects/dense', commitIndex: 0 },
+      };
+    }
+
+    function singlePatternGraph(nodeType: string, nodeId: string): NodeGraph {
+      const uvId = 'n-uv';
+      const outputId = 'n-out';
+      return {
+        id: `graph-dense-${nodeId}`,
+        name: `Dense ${nodeType}`,
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: nodeId,
+            type: nodeType,
+            position: { x: 0, y: 0 },
+            parameters: { ...ALL_ARRANGEMENT_TRACK_FILTER },
+          },
+          { id: outputId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: nodeId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: nodeId, sourcePort: 'out', targetNodeId: outputId, targetPort: 'in' },
+        ],
+      };
+    }
+
+    it('subsamples 1500 notes and compiles worst-case pattern nodes within interactive budget', () => {
+      const arrangementSnapshot = denseSnapshot(1500);
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: arrangementSnapshot.source.trackName },
+        arrangementSnapshot,
+      };
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+
+      const rippleStart = performance.now();
+      const ripple = compiler.compile(
+        singlePatternGraph('note-ripple-field', 'n-ripple'),
+        audioSetup
+      );
+      const rippleCompileMs = performance.now() - rippleStart;
+
+      const bloomStart = performance.now();
+      const bloom = compiler.compile(
+        singlePatternGraph('chord-voronoi-bloom', 'n-bloom'),
+        audioSetup,
+        { backend: 'webgpu' }
+      );
+      const bloomCompileMs = performance.now() - bloomStart;
+
+      expect(ripple.metadata.errors).toHaveLength(0);
+      expect(bloom.metadata.errors).toHaveLength(0);
+      expect(bloom.supported).toBe(true);
+      expect(ripple.shaderCode).toContain(
+        `ARR_PATTERN_ONSET_COUNT_n_ripple = ${ARRANGEMENT_NOTES_INTERACTIVE_PACK_LIMIT}`
+      );
+      expect(bloom.code).toContain('ARR_PATTERN_BIN_COUNT_n_bloom');
+      expect(rippleCompileMs).toBeLessThan(8000);
+      expect(bloomCompileMs).toBeLessThan(8000);
+
+      // Spot-check numbers for closeout notes (CI/dev machine; preview FPS stays bounded by loop caps).
+      expect(rippleCompileMs).toBeGreaterThan(0);
+      expect(bloomCompileMs).toBeGreaterThan(0);
     });
   });
 });

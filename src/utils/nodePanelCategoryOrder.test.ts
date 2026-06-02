@@ -62,6 +62,7 @@ describe('nodePanelCategoryOrder', () => {
       'Mask',
       'Effects',
       'Audio',
+      'MIDI',
       'Inputs',
       'Output',
       'Math',

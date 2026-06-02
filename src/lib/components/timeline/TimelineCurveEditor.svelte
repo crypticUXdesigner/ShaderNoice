@@ -17,15 +17,26 @@
   import type { NodeSpec } from '../../../types/nodeSpec';
   import { getWaveformSlice } from '../../../runtime/waveform/WaveformService';
   import { pollOnAnimationFrame } from '../../utils/pollOnAnimationFrame';
+  import { wheelNonPassive } from '../../actions/wheelPassive';
   import {
     GRAPH_PADDING,
+    applyCurveEditorTimeZoom,
+    clampCurveEditorViewTimeStart,
     curveClientToGraph,
     curveClientToSvgCoords,
     curveKeyframeCenterScreen,
     curveTimeToX,
     curveValueToY,
     diamondPolygonPoints,
+    normalizeCurveEditorTimeViewport,
+    type CurveEditorTimeViewport,
   } from './curveEditorGeometry';
+  import TimelineScroller from './TimelineScroller.svelte';
+  import {
+    curveEditorViewportKey,
+    readCurveEditorViewport,
+    writeCurveEditorViewport,
+  } from './curveEditorViewportStore';
   import { resolveCurveEditorRegion } from './curveEditorRegionContext';
   import {
     buildCurveEditorCurvePathD,
@@ -82,6 +93,17 @@
      * waveform background and snap/grid span track this before the graph commits.
      */
     regionTimeRangePreview?: { startTime: number; endTime: number } | null;
+    /** Flat layout inside the focused parameter driver panel (no title row / close). */
+    embedded?: boolean;
+    /**
+     * Focused parameter driver: hide snap / bulk-delete chrome by default;
+     * show behind an Advanced toggle (footer handles Remove curve).
+     */
+    compactDriverMode?: boolean;
+    /** When true, interpolation / Advanced live in the parent panel header. */
+    hideToolbar?: boolean;
+    /** Advanced disclosure; bindable when parent owns the toolbar toggle. */
+    compactAdvancedOpen?: boolean;
   }
 
   let {
@@ -97,7 +119,13 @@
     getCurrentTransportTime,
     onSeek,
     regionTimeRangePreview = null,
+    embedded = false,
+    compactDriverMode = false,
+    hideToolbar = false,
+    compactAdvancedOpen = $bindable(false),
   }: Props = $props();
+
+  const showExtendedCurveTools = $derived(!compactDriverMode || compactAdvancedOpen);
 
   let graphWrapEl: HTMLDivElement | null = null;
   let svgEl: SVGElement | null = null;
@@ -105,6 +133,9 @@
 
   let graphWidth = $state(300);
   let graphHeight = $state(120);
+  let viewTimeStart = $state(0);
+  let viewTimeSpan = $state(1);
+  let loadedViewportKey = $state('');
   /** Sorted unique indices into `keyframesSorted` (selection set). */
   let selectedKeyframeIndices = $state<number[]>([]);
   let dragKeyframeSession = $state<CurveEditorDragSession | null>(null);
@@ -147,6 +178,97 @@
   let playheadSeekPointerId = $state<number | null>(null);
 
   const nodeSpecsMap = $derived(new Map(nodeSpecs.map((s) => [s.id, s])));
+
+  const timeViewport = $derived(
+    normalizeCurveEditorTimeViewport({ start: viewTimeStart, span: viewTimeSpan })
+  );
+
+  const scrollerLeftPct = $derived(timeViewport.start * 100);
+  const scrollerWidthPct = $derived(timeViewport.span * 100);
+
+  $effect.pre(() => {
+    const key = curveEditorViewportKey(laneId, regionId);
+    if (key === loadedViewportKey) return;
+    loadedViewportKey = key;
+    const stored = readCurveEditorViewport(key);
+    viewTimeStart = stored.start;
+    viewTimeSpan = stored.span;
+  });
+
+  function persistTimeViewport(): void {
+    writeCurveEditorViewport(curveEditorViewportKey(laneId, regionId), {
+      start: viewTimeStart,
+      span: viewTimeSpan,
+    });
+  }
+
+  function setTimeViewport(next: CurveEditorTimeViewport): void {
+    const normalized = normalizeCurveEditorTimeViewport(next);
+    viewTimeStart = normalized.start;
+    viewTimeSpan = normalized.span;
+    persistTimeViewport();
+  }
+
+  function timeAnchorFromClient(clientX: number, clientY: number): number {
+    return clientToGraph(clientX, clientY).t;
+  }
+
+  function applyTimeZoom(delta: number, anchorTime: number): void {
+    setTimeViewport(applyCurveEditorTimeZoom(timeViewport, delta, anchorTime));
+  }
+
+  function onNavigatorMouseDown(e: MouseEvent): void {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const scrollerEl = (e.currentTarget as HTMLElement).closest('.scroller') as HTMLElement | null;
+    if (!scrollerEl) return;
+
+    const rect = scrollerEl.getBoundingClientRect();
+    const fracFromClick =
+      rect.width > 0 ? Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width)) : 0;
+    const thumbFrac = timeViewport.span;
+    const leftFrac = timeViewport.start;
+    const rightFrac = leftFrac + thumbFrac;
+    const onThumb = fracFromClick >= leftFrac && fracFromClick <= rightFrac;
+    if (!onThumb) {
+      setTimeViewport({
+        start: clampCurveEditorViewTimeStart(fracFromClick - thumbFrac / 2, thumbFrac),
+        span: thumbFrac,
+      });
+    }
+
+    const startViewStart = timeViewport.start;
+    const startClientX = e.clientX;
+    const onMove = (e2: MouseEvent): void => {
+      const dx = e2.clientX - startClientX;
+      const frac = rect.width > 0 ? dx / rect.width : 0;
+      setTimeViewport({
+        start: clampCurveEditorViewTimeStart(startViewStart + frac, thumbFrac),
+        span: thumbFrac,
+      });
+    };
+    const onUp = (): void => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  function onNavigatorWheel(e: WheelEvent): void {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.15 : 0.15;
+    const anchor = timeViewport.start + timeViewport.span / 2;
+    applyTimeZoom(delta, anchor);
+  }
+
+  function onGraphWheel(e: WheelEvent): void {
+    if (!e.altKey && !e.metaKey && !e.ctrlKey) return;
+    e.preventDefault();
+    const anchor = timeAnchorFromClient(e.clientX, e.clientY);
+    const delta = e.deltaY > 0 ? -0.15 : 0.15;
+    applyTimeZoom(delta, anchor);
+  }
 
   /** One graph walk: lane, region, node, parameter range, grid bars, CSS slugs. */
   const regionCtx = $derived.by(() =>
@@ -242,7 +364,7 @@
     const span = range.endTime - range.startTime;
     const u = (t - range.startTime) / span;
     const clamped = Math.max(0, Math.min(1, u));
-    return curveTimeToX(clamped, graphWidth);
+    return curveTimeToX(clamped, graphWidth, GRAPH_PADDING, timeViewport);
   });
 
   const selectedKeyframeSet = $derived(new Set(selectedKeyframeIndices));
@@ -254,7 +376,7 @@
   }
 
   function timeToX(t: number): number {
-    return curveTimeToX(t, graphWidth);
+    return curveTimeToX(t, graphWidth, GRAPH_PADDING, timeViewport);
   }
 
   function valueToY(v: number): number {
@@ -328,7 +450,15 @@
   }
 
   function clientToGraph(clientX: number, clientY: number): { x: number; y: number; t: number; v: number } {
-    return curveClientToGraph(clientX, clientY, getGraphRect(), graphWidth, graphHeight);
+    return curveClientToGraph(
+      clientX,
+      clientY,
+      getGraphRect(),
+      graphWidth,
+      graphHeight,
+      GRAPH_PADDING,
+      timeViewport
+    );
   }
 
   function getKeyframeHitRadius(): number {
@@ -364,7 +494,15 @@
 
   /** Screen-space center of keyframe mark (for tooltip / value overlay placement). */
   function keyframeCenterScreen(index: number): { x: number; y: number } | null {
-    return curveKeyframeCenterScreen(index, keyframesSorted, getGraphRect(), graphWidth, graphHeight);
+    return curveKeyframeCenterScreen(
+      index,
+      keyframesSorted,
+      getGraphRect(),
+      graphWidth,
+      graphHeight,
+      GRAPH_PADDING,
+      timeViewport
+    );
   }
 
   function closeValueOverlay(): void {
@@ -624,22 +762,37 @@
     if (e.key !== 'Delete' && e.key !== 'Backspace') return;
     if (selectedKeyframeIndices.length === 0) return;
     e.preventDefault();
+    e.stopPropagation();
     removeSelectedKeyframes();
   }
 
   const curvePathD = $derived.by(() => {
     const c = curveForDisplay;
     if (!c) return '';
-    return buildCurveEditorCurvePathD(c, graphWidth, graphHeight);
+    return buildCurveEditorCurvePathD(c, graphWidth, graphHeight, undefined, GRAPH_PADDING, timeViewport);
   });
 
   /** Waveform background path (stereo: up = left, down = right; peak-normalized like bottom bar). */
   const waveformPathD = $derived.by(() =>
-    buildCurveEditorWaveformPathD(waveformSliceLeft, waveformSliceRight, graphWidth, graphHeight)
+    buildCurveEditorWaveformPathD(
+      waveformSliceLeft,
+      waveformSliceRight,
+      graphWidth,
+      graphHeight,
+      GRAPH_PADDING,
+      timeViewport
+    )
   );
 
   const gridLines = $derived.by(() =>
-    buildCurveEditorGridLines(graphWidth, graphHeight, effectiveRegionBars, snapDivision)
+    buildCurveEditorGridLines(
+      graphWidth,
+      graphHeight,
+      effectiveRegionBars,
+      snapDivision,
+      GRAPH_PADDING,
+      timeViewport
+    )
   );
 
   // Fetch waveform slice for region when getWaveformData and region available (stereo: left + right)
@@ -776,6 +929,7 @@
 <div
   bind:this={rootEl}
   class="curve-editor"
+  class:is-embedded={embedded}
   data-category={categorySlug}
   data-subgroup={subGroupSlug || undefined}
   onkeydowncapture={handleKeyDownCapture}
@@ -785,24 +939,46 @@
     aria-hidden="true"
     use:pruneStaleKeyframeSelection={{ keyframesRef: keyframesSorted }}
   ></span>
+  {#if !hideToolbar}
   <div class="header">
-    <div class="header-left">
-      <Button
-        variant="ghost"
-        size="sm"
-        class="header-jump"
-        title="Reveal in node editor"
-        disabled={!nodeJumpEnabled}
-        onclick={handleRevealClick}
-      >
-        {#if nodeIconIdentifier}
-          <span class="title-icon" aria-hidden="true">
+    {#if !embedded}
+      <div class="header-left">
+        <Button
+          variant="ghost"
+          size="sm"
+          class="header-jump"
+          title="Reveal in node editor"
+          disabled={!nodeJumpEnabled}
+          onclick={handleRevealClick}
+        >
+          {#if nodeIconIdentifier}
+            <span class="title-icon" aria-hidden="true">
+              <NodeIconSvg identifier={nodeIconIdentifier} />
+            </span>
+          {/if}
+          <span class="header-title" title={paramLabel}>{paramLabel}</span>
+        </Button>
+      </div>
+    {:else if !hideToolbar}
+      <div class="header-left">
+        <Button
+          variant="ghost"
+          size="sm"
+          mode="icon-only"
+          class="header-jump"
+          title="Reveal in node editor"
+          disabled={!nodeJumpEnabled}
+          aria-label="Reveal in node editor"
+          onclick={handleRevealClick}
+        >
+          {#if nodeIconIdentifier}
             <NodeIconSvg identifier={nodeIconIdentifier} />
-          </span>
-        {/if}
-        <span class="header-title" title={paramLabel}>{paramLabel}</span>
-      </Button>
-    </div>
+          {/if}
+        </Button>
+      </div>
+    {:else}
+      <div class="header-left" aria-hidden="true"></div>
+    {/if}
     <div class="header-right">
       <div class="header-controls">
         <div bind:this={interpButtonEl} class="interp-button-anchor">
@@ -834,77 +1010,167 @@
             {/each}
           {/snippet}
         </DropdownMenu>
-        <Button
-          variant="ghost"
-          size="sm"
-          mode="icon-only"
-          class="invert-keyframes"
-          title="Invert values vertically (low becomes high)"
-          disabled={!curve || keyframesSorted.length === 0}
-          onclick={invertKeyframeValuesVertically}
-        >
-          <IconSvg name="arrows-in-line-vertical" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          mode="icon-only"
-          class="remove-keyframes"
-          title="Remove selected keyframes"
-          disabled={!hasKeyframeSelection}
-          onclick={removeSelectedKeyframes}
-        >
-          <IconSvg name="trash" />
-        </Button>
-        <div class="snap-wrap">
+        {#if showExtendedCurveTools}
           <Button
             variant="ghost"
             size="sm"
             mode="icon-only"
-            class="snap-toggle {snapEnabled ? 'is-active' : ''}"
-            title="Snap keyframe time to musical grid"
-            onclick={handleSnapToggle}
+            class="invert-keyframes"
+            title="Invert values vertically (low becomes high)"
+            disabled={!curve || keyframesSorted.length === 0}
+            onclick={invertKeyframeValuesVertically}
           >
-            <IconSvg name="hash-straight" />
+            <IconSvg name="arrows-in-line-vertical" />
           </Button>
-          <div bind:this={snapGridButtonEl} class="snap-grid-button-anchor">
+          <Button
+            variant="ghost"
+            size="sm"
+            mode="icon-only"
+            class="remove-keyframes"
+            title="Remove selected keyframes"
+            disabled={!hasKeyframeSelection}
+            onclick={removeSelectedKeyframes}
+          >
+            <IconSvg name="trash" />
+          </Button>
+          <div class="snap-wrap">
             <Button
               variant="ghost"
               size="sm"
-              class="snap-grid-button"
-              title="Snap grid size (bar fraction)"
-              disabled={!snapEnabled}
-              onclick={() => (snapGridOpen = !snapGridOpen)}
+              mode="icon-only"
+              class="snap-toggle {snapEnabled ? 'is-active' : ''}"
+              title="Snap keyframe time to musical grid"
+              onclick={handleSnapToggle}
             >
-              <span class="snap-grid-label">{snapGridLabel}</span>
+              <IconSvg name="hash-straight" />
             </Button>
+            <div bind:this={snapGridButtonEl} class="snap-grid-button-anchor">
+              <Button
+                variant="ghost"
+                size="sm"
+                class="snap-grid-button"
+                title="Snap grid size (bar fraction)"
+                disabled={!snapEnabled}
+                onclick={() => (snapGridOpen = !snapGridOpen)}
+              >
+                <span class="snap-grid-label">{snapGridLabel}</span>
+              </Button>
+            </div>
+            <DropdownMenu
+              open={snapGridOpen}
+              anchor={snapGridButtonEl}
+              openAbove={true}
+              onClose={() => (snapGridOpen = false)}
+            >
+              {#snippet children()}
+                {#each snapGridMenuItems as item}
+                  <MenuItem
+                    label={item.label}
+                    onclick={() => {
+                      item.action();
+                      snapGridOpen = false;
+                    }}
+                  />
+                {/each}
+              {/snippet}
+            </DropdownMenu>
           </div>
-          <DropdownMenu
-            open={snapGridOpen}
-            anchor={snapGridButtonEl}
-            openAbove={true}
-            onClose={() => (snapGridOpen = false)}
+        {/if}
+        {#if compactDriverMode && !hideToolbar}
+          <Button
+            variant="ghost"
+            size="sm"
+            class="compact-advanced-toggle"
+            title={compactAdvancedOpen ? 'Hide advanced curve tools' : 'Show snap grid and bulk keyframe tools'}
+            aria-expanded={compactAdvancedOpen}
+            onclick={() => (compactAdvancedOpen = !compactAdvancedOpen)}
           >
-            {#snippet children()}
-              {#each snapGridMenuItems as item}
-                <MenuItem
-                  label={item.label}
-                  onclick={() => {
-                    item.action();
-                    snapGridOpen = false;
-                  }}
-                />
-              {/each}
-            {/snippet}
-          </DropdownMenu>
-        </div>
-        <Button variant="ghost" size="sm" mode="both" iconPosition="trailing" class="close" title="Close curve editor" onclick={onClose}>
-          Close
-          <IconSvg name="x" />
-        </Button>
+            {compactAdvancedOpen ? 'Less' : 'Advanced'}
+          </Button>
+        {/if}
+        {#if !embedded}
+          <Button variant="ghost" size="sm" mode="both" iconPosition="trailing" class="close" title="Close curve editor" onclick={onClose}>
+            Close
+            <IconSvg name="x" />
+          </Button>
+        {/if}
       </div>
     </div>
   </div>
+  {:else if compactDriverMode && showExtendedCurveTools}
+  <div class="header header-extended-only">
+    <div class="header-right">
+      <div class="header-controls">
+        {#if showExtendedCurveTools}
+          <Button
+            variant="ghost"
+            size="sm"
+            mode="icon-only"
+            class="invert-keyframes"
+            title="Invert values vertically (low becomes high)"
+            disabled={!curve || keyframesSorted.length === 0}
+            onclick={invertKeyframeValuesVertically}
+          >
+            <IconSvg name="arrows-in-line-vertical" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            mode="icon-only"
+            class="remove-keyframes"
+            title="Remove selected keyframes"
+            disabled={!hasKeyframeSelection}
+            onclick={removeSelectedKeyframes}
+          >
+            <IconSvg name="trash" />
+          </Button>
+          <div class="snap-wrap">
+            <Button
+              variant="ghost"
+              size="sm"
+              mode="icon-only"
+              class="snap-toggle {snapEnabled ? 'is-active' : ''}"
+              title="Snap keyframe time to musical grid"
+              onclick={handleSnapToggle}
+            >
+              <IconSvg name="hash-straight" />
+            </Button>
+            <div bind:this={snapGridButtonEl} class="snap-grid-button-anchor">
+              <Button
+                variant="ghost"
+                size="sm"
+                class="snap-grid-button"
+                title="Snap grid size (bar fraction)"
+                disabled={!snapEnabled}
+                onclick={() => (snapGridOpen = !snapGridOpen)}
+              >
+                <span class="snap-grid-label">{snapGridLabel}</span>
+              </Button>
+            </div>
+            <DropdownMenu
+              open={snapGridOpen}
+              anchor={snapGridButtonEl}
+              openAbove={true}
+              onClose={() => (snapGridOpen = false)}
+            >
+              {#snippet children()}
+                {#each snapGridMenuItems as item}
+                  <MenuItem
+                    label={item.label}
+                    onclick={() => {
+                      item.action();
+                      snapGridOpen = false;
+                    }}
+                  />
+                {/each}
+              {/snippet}
+            </DropdownMenu>
+          </div>
+        {/if}
+      </div>
+    </div>
+  </div>
+  {/if}
 
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions - graph editor requires mouse handlers on container -->
   <div
@@ -912,9 +1178,10 @@
     class="graph-wrap"
     tabindex="0"
     role="application"
-    aria-label="Automation curve graph. Double-click empty area adds a keyframe; double-click a keyframe to edit its value. Hover a keyframe to see its value. Ctrl-click or Cmd-click to multi-select; Ctrl-A or Cmd-A selects all keyframes for group move. Shift-drag moves time only; Alt-drag moves value only."
+    aria-label="Automation curve graph. Double-click empty area adds a keyframe; double-click a keyframe to edit its value. Hover a keyframe to see its value. Ctrl-click or Cmd-click to multi-select; Ctrl-A or Cmd-A selects all keyframes for group move. Shift-drag moves time only; Alt-drag moves value only. Scroll the navigator below or Ctrl-scroll on the graph to zoom time; drag the navigator thumb to pan."
     aria-keyshortcuts="Control+A Meta+A Delete Backspace"
     use:focusGraphWhenRegionTargeted={{ laneId, regionId }}
+    use:wheelNonPassive={onGraphWheel}
     onpointerdown={handleGraphPointerdown}
     onclick={onSeek ? undefined : graphStrictBackgroundClick}
     onpointermove={handleGraphPointermove}
@@ -1028,6 +1295,15 @@
     </svg>
   </div>
 
+  <div class="navigator-wrap" aria-hidden="false">
+    <TimelineScroller
+      scrollerLeftPct={scrollerLeftPct}
+      scrollerWidthPct={scrollerWidthPct}
+      onMouseDown={onNavigatorMouseDown}
+      onWheel={onNavigatorWheel}
+    />
+  </div>
+
   {#if keyframeTooltipScreen && keyframeTooltipText && hoveredKeyframeIndex !== null}
     <div
       class="keyframe-value-tooltip"
@@ -1065,6 +1341,41 @@
     background: var(--curve-editor-bg);
     border-radius: var(--radius-md) var(--radius-md) 0 0;
     overflow: hidden;
+
+    &.is-embedded {
+      flex: 1;
+      min-height: 0;
+      background: transparent;
+      border-radius: 0;
+      color: inherit;
+
+      .header {
+        padding: 0 0 var(--pd-xs);
+        border-bottom: none;
+        background: transparent;
+      }
+
+      .graph-wrap {
+        flex: 1;
+        min-height: 200px;
+        max-height: none;
+        aspect-ratio: unset;
+        height: auto;
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        background: var(--color-gray-40);
+      }
+
+      .navigator-wrap {
+        flex-shrink: 0;
+        padding: var(--pd-xs) 0 0;
+      }
+    }
+  }
+
+  .navigator-wrap {
+    flex-shrink: 0;
+    padding: var(--pd-xs) var(--pd-xs) 0;
   }
 
   .header {
@@ -1169,7 +1480,7 @@
 
   .graph-wrap {
     flex: 1;
-    min-height: 120px;
+    min-height: 160px;
     min-width: 0;
     cursor: crosshair;
   }

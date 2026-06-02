@@ -30,8 +30,12 @@ import {
   applyRadialPulseSpawnUniforms,
   clearRadialPulseSpawnArmingState
 } from './audio/radialPulsePreviewSpawn';
+import { refreshArrangementPatternOnsetBakeCacheFromGraph } from '../audiotool/arrangement/refreshArrangementPatternOnsetBakeCache';
 import { applyArrangementNotesLoopUniforms } from './arrangement/arrangementNotesPreviewLoop';
+import { applyArrangementPatternOnsetLoopUniforms } from './arrangement/arrangementPatternPreviewLoop';
+import { applyMidiEnvelopeUniformUpdates } from './midiEnvelopeUniformUpdates';
 import { resolveWebGpuPreviewDependencyMaskForClock } from './webGpuPreviewDependencyClock';
+import { hasActiveMidiEnvelopeBindings } from '../utils/midiEnvelopeFrameCache';
 
 /** Callback when playlist advances (e.g. on track end or next); app updates store and calls setAudioSetup + playPrimary. */
 export type OnPlaylistAdvance = (nextState: { currentIndex: number }) => void;
@@ -71,6 +75,9 @@ export class RuntimeManager implements Disposable {
    * Default false — see `setTime` comment.
    */
   private readonly webGpuPreviewDependencyClockMask: boolean;
+
+  /** Previous MIDI envelope uniform values for change-threshold updates. */
+  private previousMidiEnvelopeUniformValues = new Map<string, number>();
 
   /**
    * Create a RuntimeManager with injected dependencies.
@@ -126,6 +133,13 @@ export class RuntimeManager implements Disposable {
         timelineTime: instance.getTimelineTime(),
         audioSetup: this.currentAudioSetup
       });
+      applyArrangementPatternOnsetLoopUniforms({
+        graph: this.currentGraph,
+        shaderInstance: instance,
+        timelineTime: instance.getTimelineTime(),
+        audioSetup: this.currentAudioSetup
+      });
+      this.pushMidiEnvelopeUniforms(instance, instance.getTimelineTime(), true);
     });
 
     // Start periodic cleanup (every 30 seconds)
@@ -175,6 +189,19 @@ export class RuntimeManager implements Disposable {
    */
   syncTimeAfterRecompile(): void {
     clearRadialPulseSpawnArmingState();
+    refreshArrangementPatternOnsetBakeCacheFromGraph(
+      this.currentGraph,
+      this.currentAudioSetup?.arrangementSnapshot
+    );
+    const shaderInstance = this.compilationManager.getShaderInstance();
+    if (shaderInstance && this.currentGraph) {
+      applyArrangementPatternOnsetLoopUniforms({
+        graph: this.currentGraph,
+        shaderInstance,
+        timelineTime: shaderInstance.getTimelineTime(),
+        audioSetup: this.currentAudioSetup,
+      });
+    }
     this.timeManager.markDirty(this.renderer, 'compilation');
   }
 
@@ -271,12 +298,20 @@ export class RuntimeManager implements Disposable {
       // Keep compilation manager in sync so parameter-only updates use latest graph and uniforms update correctly
       this.compilationManager.setGraph(graph);
     }
+    const node = this.currentGraph?.nodes.find((n) => n.id === nodeId);
     // Handle runtime-only parameters (no shader uniform; apply in JS only where needed)
-    if (this.currentGraph) {
-      const node = this.currentGraph.nodes.find(n => n.id === nodeId);
-      if (node && isRuntimeOnlyParameter(node.type, paramName)) {
-        return; // No uniform update for runtime-only params
-      }
+    if (node && isRuntimeOnlyParameter(node.type, paramName)) {
+      return; // No uniform update for runtime-only params
+    }
+
+    if (
+      node &&
+      (paramName === 'trackFilterMode' || paramName === 'trackFilterList')
+    ) {
+      refreshArrangementPatternOnsetBakeCacheFromGraph(
+        this.currentGraph,
+        this.currentAudioSetup?.arrangementSnapshot
+      );
     }
 
     // For all other parameters, use normal flow
@@ -359,30 +394,48 @@ export class RuntimeManager implements Disposable {
           )
         : mask;
 
-    // Use TimeManager to handle time updates; pass audio-uniforms callback so shader receives band/remap values every frame
+    const timelineTime = timelineState?.currentTime ?? time;
+    const midiEnvelopeDriversActive =
+      hasActiveMidiEnvelopeBindings(this.currentGraph) &&
+      this.currentAudioSetup?.arrangementSnapshot != null;
+
+    // Use TimeManager to handle time updates; driver callbacks push uniforms when cadence allows.
     this.timeManager.updateTime(
       time,
       shaderInstance,
       this.renderer,
-      (si) => {
-        this.audioParameterHandler.updateAudioUniforms(si, this.currentGraph);
-        applyRadialPulseSpawnUniforms({
-          graph: this.currentGraph,
-          shaderInstance: si,
-          shaderTime: time,
-          audioSetup: this.currentAudioSetup,
-          getAnalyzerNodeState: (id) => this.audioManager.getAnalyzerNodeState(id)
-        });
-        applyArrangementNotesLoopUniforms({
-          graph: this.currentGraph,
-          shaderInstance: si,
-          timelineTime: timelineState?.currentTime ?? time,
-          audioSetup: this.currentAudioSetup
-        });
+      {
+        audioUniforms: (si) => {
+          this.audioParameterHandler.updateAudioUniforms(si, this.currentGraph);
+          applyRadialPulseSpawnUniforms({
+            graph: this.currentGraph,
+            shaderInstance: si,
+            shaderTime: time,
+            audioSetup: this.currentAudioSetup,
+            getAnalyzerNodeState: (id) => this.audioManager.getAnalyzerNodeState(id)
+          });
+          applyArrangementNotesLoopUniforms({
+            graph: this.currentGraph,
+            shaderInstance: si,
+            timelineTime,
+            audioSetup: this.currentAudioSetup
+          });
+          applyArrangementPatternOnsetLoopUniforms({
+            graph: this.currentGraph,
+            shaderInstance: si,
+            timelineTime,
+            audioSetup: this.currentAudioSetup
+          });
+        },
+        midiEnvelopeUniforms: (si) => {
+          this.pushMidiEnvelopeUniforms(si, timelineTime);
+        },
       },
       {
         previewDependencies: previewDepsForClock,
-        timelinePlaying: !!timelineState?.isPlaying
+        timelinePlaying: !!timelineState?.isPlaying,
+        midiEnvelopeDriversActive,
+        timelineTime,
       }
     );
 
@@ -391,6 +444,22 @@ export class RuntimeManager implements Disposable {
     if (this.renderer.needsPresentationFlush?.()) {
       this.renderer.render();
     }
+  }
+
+  private pushMidiEnvelopeUniforms(
+    shaderInstance: { setParameter: (nodeId: string, paramName: string, value: number) => void; setParameters: (updates: Array<{ nodeId: string; paramName: string; value: number }>) => void },
+    transportTime: number,
+    forcePushAll = false
+  ): void {
+    applyMidiEnvelopeUniformUpdates(
+      this.currentGraph,
+      transportTime,
+      this.currentAudioSetup?.arrangementSnapshot,
+      (nodeId, paramName, value) => shaderInstance.setParameter(nodeId, paramName, value),
+      (updates) => shaderInstance.setParameters(updates),
+      this.previousMidiEnvelopeUniformValues,
+      forcePushAll
+    );
   }
 
   /**

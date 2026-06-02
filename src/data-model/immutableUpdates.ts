@@ -26,6 +26,11 @@ import { validateConnection } from './validationConnection';
 import { getConnectionTargetKey, isPortConnection } from './connectionUtils';
 import { getUpstreamOutputType } from './connectionWireTypes';
 import { generateConnectionId, getConnectionIds } from './utils';
+import {
+  copyMidiEnvelopeBindings,
+  copyMidiEnvelopePresets,
+  copyMidiEnvelopeRemappers,
+} from './immutableUpdatesMidiEnvelope';
 
 /**
  * Creates a deep copy of a node instance.
@@ -60,6 +65,9 @@ export function deepCopyGraph(graph: NodeGraph): NodeGraph {
     metadata: graph.metadata ? { ...graph.metadata } : undefined,
     viewState: graph.viewState ? { ...graph.viewState } : undefined,
     automation: graph.automation ? copyAutomationState(graph.automation) : undefined,
+    midiEnvelopePresets: copyMidiEnvelopePresets(graph.midiEnvelopePresets),
+    midiEnvelopeRemappers: copyMidiEnvelopeRemappers(graph.midiEnvelopeRemappers),
+    midiEnvelopeBindings: copyMidiEnvelopeBindings(graph.midiEnvelopeBindings),
   };
 }
 
@@ -242,6 +250,23 @@ export function updateNodeParameter(
       parameters: newParameters,
     };
   });
+}
+
+/** Atomic arrangement track-filter update (compile-time bake; avoid split param notifications). */
+export function updateNodeTrackFilter(
+  graph: NodeGraph,
+  nodeId: string,
+  trackFilterMode: number,
+  trackFilterList: string
+): NodeGraph {
+  return updateNode(graph, nodeId, (node) => ({
+    ...node,
+    parameters: {
+      ...node.parameters,
+      trackFilterMode,
+      trackFilterList,
+    },
+  }));
 }
 
 /**
@@ -540,4 +565,37 @@ export {
   removeAutomationLane,
   setAutomationBpm,
   setAutomationDuration,
+  buildDefaultAutomationCurveForParam,
+  resolveDefaultAutomationRegionDurationSeconds,
+  addDefaultAutomationDriverForParam,
+  type AddDefaultAutomationDriverOptions,
 } from './immutableUpdatesAutomation';
+export {
+  findMidiEnvelopePreset,
+  findMidiEnvelopeRemapper,
+  envelopePresetIdForBinding,
+  findBindingsForPreset,
+  findBindingsForRemapper,
+  findBoundBindingsForPreset,
+  defaultOutputRangeForPreset,
+  resolveMidiEnvelopeBinding,
+  findMidiEnvelopeBindingForParam,
+  hasMidiEnvelopeBindingForParam,
+  addMidiEnvelopePreset,
+  bindMidiEnvelopePresetToParam,
+  bindMidiEnvelopeRemapperToParam,
+  addMidiEnvelopeRemapper,
+  removeMidiEnvelopeRemapper,
+  duplicateMidiEnvelopeRemapper,
+  connectMidiEnvelopeRemapperToParam,
+  addMidiEnvelopeBinding,
+  updateMidiEnvelopePreset,
+  updateMidiEnvelopeRemapper,
+  updateMidiEnvelopeBinding,
+  removeMidiEnvelopeBinding,
+  removeMidiEnvelopePreset,
+  removeMidiEnvelopeBindingForParam,
+  unbindMidiEnvelopeBindingForParam,
+  connectMidiEnvelopeBindingToParam,
+  connectMidiEnvelopePresetToParam,
+} from './immutableUpdatesMidiEnvelope';

@@ -5,7 +5,7 @@ import type { NodeSpec } from '../../types/nodeSpec';
  */
 export const arrangementNotesNodeSpec: NodeSpec = {
   id: 'arrangement-notes',
-  category: 'Patterns',
+  category: 'MIDI',
   displayName: 'Notes',
   description:
     'Draws MIDI notes by pitch and time (always follows the wired timeline). Requires an imported arrangement snapshot on the playlist primary.',

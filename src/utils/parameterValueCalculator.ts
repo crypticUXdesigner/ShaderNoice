@@ -134,6 +134,8 @@ function computeConfigValueLegacy(
  * @param automationValue - When provided and not null, used as the "config" value
  *   (replacing node.parameters[paramName]). When there is no connection, this is
  *   the effective value; when there is a connection, inputMode(automationValue, input) is used.
+ * @param midiEnvelopeValue - When provided and not null (and no automationValue), used as config
+ *   for MIDI envelope drivers (JS-side evaluation).
  */
 export function computeEffectiveParameterValue(
   node: NodeInstance,
@@ -142,7 +144,8 @@ export function computeEffectiveParameterValue(
   graph: NodeGraph,
   nodeSpecs: Map<string, NodeSpec>,
   audioManager?: IAudioManager,
-  automationValue?: number | null
+  automationValue?: number | null,
+  midiEnvelopeValue?: number | null
 ): number | null {
   const clampToRange = (value: number): number => {
     // Range policy: defaults to 0..1 when missing (matches existing snap defaults).
@@ -163,11 +166,11 @@ export function computeEffectiveParameterValue(
           node,
           paramName,
           paramSpec,
-          automationValue,
+          automationValue: automationValue ?? midiEnvelopeValue,
         }),
-        automationValue,
+        automationValue ?? midiEnvelopeValue,
       )
-    : computeConfigValueLegacy(node, paramName, paramSpec, automationValue);
+    : computeConfigValueLegacy(node, paramName, paramSpec, automationValue ?? midiEnvelopeValue);
 
   const connection = graph.connections.find(
     (conn) =>

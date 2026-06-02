@@ -11,11 +11,20 @@ import type { IRenderBackend } from '../renderBackends/IRenderBackend';
 /** Clock/present path only needs mark+draw from the backend. */
 export type ITimeManagerRasterSink = Pick<IRenderBackend, 'markDirty' | 'render'>;
 
+export interface TimeManagerUniformCallbacks {
+  audioUniforms?: (shaderInstance: PreviewProgramInstance) => void;
+  midiEnvelopeUniforms?: (shaderInstance: PreviewProgramInstance) => void;
+}
+
 export interface TimeManagerUpdateOptions {
   /** From last successful compile; null = legacy full-rate behavior. */
   previewDependencies: PreviewDependencyMask | null;
   /** Timeline transport playing (full-rate preview while true). */
   timelinePlaying: boolean;
+  /** Bound MIDI envelope drivers with arrangement snapshot present. */
+  midiEnvelopeDriversActive?: boolean;
+  /** Timeline transport time in seconds (MIDI envelope + scrub cadence). */
+  timelineTime?: number;
 }
 
 /**
@@ -25,11 +34,14 @@ export interface TimeManagerUpdateOptions {
  */
 export class TimeManager {
   private lastTime: number = 0;
+  private lastTimelineTime: number = 0;
   private isDirty: boolean = false;
   private readonly TIME_CHANGE_THRESHOLD = 0.01; // Only update if change > 0.01s
   /** Last time we ran an audio-uniform pass when paused + audio-reactive (plan §3.6 cap). */
   private lastPausedAudioUniformMs = 0;
-  private static readonly PAUSED_AUDIO_MIN_INTERVAL_MS = 1000 / 15;
+  /** Last time we ran a MIDI-envelope pass when paused + MIDI drivers active. */
+  private lastPausedMidiEnvelopeUniformMs = 0;
+  private static readonly PAUSED_DRIVER_MIN_INTERVAL_MS = 1000 / 15;
 
   /**
    * Update time uniform if it changed meaningfully or if dirty.
@@ -37,17 +49,17 @@ export class TimeManager {
    * uses audio uniforms, radial-pulse spawn passes (virtual Drive and/or loop-interval preview),
    * or the timeline is playing (pattern B — no orphan uploads when idle).
    *
-   * @param time - Current time value
+   * @param time - Current wall time value
    * @param shaderInstance - Shader instance to update
    * @param rasterSink - Preview backend (mark dirty + present)
-   * @param updateAudioUniforms - Callback to update audio uniforms
+   * @param callbacks - Optional per-frame uniform driver callbacks
    * @returns true if time was updated and render ran, false otherwise
    */
   updateTime(
     time: number,
     shaderInstance: PreviewProgramInstance | null,
     rasterSink: ITimeManagerRasterSink,
-    updateAudioUniforms?: (shaderInstance: PreviewProgramInstance) => void,
+    callbacks?: TimeManagerUniformCallbacks,
     options?: TimeManagerUpdateOptions
   ): boolean {
     if (!shaderInstance) return false;
@@ -55,8 +67,12 @@ export class TimeManager {
     const deps = options?.previewDependencies ?? null;
     const playing = options?.timelinePlaying ?? false;
     const hasDeps = deps !== null;
+    const timelineTime = options?.timelineTime ?? time;
+    const midiActive = options?.midiEnvelopeDriversActive ?? false;
 
     const timeChanged = Math.abs(time - this.lastTime) > this.TIME_CHANGE_THRESHOLD;
+    const timelineTimeChanged =
+      Math.abs(timelineTime - this.lastTimelineTime) > this.TIME_CHANGE_THRESHOLD;
     const wallOrTimelineDrives =
       !hasDeps || !!(deps && (deps.usesWallTime || deps.usesTimelineTime));
     const needsFrameStepping = !!(deps?.usesFrameIndex);
@@ -68,7 +84,7 @@ export class TimeManager {
       !!(deps && (deps.usesAudioUniforms || deps.usesRadialPulseSpawnUniformPass));
 
     let shouldRunAudioUniformPass = false;
-    if (updateAudioUniforms) {
+    if (callbacks?.audioUniforms) {
       if (!hasDeps) {
         shouldRunAudioUniformPass = true;
       } else if (playing) {
@@ -79,19 +95,48 @@ export class TimeManager {
         shouldRunAudioUniformPass = true;
       } else if (needsAnalyserCadence) {
         const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-        if (now - this.lastPausedAudioUniformMs >= TimeManager.PAUSED_AUDIO_MIN_INTERVAL_MS) {
+        if (now - this.lastPausedAudioUniformMs >= TimeManager.PAUSED_DRIVER_MIN_INTERVAL_MS) {
           shouldRunAudioUniformPass = true;
           this.lastPausedAudioUniformMs = now;
         }
       }
     }
 
-    if (shouldRunAudioUniformPass && updateAudioUniforms) {
-      updateAudioUniforms(shaderInstance);
+    let shouldRunMidiEnvelopePass = false;
+    if (callbacks?.midiEnvelopeUniforms && midiActive) {
+      if (!hasDeps) {
+        shouldRunMidiEnvelopePass = true;
+      } else if (playing) {
+        shouldRunMidiEnvelopePass = true;
+      } else if (this.isDirty) {
+        shouldRunMidiEnvelopePass = true;
+      } else if (timelineTimeChanged) {
+        shouldRunMidiEnvelopePass = true;
+      } else {
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        if (now - this.lastPausedMidiEnvelopeUniformMs >= TimeManager.PAUSED_DRIVER_MIN_INTERVAL_MS) {
+          shouldRunMidiEnvelopePass = true;
+          this.lastPausedMidiEnvelopeUniformMs = now;
+        }
+      }
     }
-    const needRenderForPausedAudio = shouldRunAudioUniformPass && needsAnalyserCadence && !playing;
 
-    if (!this.isDirty && !playing && !needRenderByClock && !needRenderForPausedAudio) {
+    if (shouldRunAudioUniformPass && callbacks?.audioUniforms) {
+      callbacks.audioUniforms(shaderInstance);
+    }
+    if (shouldRunMidiEnvelopePass && callbacks?.midiEnvelopeUniforms) {
+      callbacks.midiEnvelopeUniforms(shaderInstance);
+    }
+
+    if (shouldRunMidiEnvelopePass) {
+      this.lastTimelineTime = timelineTime;
+    }
+
+    const needRenderForPausedAudio = shouldRunAudioUniformPass && needsAnalyserCadence && !playing;
+    const needRenderForPausedMidi =
+      shouldRunMidiEnvelopePass && midiActive && !playing && timelineTimeChanged;
+
+    if (!this.isDirty && !playing && !needRenderByClock && !needRenderForPausedAudio && !needRenderForPausedMidi) {
       return false;
     }
 
@@ -157,7 +202,9 @@ export class TimeManager {
    */
   reset(): void {
     this.lastTime = 0;
+    this.lastTimelineTime = 0;
     this.isDirty = false;
     this.lastPausedAudioUniformMs = 0;
+    this.lastPausedMidiEnvelopeUniformMs = 0;
   }
 }

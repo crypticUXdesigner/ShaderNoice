@@ -5,6 +5,8 @@
  */
 
 import type { NodeGraph, Connection, ValidationResult, AutomationState, AutomationLane } from './types';
+import type { ArrangementSnapshot } from '../audiotool/arrangement/types';
+import type { MidiEnvelopeBinding, MidiEnvelopePreset } from './midiEnvelopeTypes';
 import { sortEvaluableRegions } from '../utils/automationEvaluator';
 import { isPortConnection, getConnectionTargetKey } from './connectionUtils';
 import type { NodeSpecification } from './validationTypes';
@@ -83,6 +85,14 @@ export function validateGraph(
 
   if (graph.automation) {
     validateAutomation(graph.automation, graph, nodeSpecs, errors, warnings);
+  }
+
+  if (
+    graph.midiEnvelopePresets?.length ||
+    graph.midiEnvelopeRemappers?.length ||
+    graph.midiEnvelopeBindings?.length
+  ) {
+    validateMidiEnvelopePresetsAndBindings(graph, nodeSpecs, warnings);
   }
 
   return { valid: errors.length === 0, errors, warnings };
@@ -184,6 +194,194 @@ export function validateAutomation(
       }
     }
   }
+}
+
+/**
+ * Validates MIDI envelope presets and bindings. Structural mismatches are warnings so graphs stay loadable.
+ */
+export function validateMidiEnvelopePresetsAndBindings(
+  graph: NodeGraph,
+  nodeSpecs: NodeSpecification[],
+  warnings: string[]
+): void {
+  const presets = graph.midiEnvelopePresets ?? [];
+  const remappers = graph.midiEnvelopeRemappers ?? [];
+  const bindings = graph.midiEnvelopeBindings ?? [];
+  const presetById = new Map(presets.map((p) => [p.id, p]));
+  const remapperById = new Map(remappers.map((r) => [r.id, r]));
+  const seenPresetIds = new Set<string>();
+  const seenRemapperIds = new Set<string>();
+
+  for (const preset of presets) {
+    if (!preset.id) {
+      warnings.push('MIDI envelope preset missing id');
+      continue;
+    }
+    if (seenPresetIds.has(preset.id)) {
+      warnings.push(`MIDI envelope: duplicate preset id ${preset.id}`);
+    }
+    seenPresetIds.add(preset.id);
+    validateMidiEnvelopePresetFields(preset, warnings);
+  }
+
+  for (const remapper of remappers) {
+    if (!remapper.id) {
+      warnings.push('MIDI envelope remapper missing id');
+      continue;
+    }
+    if (seenRemapperIds.has(remapper.id)) {
+      warnings.push(`MIDI envelope: duplicate remapper id ${remapper.id}`);
+    }
+    seenRemapperIds.add(remapper.id);
+    if (!presetById.has(remapper.envelopePresetId)) {
+      warnings.push(
+        `MIDI envelope remapper ${remapper.id}: preset "${remapper.envelopePresetId}" not found`
+      );
+    }
+    if (
+      typeof remapper.outMin !== 'number' ||
+      !Number.isFinite(remapper.outMin) ||
+      typeof remapper.outMax !== 'number' ||
+      !Number.isFinite(remapper.outMax)
+    ) {
+      warnings.push(`MIDI envelope remapper ${remapper.id}: outMin/outMax must be finite numbers`);
+    }
+  }
+
+  const nodeById = new Map(graph.nodes.map((n) => [n.id, n]));
+  const seenParams = new Set<string>();
+
+  for (const binding of bindings) {
+    if (!binding.id) {
+      warnings.push('MIDI envelope binding missing id');
+      continue;
+    }
+    if (!binding.remapperId) {
+      warnings.push(`MIDI envelope binding ${binding.id}: missing remapperId`);
+      continue;
+    }
+    if (!remapperById.has(binding.remapperId)) {
+      warnings.push(
+        `MIDI envelope binding ${binding.id}: remapper "${binding.remapperId}" not found`
+      );
+    }
+
+    const bound = binding.nodeId.length > 0 && binding.paramName.length > 0;
+    if (!bound) {
+      warnings.push(`MIDI envelope binding ${binding.id}: bindings must reference a parameter port`);
+      continue;
+    }
+
+    const paramKey = `${binding.nodeId}:${binding.paramName}`;
+    if (seenParams.has(paramKey)) {
+      warnings.push(
+        `MIDI envelope: duplicate binding for parameter ${binding.paramName} on node ${binding.nodeId}`
+      );
+    }
+    seenParams.add(paramKey);
+
+    const node = nodeById.get(binding.nodeId);
+    if (!node) {
+      warnings.push(`MIDI envelope binding ${binding.id}: node "${binding.nodeId}" not found`);
+      continue;
+    }
+    const nodeSpec = nodeSpecs.find((s) => s.id === node.type);
+    if (!nodeSpec) {
+      warnings.push(`MIDI envelope binding ${binding.id}: no spec for node type "${node.type}"`);
+      continue;
+    }
+    const paramSpec = nodeSpec.parameters?.[binding.paramName];
+    if (!paramSpec) {
+      warnings.push(
+        `MIDI envelope binding ${binding.id}: parameter "${binding.paramName}" not found on node type ${node.type}`
+      );
+      continue;
+    }
+    if (paramSpec.type !== 'float') {
+      warnings.push(
+        `MIDI envelope binding ${binding.id}: parameter "${binding.paramName}" must be float (got ${paramSpec.type})`
+      );
+    }
+  }
+
+  const boundRemapperIds = new Set(
+    bindings
+      .filter((b) => b.nodeId.length > 0 && b.paramName.length > 0)
+      .map((b) => b.remapperId)
+  );
+  for (const remapper of remappers) {
+    if (!boundRemapperIds.has(remapper.id)) {
+      warnings.push(`MIDI envelope remapper ${remapper.id}: no parameter bindings`);
+    }
+  }
+}
+
+function validateMidiEnvelopePresetFields(preset: MidiEnvelopePreset, warnings: string[]): void {
+  if (!Array.isArray(preset.trackIds)) {
+    warnings.push(`MIDI envelope preset ${preset.id}: trackIds must be an array`);
+  }
+  const adsr = preset.envelope?.adsr;
+  if (!adsr) {
+    warnings.push(`MIDI envelope preset ${preset.id}: missing envelope.adsr`);
+    return;
+  }
+  for (const [key, val] of Object.entries({
+    attackSeconds: adsr.attackSeconds,
+    decaySeconds: adsr.decaySeconds,
+    sustainLevel: adsr.sustainLevel,
+    releaseSeconds: adsr.releaseSeconds,
+  })) {
+    if (typeof val !== 'number' || !Number.isFinite(val) || val < 0) {
+      warnings.push(`MIDI envelope preset ${preset.id}: adsr.${key} must be a non-negative number`);
+    }
+  }
+  if (typeof adsr.sustainLevel === 'number' && (adsr.sustainLevel < 0 || adsr.sustainLevel > 1)) {
+    warnings.push(`MIDI envelope preset ${preset.id}: adsr.sustainLevel must be in [0, 1]`);
+  }
+}
+
+/** @deprecated Use {@link validateMidiEnvelopePresetsAndBindings}. */
+export function validateMidiEnvelopeBindings(
+  bindings: MidiEnvelopeBinding[],
+  graph: NodeGraph,
+  nodeSpecs: NodeSpecification[],
+  warnings: string[]
+): void {
+  validateMidiEnvelopePresetsAndBindings(
+    { ...graph, midiEnvelopeBindings: bindings },
+    nodeSpecs,
+    warnings
+  );
+}
+
+/** Warn when binding trackIds are absent from an arrangement snapshot. */
+export function validateMidiEnvelopeBindingsAgainstSnapshot(
+  graph: NodeGraph,
+  snapshot: ArrangementSnapshot | undefined
+): string[] {
+  const warnings: string[] = [];
+  const presets = graph.midiEnvelopePresets ?? [];
+  const presetById = new Map(presets.map((p) => [p.id, p]));
+  const remapperById = new Map(
+    (graph.midiEnvelopeRemappers ?? []).map((r) => [r.id, r])
+  );
+  const bindings = graph.midiEnvelopeBindings;
+  if (!bindings?.length || !snapshot) return warnings;
+
+  const trackIds = new Set(snapshot.tracks.map((t) => t.id));
+  for (const binding of bindings) {
+    const remapper = remapperById.get(binding.remapperId);
+    const preset = remapper ? presetById.get(remapper.envelopePresetId) : undefined;
+    if (!preset) continue;
+    for (const trackId of preset.trackIds) {
+      if (!trackIds.has(trackId)) {
+        warnings.push(
+          `MIDI envelope preset ${preset.id}: track "${trackId}" not found in arrangement snapshot`
+        );
+      }
+    }
+  }
+  return warnings;
 }
 
 export function validateUniqueNodeIds(graph: NodeGraph): string[] {

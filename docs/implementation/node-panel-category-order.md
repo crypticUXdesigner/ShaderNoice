@@ -16,10 +16,11 @@ Section order when grouping node types by `spec.category` (unknown categories so
 6. Mask  
 7. Effects  
 8. Audio  
-9. Inputs  
-10. Output  
-11. Math  
-12. Utilities  
+9. MIDI  
+10. Inputs  
+11. Output  
+12. Math  
+13. Utilities  
 
 This matches **`docs/user-goals/03-node-panel.md`** and the arrays in:
 

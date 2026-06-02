@@ -15,6 +15,7 @@ const NODE_CATEGORY_TO_CSS_SLUG: Record<string, string> = {
   Effects: 'effects',
   Output: 'output',
   Audio: 'audio',
+  MIDI: 'midi',
 };
 
 /**

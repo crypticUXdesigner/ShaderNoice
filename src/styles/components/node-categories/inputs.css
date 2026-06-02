@@ -11,7 +11,7 @@
   /* Node header */
   --node-header-bg-inputs: var(--color-gray-90);
   --node-header-bg-end-inputs: var(--color-gray-80);
-  --node-header-print-inputs: var(--color-gray-20);
+  --node-header-print-inputs: var(--color-gray-120);
 
   /* Icon box */
   --node-icon-box-bg-inputs: var(--color-gray-80);
@@ -24,13 +24,14 @@
   --node-param-cell-bg-inputs: transparent;
   --node-param-cell-bg-end-inputs: transparent;
   --node-param-label-color-inputs: var(--color-gray-110);
+  --node-param-label-color-connected-inputs: var(--color-gray-130);
 
   /* Knob */
   --node-knob-value-bg-inputs: var(--color-gray-50);
   --node-knob-value-color-inputs: var(--color-gray-120);
-  --node-knob-ring-color-inputs: var(--color-gray-50);
-  --node-knob-arc-active-inputs: var(--color-blue-gray-100);
-  --node-knob-marker-inputs: var(--color-blue-gray-90);
+  --node-knob-ring-color-inputs: var(--color-gray-110);
+  --node-knob-arc-active-inputs: var(--color-blue-gray-40);
+  --node-knob-marker-inputs: var(--color-blue-gray-40);
 
   /* Bezier editor */
   --node-bezier-curve-inputs: var(--color-gray-90);
@@ -54,6 +55,7 @@
   --node-body-shadow-color-outer: var(--node-body-shadow-color-outer-inputs);
   --node-header-name-color: var(--node-header-print-inputs);
   --param-group-header-color: var(--param-group-header-color-inputs);
+  --param-label-color: var(--node-param-label-color-inputs);
   --param-cell-border-radius: var(--radius-md);
   /*
    * Connected param cell: Inputs nodes have a light body; the global connected
@@ -70,6 +72,14 @@
   --param-control-bg-hover: var(--color-gray-70);
   --param-control-bg-active: var(--color-gray-80);
   --param-control-value-color: var(--node-knob-value-color-inputs);
+  --embed-slot-bg: var(--color-gray-70);
+  --bezier-editor-grid-color: var(--color-gray-90);
+  --bezier-editor-grid-border-color: var(--color-gray-80);
+  --bezier-editor-control-line-color: var(--color-gray-100);
+  --vector2d-editor-grid-color: var(--color-gray-90);
+  --vector2d-editor-axis-color: var(--color-gray-110);
+  --vector3d-editor-view-bg: var(--color-gray-60);
+  --range-editor-slider-track-color: var(--color-gray-90);
 
   /* Node header (outermost) */
   background: radial-gradient(
@@ -154,6 +164,10 @@
     &.connected {
       background: var(--param-cell-bg-connected);
       border-color: var(--param-cell-border-connected);
+
+      .left-column .top .label {
+        color: var(--node-param-label-color-connected-inputs);
+      }
     }
 
     .left-column .top .label {

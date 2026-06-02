@@ -37,8 +37,99 @@ export interface LargeSlotProps {
   onRevealInNodeEditor?: (nodeId: string, paramName: string) => void;
 }
 
+/** Overview lists connectable drivers; focused edits one attached driver. */
+export type DriverPanelLayoutMode = 'overview' | 'focused';
+
+/** Props passed to the audio driver panel main column (parameter-drivers-v1 02A). */
+export interface AudioDriverPanelProps {
+  targetNodeId: string;
+  targetParameter: string;
+  graph: NodeGraph;
+  audioSetup: AudioSetup;
+  nodeSpecs: Map<string, NodeSpec>;
+  onSelect: (signal: SignalSelectPayload) => void;
+  onAudioSetupChange: (setup: AudioSetup) => void;
+  getAudioManager?: () => IAudioManager | null;
+  /** Pre-select / scroll to this band section when opening. */
+  initialBandId?: string | null;
+  /** Connected remapper id for scroll-to and connected-row chrome. */
+  focusRemapperId?: string | null;
+  connectionId?: string | null;
+  registerDeleteHandler?: (handler: (() => void) | null) => void;
+  onRevealInNodeEditor?: (nodeId: string, paramName: string) => void;
+  layoutMode?: DriverPanelLayoutMode;
+  /** Same handler as shell toolbar “New band” (empty-state primary CTA). */
+  onNewBand?: () => void;
+}
+
+/** Waveform fetcher for curve editor backgrounds (matches TimelineCurveEditor). */
+export type GetWaveformData = () => Promise<{
+  values: number[];
+  valuesRight?: number[];
+  durationSeconds: number;
+}>;
+
+/** Props for MIDI envelope driver panel content (parameter-drivers-v1 05). */
+export interface MidiDriverPanelProps {
+  targetNodeId: string;
+  targetParameter: string;
+  /** Node · param label for focused driver header. */
+  parameterTitle: string;
+  graph: NodeGraph;
+  nodeSpecs: Map<string, NodeSpec>;
+  audioSetup: AudioSetup;
+  onGraphUpdate: (graph: NodeGraph) => void;
+  getTimelineState?: () => import('../../../runtime/types').TimelineState | null;
+  registerDeleteHandler?: (handler: (() => void) | null) => void;
+  layoutMode?: DriverPanelLayoutMode;
+  /** Pre-select / scroll to this envelope preset section when opening. */
+  initialPresetId?: string | null;
+  /** Connected remapper id for scroll-to and connected-row chrome. */
+  focusRemapperId?: string | null;
+  /** Overview: notify parent when the selected envelope preset in the nav list changes. */
+  onSelectedPresetChange?: (presetId: string | null) => void;
+  /** @deprecated Use {@link onSelectedPresetChange}. */
+  onSelectedBindingChange?: (bindingId: string | null) => void;
+  /** Reveal a connected parameter on the node canvas. */
+  onRevealInNodeEditor?: (nodeId: string, paramName: string) => void;
+  /** After Connect or New envelope attaches a driver to the target parameter. */
+  onDriverAttached?: () => void;
+  /** Close the driver panel after disconnecting from the target parameter. */
+  onClose?: () => void;
+  /** Focused layout: open overview / preset library (empty-state Browse CTA). */
+  onBrowseOverview?: () => void;
+  /** Fetch studio project arrangement (empty state when no snapshot yet). */
+  arrangementImportBusy?: boolean;
+  onImportArrangement?: () => void;
+}
+
+/** Props for animation driver panel content (parameter-drivers-v1 02B). */
+export interface AnimationDriverPanelProps {
+  targetNodeId: string;
+  targetParameter: string;
+  /** Node · param label for focused driver header. */
+  parameterTitle: string;
+  graph: NodeGraph;
+  nodeSpecs: Map<string, NodeSpec>;
+  onGraphUpdate: (graph: NodeGraph) => void;
+  getTimelineState?: () => import('../../../runtime/types').TimelineState | null;
+  onSeek?: (timeSeconds: number) => void;
+  getWaveformData?: GetWaveformData;
+  registerDeleteHandler?: (handler: (() => void) | null) => void;
+  onRevealInNodeEditor?: (nodeId: string, paramName: string) => void;
+  layoutMode?: DriverPanelLayoutMode;
+  /** Leave overview browse layout and return to focused curve editing. */
+  onReturnToFocusedEdit?: () => void;
+  /** Focused driver: advanced curve tools visibility (toolbar lives in panel header). */
+  compactAdvancedOpen?: boolean;
+  /** Focused driver: hide Bezier/Advanced row inside the curve editor. */
+  hideCurveToolbar?: boolean;
+}
+
 /** Props passed to the compact slot (02B). */
 export interface CompactSlotProps {
+  /** Node · param label for focused driver header. */
+  parameterTitle: string;
   targetNodeId: string;
   targetParameter: string;
   triggerElement: HTMLElement | null;
@@ -55,11 +146,10 @@ export interface CompactSlotProps {
   connectedSignalId: string;
   /** Connection id for disconnect. */
   connectionId: string;
-  /** True when the underlying connection is disabled (bypassed). */
-  connectionDisabled: boolean;
   /** Optional: for live spectrum and remapper value visualization in the picker. */
   getAudioManager?: () => IAudioManager | null;
-  /** When provided, compact shows a control to open the large picker with this band selected. */
-  onOpenLargeWithBand?: (bandId: string) => void;
   onRevealInNodeEditor?: (nodeId: string, paramName: string) => void;
+  registerDeleteHandler?: (handler: (() => void) | null) => void;
+  /** Standalone audio picker: open large slot with this band selected. */
+  onOpenLargeWithBand?: (bandId: string) => void;
 }

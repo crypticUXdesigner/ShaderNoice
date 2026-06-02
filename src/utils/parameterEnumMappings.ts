@@ -13,6 +13,14 @@ export function isEnumParameter(specId: string, paramName: string): boolean {
   return getParameterEnumMappings(specId, paramName) !== null;
 }
 
+/** Enum params that show prev/next chevrons beside the dropdown (quick cycle). */
+export function shouldShowEnumSteppers(specId: string, paramName: string): boolean {
+  return (
+    (specId === 'color-lut' && paramName === 'preset') ||
+    (specId === 'blend' && paramName === 'mode')
+  );
+}
+
 export function getParameterEnumMappings(
   nodeId: string,
   paramName: string
@@ -220,6 +228,26 @@ export function getParameterEnumMappings(
     };
   }
 
+  // wake-smear - path preset (line, orbit, figure-8, drift)
+  if (nodeId === 'wake-smear' && paramName === 'wakeSmearPathPreset') {
+    return {
+      0: 'Line',
+      1: 'Orbit',
+      2: 'Figure-8',
+      3: 'Drift',
+    };
+  }
+
+  // circle-inversion - layout preset (triangle, chain, flower, random)
+  if (nodeId === 'circle-inversion' && paramName === 'circleInversionLayoutPreset') {
+    return {
+      0: 'Triangle',
+      1: 'Chain',
+      2: 'Flower',
+      3: 'Random',
+    };
+  }
+
   // oscillator-2d - layerCombine (same merge rule on X and Y stacks)
   if (nodeId === 'oscillator-2d' && paramName === 'layerCombine') {
     return {
@@ -330,6 +358,27 @@ export function getParameterEnumMappings(
 
   if (nodeId === 'arrangement-lanes' && paramName === 'colorSource') {
     return { 0: 'Palette', 1: 'DAW' };
+  }
+
+  if (nodeId === 'velocity-spark-grid') {
+    if (paramName === 'shape') {
+      return { 0: 'Dot', 1: 'Cell' };
+    }
+    if (paramName === 'blendMode') {
+      return { 0: 'Max', 1: 'Add' };
+    }
+    if (paramName === 'decayCurve') {
+      return { 0: 'Exp', 1: 'Linear' };
+    }
+  }
+
+  if (nodeId === 'note-gravity-warp') {
+    if (paramName === 'decayCurve') {
+      return { 0: 'Exp', 1: 'Linear' };
+    }
+    if (paramName === 'blendMode') {
+      return { 0: 'Sum', 1: 'Max', 2: 'Avg' };
+    }
   }
 
   return null;

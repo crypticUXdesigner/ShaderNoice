@@ -240,7 +240,8 @@ const CATEGORY_TOKEN_SUFFIXES = new Set([
   'mask',
   'effects',
   'output',
-  'audio'
+  'audio',
+  'midi'
 ]);
 
 /**

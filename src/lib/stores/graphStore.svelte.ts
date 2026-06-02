@@ -21,6 +21,7 @@ import {
 import {
   updateNodePosition,
   updateNodeParameter,
+  updateNodeTrackFilter,
   updateNodeParameterInputMode,
   resetNodeParametersToDefaults,
   updateNodeLabel,
@@ -32,7 +33,13 @@ import {
   setConnectionDisabled,
   updateViewState,
 } from '../../data-model/immutableUpdates';
+import { setParamDriverBypass } from '../../utils/paramDriverBypass';
+import {
+  applyNodeParameterConfigToNodes,
+  type NodeParameterConfigSnapshot,
+} from '../../data-model/nodeParameterConfigClipboard';
 import { applyArrangementNotesDefaultTrackFilterToNode } from '../../data-model/arrangementNotesTrackFilterDefaults';
+import { removeStaleVirtualAudioConnections } from '../../data-model/removeStaleVirtualAudioConnections';
 import type { NodeInstance } from '../../data-model/types';
 import type { NodeSpecification } from '../../data-model/validationTypes';
 import type { ConnectionValidationContext } from '../../data-model/connectionValidationContext';
@@ -99,6 +106,11 @@ function setGraphAction(newGraph: NodeGraph, options?: SetGraphOptions): void {
 }
 
 function setAudioSetupAction(newSetup: AudioSetup): void {
+  const graphWithoutStaleAudioWires = removeStaleVirtualAudioConnections(graph, newSetup);
+  if (graphWithoutStaleAudioWires !== graph) {
+    graph = graphWithoutStaleAudioWires;
+    graphChangedListener?.(graph);
+  }
   audioSetup = newSetup;
   audioChangedListener?.();
 }
@@ -121,6 +133,16 @@ function updateNodeParameterAction(
   graphChangedListener?.(graph, options);
 }
 
+function updateNodeTrackFilterAction(
+  nodeId: string,
+  trackFilterMode: number,
+  trackFilterList: string,
+  options?: GraphChangedOptions
+): void {
+  graph = updateNodeTrackFilter(graph, nodeId, trackFilterMode, trackFilterList);
+  graphChangedListener?.(graph, options);
+}
+
 /** Push one undo snapshot for the current graph (e.g. end of a drag after transient `recordUndo: false` updates). */
 function recordUndoSnapshotAction(): void {
   graphChangedListener?.(graph, { recordUndo: true });
@@ -132,6 +154,16 @@ function updateNodeParameterInputModeAction(
   mode: ParameterInputMode
 ): void {
   graph = updateNodeParameterInputMode(graph, nodeId, paramName, mode);
+  graphChangedListener?.(graph);
+}
+
+function applyNodeParameterConfigToNodesAction(
+  nodeIds: readonly string[],
+  config: NodeParameterConfigSnapshot,
+  parameterSpecs: Record<string, ParameterSpec>
+): void {
+  if (nodeIds.length === 0) return;
+  graph = applyNodeParameterConfigToNodes(graph, nodeIds, config, parameterSpecs);
   graphChangedListener?.(graph);
 }
 
@@ -202,6 +234,11 @@ function removeConnectionAction(connectionId: string): void {
 
 function setConnectionDisabledAction(connectionId: string, disabled: boolean): void {
   graph = setConnectionDisabled(graph, connectionId, disabled);
+  graphChangedListener?.(graph);
+}
+
+function setParamDriverBypassAction(nodeId: string, paramName: string, bypassed: boolean): void {
+  graph = setParamDriverBypass(graph, nodeId, paramName, bypassed);
   graphChangedListener?.(graph);
 }
 
@@ -296,8 +333,10 @@ export const graphStore = {
   setAudioSetup: setAudioSetupAction,
   updateNodePosition: updateNodePositionAction,
   updateNodeParameter: updateNodeParameterAction,
+  updateNodeTrackFilter: updateNodeTrackFilterAction,
   recordUndoSnapshot: recordUndoSnapshotAction,
   updateNodeParameterInputMode: updateNodeParameterInputModeAction,
+  applyNodeParameterConfigToNodes: applyNodeParameterConfigToNodesAction,
   resetNodeParametersToDefaults: resetNodeParametersToDefaultsAction,
   updateNodeLabel: updateNodeLabelAction,
   setNodeBypassed: setNodeBypassedAction,
@@ -306,6 +345,7 @@ export const graphStore = {
   addConnection: addConnectionAction,
   removeConnection: removeConnectionAction,
   setConnectionDisabled: setConnectionDisabledAction,
+  setParamDriverBypass: setParamDriverBypassAction,
   updateViewState: updateViewStateAction,
   setTimelineState: setTimelineStateAction,
   setActiveTool: setActiveToolAction,

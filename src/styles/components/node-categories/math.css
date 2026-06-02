@@ -24,13 +24,14 @@
   --node-param-cell-bg-math: transparent;
   --node-param-cell-bg-end-math: transparent;
   --node-param-label-color-math: var(--color-clean-gray-100);
+  --node-param-label-color-connected-math: var(--color-clean-gray-120);
 
   /* Knob */
   --node-knob-value-bg-math: var(--color-leaf-gray-40);
   --node-knob-value-color-math: var(--color-leaf-gray-120);
   --node-knob-ring-color-math: var(--color-clean-gray-50);
-  --node-knob-arc-active-math: var(--color-leaf-120);
-  --node-knob-marker-math: var(--color-leaf-gray-120);
+  --node-knob-arc-active-math: var(--color-leaf-90);
+  --node-knob-marker-math: var(--node-icon-box-color-math);
 
   /* Bezier editor */
   --node-bezier-curve-math: var(--color-leaf-gray-90);
@@ -62,8 +63,9 @@
   /* Knob â€” orange-120 accent (same scale as default leaf-120) */
   --node-knob-value-bg-math-functions: var(--color-leaf-gray-40);
   --node-knob-value-color-math-functions: var(--color-orange-120);
-  --node-knob-arc-active-math-functions: var(--color-orange-120);
-  --node-knob-marker-math-functions: var(--color-orange-120);
+  --node-knob-ring-color-math-functions: var(--color-clean-gray-50);
+  --node-knob-arc-active-math-functions: var(--color-orange-90);
+  --node-knob-marker-math-functions: var(--node-icon-box-color-math-functions);
 
   /* Bezier editor */
   --node-bezier-curve-math-functions: var(--color-leaf-gray-90);
@@ -95,8 +97,9 @@
   /* Knob â€” violet-120 accent (same scale as default leaf-120) */
   --node-knob-value-bg-math-advanced: var(--color-leaf-gray-40);
   --node-knob-value-color-math-advanced: var(--color-violet-120);
-  --node-knob-arc-active-math-advanced: var(--color-violet-120);
-  --node-knob-marker-math-advanced: var(--color-violet-120);
+  --node-knob-ring-color-math-advanced: var(--color-clean-gray-50);
+  --node-knob-arc-active-math-advanced: var(--color-violet-90);
+  --node-knob-marker-math-advanced: var(--node-icon-box-color-math-advanced);
 
   /* Bezier editor */
   --node-bezier-curve-math-advanced: var(--color-leaf-gray-90);
@@ -106,10 +109,12 @@
 
 .node.math {
   /* CSS custom properties */
+  --param-cell-bg-connected-math: var(--color-clean-gray-60);
   --node-body-shadow-color-mid: var(--node-body-shadow-color-mid-math);
   --node-body-shadow-color-outer: var(--node-body-shadow-color-outer-math);
   --node-header-name-color: var(--node-header-print-math);
   --param-group-header-color: var(--param-group-header-color-math);
+  --param-label-color: var(--node-param-label-color-math);
   --knob-ring-color: var(--node-knob-ring-color-math);
   --knob-ring-active-color-static: var(--node-knob-arc-active-math);
   --knob-marker-color: var(--node-knob-marker-math);
@@ -119,6 +124,24 @@
   --param-control-bg-hover: var(--color-orange-50);
   --param-control-bg-active: var(--color-orange-60);
   --param-control-value-color: var(--node-knob-value-color-math);
+  --toggle-bg-off: var(--color-clean-gray-90);
+  --toggle-bg-hover-off: var(--color-clean-gray-100);
+  --toggle-border-color: var(--color-clean-gray-100);
+  --param-mode-button-bg: var(--node-knob-value-bg-math);
+  --param-mode-button-color-static: var(--node-param-label-color-math);
+  --embed-slot-bg: var(--color-clean-gray-100);
+  --bezier-editor-label-color: var(--color-clean-gray-10);
+  --range-editor-label-color: var(--color-clean-gray-10);
+  --vector2d-editor-label-color: var(--color-clean-gray-10);
+  --vector3d-editor-label-color: var(--color-clean-gray-10);
+  --remap-range-input-label-color: var(--color-clean-gray-10);
+  --bezier-editor-grid-color: var(--color-leaf-gray-80);
+  --bezier-editor-grid-border-color: var(--color-leaf-gray-70);
+  --bezier-editor-control-line-color: var(--color-leaf-gray-90);
+  --vector2d-editor-grid-color: var(--color-leaf-gray-80);
+  --vector2d-editor-axis-color: var(--color-leaf-gray-100);
+  --vector3d-editor-view-bg: var(--color-leaf-gray-50);
+  --range-editor-slider-track-color: var(--color-leaf-gray-80);
 
   /* Node header (outermost) */
   background: radial-gradient(
@@ -160,8 +183,12 @@
     border-radius: var(--radius-xl);
 
     &.connected {
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--param-cell-bg-connected-math);
       border-color: var(--color-teal-110);
+
+      .left-column .top .label {
+        color: var(--node-param-label-color-connected-math);
+      }
     }
 
     .left-column .top .label {
@@ -198,6 +225,7 @@
   --node-param-label-color-math: var(--node-param-label-color-math-functions);
   --node-knob-value-color-math: var(--node-knob-value-color-math-functions);
   --node-knob-value-bg-math: var(--node-knob-value-bg-math-functions);
+  --node-knob-ring-color-math: var(--node-knob-ring-color-math-functions);
   --node-knob-arc-active-math: var(--node-knob-arc-active-math-functions);
   --node-knob-marker-math: var(--node-knob-marker-math-functions);
   --node-bezier-curve-math: var(--node-bezier-curve-math-functions);
@@ -253,6 +281,7 @@
   --node-param-label-color-math: var(--node-param-label-color-math-advanced);
   --node-knob-value-color-math: var(--node-knob-value-color-math-advanced);
   --node-knob-value-bg-math: var(--node-knob-value-bg-math-advanced);
+  --node-knob-ring-color-math: var(--node-knob-ring-color-math-advanced);
   --node-knob-arc-active-math: var(--node-knob-arc-active-math-advanced);
   --node-knob-marker-math: var(--node-knob-marker-math-advanced);
   --node-bezier-curve-math: var(--node-bezier-curve-math-advanced);

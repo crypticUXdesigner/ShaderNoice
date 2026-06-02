@@ -9,6 +9,7 @@ import { RenderLayer } from '../rendering/RenderState';
 import { getCSSVariableAsNumber } from '../../../utils/cssTokens';
 import { isRectVisibleWithMargin, type Viewport } from '../../../utils/viewport';
 import type { RenderingOrchestratorDependencies } from './RenderingOrchestrator';
+import { getConnectionBezierBounds } from '../connectionBezier';
 
 export function getViewport(deps: RenderingOrchestratorDependencies): Viewport {
   const cached = deps.getCachedViewportDimensions();
@@ -108,15 +109,15 @@ export function calculateConnectionDirtyRegion(
   const sourceY = sourcePortPos.y;
   const targetX = targetPortPos.x;
   const targetY = targetPortPos.y;
-  const cp1X = sourceX + 100;
-  const cp1Y = sourceY;
-  const cp2X = targetX - 100;
-  const cp2Y = targetY;
+  const bounds = getConnectionBezierBounds(
+    { x: sourceX, y: sourceY },
+    { x: targetX, y: targetY }
+  );
   const rect = deps.canvas.getBoundingClientRect();
   const sourceScreen = deps.viewStateManager.canvasToScreen(sourceX, sourceY, rect);
   const targetScreen = deps.viewStateManager.canvasToScreen(targetX, targetY, rect);
-  const cp1Screen = deps.viewStateManager.canvasToScreen(cp1X, cp1Y, rect);
-  const cp2Screen = deps.viewStateManager.canvasToScreen(cp2X, cp2Y, rect);
+  const cp1Screen = deps.viewStateManager.canvasToScreen(bounds.minX, bounds.minY, rect);
+  const cp2Screen = deps.viewStateManager.canvasToScreen(bounds.maxX, bounds.maxY, rect);
   const minX = Math.min(sourceScreen.x, targetScreen.x, cp1Screen.x, cp2Screen.x);
   const maxX = Math.max(sourceScreen.x, targetScreen.x, cp1Screen.x, cp2Screen.x);
   const minY = Math.min(sourceScreen.y, targetScreen.y, cp1Screen.y, cp2Screen.y);

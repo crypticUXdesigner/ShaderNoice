@@ -29,7 +29,8 @@
   import { graphStore } from '../../stores';
   import { appToastStore } from '../../stores/appToastStore';
   import { firstUnsupportedWebGpuMvpNodeType } from '../../utils/webGpuMvpNodeSupport';
-  import { getVirtualNodeIdsFromAudioSetup } from '../../../utils/virtualNodes';
+  import { getVirtualNodeIdsFromAudioSetup, isVirtualNodeId } from '../../../utils/virtualNodes';
+  import { prepareGraphForAudioDriverAttach } from '../../../utils/parameterDriverAttach';
   import { hasPaletteNodeMime, readPaletteNodeType } from '../../../utils/paletteNodeDrag';
   import DomNodeLayer from './DomNodeLayer.svelte';
   import AddNodePicker from './AddNodePicker.svelte';
@@ -38,6 +39,7 @@
     NodeEditorCanvasWrapperAPI
   } from './NodeEditorCanvasWrapper.types';
   import { syncCanvasAfterParameterStoreUpdateThenRuntime } from './parameterChangeSync';
+  import { coerceParameterValue } from '../../../data-model/utils';
 
   interface Props {
     nodeSpecs: NodeSpec[];
@@ -94,6 +96,9 @@
   let landedNodeId = $state<string | null>(null);
   let landedClearTimer: ReturnType<typeof setTimeout> | null = null;
   let paletteDragHighlight = $state(false);
+  let connectionDragActive = $state(false);
+  /** Bumped to open inline label edit on a node (context menu Rename). */
+  let labelEditRequest = $state<{ nodeId: string; seq: number } | null>(null);
 
   function flashLandedNode(id: string): void {
     if (landedClearTimer) clearTimeout(landedClearTimer);
@@ -189,6 +194,57 @@
     return v ? { connectionValidation: v } : {};
   }
 
+  function duplicateNodesByIds(canvas: NodeEditorCanvas, nodeIds: string[]): void {
+    if (nodeIds.length === 0) return;
+    const g = graphStore.graph;
+    const idSet = new Set(nodeIds);
+    const nodes = g.nodes.filter((n) => idSet.has(n.id));
+    const connections = g.connections.filter(
+      (c) => idSet.has(c.sourceNodeId) && idSet.has(c.targetNodeId)
+    );
+    copyPasteManager.copy(nodes, connections);
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    const metrics = canvas.getNodeMetrics();
+    for (const n of nodes) {
+      const m = metrics.get(n.id);
+      const w = m?.width ?? 0;
+      const h = m?.height ?? 0;
+      minX = Math.min(minX, n.position.x);
+      minY = Math.min(minY, n.position.y);
+      maxX = Math.max(maxX, n.position.x + w);
+      maxY = Math.max(maxY, n.position.y + h);
+    }
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const offset = 24;
+    const data = copyPasteManager.paste(centerX + offset, centerY + offset);
+    if (!data) return;
+    if (webGpuSessionBlocksUnsupportedNodeTypes(data.nodes.map((n) => n.type))) return;
+    syncViewStateFromCanvas(canvas);
+    let newGraph = addNodes(graphStore.graph, data.nodes);
+    newGraph = addConnections(newGraph, data.connections);
+    newGraph = updateViewState(newGraph, { selectedNodeIds: data.nodes.map((n) => n.id) });
+    graphStore.setGraph(newGraph);
+    callbacks.onSelectionChanged?.(data.nodes.map((n) => n.id));
+    notifyGraphChanged();
+    canvas.requestRender();
+  }
+
+  function beginNodeLabelEdit(nodeId: string): void {
+    graphStore.updateViewState({ selectedNodeIds: [nodeId] });
+    liveViewState = { ...liveViewState, selectedNodeIds: [nodeId] };
+    canvasInstance?.setSelectionFromDOM?.([nodeId]);
+    callbacks.onSelectionChanged?.([nodeId]);
+    const prev = labelEditRequest;
+    labelEditRequest = {
+      nodeId,
+      seq: prev?.nodeId === nodeId ? prev.seq + 1 : 1,
+    };
+  }
+
   function applyAddConnectionResult(result: AddConnectionWithValidationResult): void {
     if (result.errors.length > 0) {
       appToastStore.addToast({
@@ -276,6 +332,8 @@
         };
         c.requestRender();
       },
+      duplicateNodes: (nodeIds) => duplicateNodesByIds(canvas, nodeIds),
+      beginNodeLabelEdit,
     };
   }
 
@@ -489,6 +547,11 @@
         if (canvasInstance) syncViewStateFromCanvas(canvasInstance);
         applyAddConnectionResult(result);
       } else if (payload.type === 'audio' && payload.virtualNodeId != null) {
+        const workingGraph = prepareGraphForAudioDriverAttach(
+          graphStore.graph,
+          targetNodeId,
+          targetParameter
+        );
         const conn: Connection = {
           id: generateId('conn'),
           sourceNodeId: payload.virtualNodeId,
@@ -497,7 +560,7 @@
           targetPort: undefined,
           targetParameter,
         };
-        const result = addConnectionWithValidation(graphStore.graph, conn, validationSpecs, optionsForNewConnection());
+        const result = addConnectionWithValidation(workingGraph, conn, validationSpecs, optionsForNewConnection());
         if (canvasInstance) syncViewStateFromCanvas(canvasInstance);
         applyAddConnectionResult(result);
       } else if (payload.type === 'disconnect' && payload.connectionId != null) {
@@ -555,6 +618,24 @@
       syncViewStateFromCanvas,
       notifyRuntimeParameterChanged: () =>
         callbacks.onParameterChanged?.(nodeId, paramName, value, graphStore.graph),
+      notifyGraphChanged,
+    });
+  }
+
+  async function handleTrackFilterChange(
+    nodeId: string,
+    trackFilterMode: number,
+    trackFilterList: string,
+    canvas: NodeEditorCanvas | null,
+    options?: GraphUndoRecordingOptions
+  ): Promise<void> {
+    graphStore.updateNodeTrackFilter(nodeId, trackFilterMode, trackFilterList, options);
+    await syncCanvasAfterParameterStoreUpdateThenRuntime({
+      canvas,
+      getGraph: () => graphStore.graph,
+      syncViewStateFromCanvas,
+      notifyRuntimeParameterChanged: () =>
+        callbacks.onParameterChanged?.(nodeId, 'trackFilterList', trackFilterList, graphStore.graph),
       notifyGraphChanged,
     });
   }
@@ -708,11 +789,15 @@
     );
     canvas.setParameterConnectionsOverlay(paramConnectionsOverlayEl);
     canvas.setTopOverlayCanvas(topOverlayEl);
+    canvas.setCursorRoot(container.parentElement);
     // Use wrapper rect for param port screen→canvas so connection endpoints align with DOM nodes
     canvas.setConnectionRectProvider(() => container.parentElement?.getBoundingClientRect() ?? null);
     canvasInstance = canvas;
 
     canvas.setCallbacks({
+      onConnectionDragActiveChange: (active) => {
+        connectionDragActive = active;
+      },
       onNodeMoved: (nodeId, x, y) => {
         const node = graphStore.graph.nodes.find((n: NodeInstance) => n.id === nodeId);
         if (node) {
@@ -743,6 +828,14 @@
         callbacks.onSelectionChanged?.(newSelectedIds);
       },
       onConnectionCreated: (sourceNodeId, sourcePort, targetNodeId, targetPort?, targetParameter?) => {
+        let workingGraph = graphStore.graph;
+        if (targetParameter && isVirtualNodeId(sourceNodeId)) {
+          workingGraph = prepareGraphForAudioDriverAttach(
+            workingGraph,
+            targetNodeId,
+            targetParameter
+          );
+        }
         const conn: Connection = {
           id: generateId('conn'),
           sourceNodeId,
@@ -751,7 +844,7 @@
           targetPort,
           targetParameter,
         };
-        const result = addConnectionWithValidation(graphStore.graph, conn, validationSpecs, optionsForNewConnection());
+        const result = addConnectionWithValidation(workingGraph, conn, validationSpecs, optionsForNewConnection());
         syncViewStateFromCanvas(canvas);
         applyAddConnectionResult(result);
       },
@@ -833,42 +926,7 @@
       },
       onDuplicateSelected: () => {
         const ids = graphStore.graph.viewState?.selectedNodeIds ?? [];
-        if (ids.length === 0) return;
-        const g = graphStore.graph;
-        const nodes = g.nodes.filter((n) => ids.includes(n.id));
-        const selectedSet = new Set(ids);
-        const connections = g.connections.filter(
-          (c) => selectedSet.has(c.sourceNodeId) && selectedSet.has(c.targetNodeId)
-        );
-        copyPasteManager.copy(nodes, connections);
-        let minX = Infinity,
-          minY = Infinity,
-          maxX = -Infinity,
-          maxY = -Infinity;
-        const metrics = canvas.getNodeMetrics();
-        for (const n of nodes) {
-          const m = metrics.get(n.id);
-          const w = m?.width ?? 0;
-          const h = m?.height ?? 0;
-          minX = Math.min(minX, n.position.x);
-          minY = Math.min(minY, n.position.y);
-          maxX = Math.max(maxX, n.position.x + w);
-          maxY = Math.max(maxY, n.position.y + h);
-        }
-        const centerX = (minX + maxX) / 2;
-        const centerY = (minY + maxY) / 2;
-        const offset = 24;
-        const data = copyPasteManager.paste(centerX + offset, centerY + offset);
-        if (!data) return;
-        if (webGpuSessionBlocksUnsupportedNodeTypes(data.nodes.map((n) => n.type))) return;
-        syncViewStateFromCanvas(canvas);
-        let newGraph = addNodes(graphStore.graph, data.nodes);
-        newGraph = addConnections(newGraph, data.connections);
-        newGraph = updateViewState(newGraph, { selectedNodeIds: data.nodes.map((n) => n.id) });
-        graphStore.setGraph(newGraph);
-        callbacks.onSelectionChanged?.(data.nodes.map((n) => n.id));
-        notifyGraphChanged();
-        canvas.requestRender();
+        duplicateNodesByIds(canvas, ids);
       },
       hasClipboard: () => copyPasteManager.hasClipboard(),
       isDialogVisible: callbacks.isDialogVisible,
@@ -894,13 +952,14 @@
       if (!spec) return null;
       const parameters: Record<string, ParameterValue> = {};
       for (const [paramName, paramSpec] of Object.entries(spec.parameters)) {
-        parameters[paramName] = (paramSpec as { default?: ParameterValue }).default as ParameterValue;
+        parameters[paramName] = (paramSpec.default ??
+          coerceParameterValue(0, paramSpec.type)) as ParameterValue;
       }
       const tempNode: NodeInstance = {
         id: 'temp',
         type: nodeType,
         position: { x: 0, y: 0 },
-        parameters
+        parameters,
       };
       const metrics = canvas.getNodeRenderer().calculateMetrics(tempNode, spec);
       const adjustedX = x - metrics.width / 2;
@@ -909,7 +968,7 @@
         id: generateId('node'),
         type: nodeType,
         position: { x: adjustedX, y: adjustedY },
-        parameters
+        parameters,
       };
       if (nodeType === 'arrangement-notes') {
         node = applyArrangementNotesDefaultTrackFilterToNode(
@@ -965,7 +1024,7 @@
   // bodies; DOM nodes capture clicks before the canvas. Capture-phase intercept when on a connection.
   /** Real DOM controls inside a `.node` must own their own pointer/click sequences (e.g. ValueInput double-click). Match the same set Node.svelte exempts from patch-into double-click. */
   const NODE_INTERACTIVE_SELECTOR =
-    '.node :is(button, input, textarea, select, .value-input-wrapper, .value-input, .knob, .param-port, [role="textbox"], [role="slider"], .toggle, .bezier-editor, .color-picker-row, .coord-pad, .coord-pad-cell, .remap-range-editor, .frequency-range-editor, .enum-selector-trigger)';
+    '.node :is(button, input, textarea, select, .value-input-wrapper, .value-input, .knob, .param-port, [role="textbox"], [role="slider"], .toggle, .bezier-editor, .color-picker-row, .coord-pad, .coord-pad-cell, .remap-range-editor, .frequency-range-editor, .enum-selector-trigger, [data-node-label-edit])';
   /** PERF: Subscribe only to wrapper + API identity; read `graphStore.activeTool` / `isSpacebarPressed` inside the handler so tool/space changes do not remove/re-add capture listeners. */
   $effect(() => {
     const wrapper = wrapperEl;
@@ -1003,6 +1062,7 @@
   bind:this={wrapperEl}
   class="node-editor-canvas-wrapper"
   class:palette-drop-active={paletteDragHighlight}
+  class:connection-drag-active={connectionDragActive}
   style="width: 100%; height: 100%; position: relative; overflow: hidden;"
   use:wheelNonPassive={(e) => apiProp?.handleWheel?.(e)}
   ondragenter={handleWrapperPaletteDragEnter}
@@ -1038,6 +1098,7 @@
   <DomNodeLayer
     landedNodeId={landedNodeId}
     patchInsertNodeId={patchInsertNodeId}
+    labelEditRequest={labelEditRequest}
     graph={graph}
     nodeSpecs={nodeSpecs}
     audioSetup={graphStore.audioSetup}
@@ -1106,6 +1167,9 @@
     onParameterChange={(nodeId, paramName, value, options) => {
       void handleParameterChange(nodeId, paramName, value, canvasInstance, options);
     }}
+    onTrackFilterChange={(nodeId, trackFilterMode, trackFilterList, options) => {
+      void handleTrackFilterChange(nodeId, trackFilterMode, trackFilterList, canvasInstance, options);
+    }}
     onParameterGestureCommit={() => graphStore.recordUndoSnapshot()}
     onNodeContextMenu={(nodeId, clientX, clientY) => {
       const node = graph.nodes.find((n) => n.id === nodeId);
@@ -1117,6 +1181,13 @@
       // Sync from canvas first so graph.viewState is current, and preserve view state on apply.
       if (canvasInstance) syncViewStateFromCanvas(canvasInstance);
       graphStore.setNodeBypassed(nodeId, bypassed);
+      notifyGraphChanged();
+      canvasInstance?.setGraph?.(graphStore.graph, { preserveViewState: true });
+      canvasInstance?.requestRender?.();
+    }}
+    onParamDriverBypassToggle={(nodeId, paramName, bypassed) => {
+      if (canvasInstance) syncViewStateFromCanvas(canvasInstance);
+      graphStore.setParamDriverBypass(nodeId, paramName, bypassed);
       notifyGraphChanged();
       canvasInstance?.setGraph?.(graphStore.graph, { preserveViewState: true });
       canvasInstance?.requestRender?.();
@@ -1154,6 +1225,14 @@
   /* Crosshair reads as a “+” drop cursor; children may set their own cursor — override while dropping. */
   .node-editor-canvas-wrapper.palette-drop-active :global(*) {
     cursor: none !important;
+  }
+
+  .node-editor-canvas-wrapper.connection-drag-active {
+    cursor: crosshair !important;
+  }
+
+  .node-editor-canvas-wrapper.connection-drag-active :global(.hand-tool-overlay) {
+    cursor: crosshair !important;
   }
 
   .hand-tool-overlay {

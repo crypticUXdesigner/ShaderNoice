@@ -2,37 +2,43 @@
 
 ## 1. Purpose
 
-Nodes are graph building blocks; each exposes parameters the user can set or connect. UX must make values, input modes, and live (e.g. audio-driven) values clear and editable.
+Nodes are graph building blocks; each exposes parameters the user can set, connect, or drive over time. UX must make static values, **parameter drivers**, graph connections, input modes, and live values clear and editable.
 
 ## 2. User & Context
 
 - **Who:** User editing the shader graph.
-- **When:** When selecting a node, editing a parameter, or connecting to a parameter port.
+- **When:** When selecting a node, editing a parameter, attaching a driver, or connecting to a parameter port.
 
 ## 3. User Goals
 
-- **See and edit each parameter with the right control** — Type-appropriate controls per spec (slider, color, dropdown, text, bezier, grid, etc.); correct defaults; values in `node.parameters`. Preview updates in real time except when: parameter has no effect, overridden by connection/automation, resource loading (e.g. audio), or preview paused.
-- **Choose fixed value vs connection** — Connectable parameters have input mode (e.g. use connection vs override with fixed); effective value respects it; output can connect to parameter port via connection flow.
-- **See live values when connected or driven** — When connected or audio-driven, effective (live) value visible (e.g. port or tooltip). When timeline automation is active (lane with evaluable regions), the effective value follows automation for the **entire** timeline—including before the first region, between regions, and after the last—unless overridden by a connection per input mode; a small timeline cue on the parameter row indicates automation is authoritative.
-- **Use signal/connection picker** — For parameters that support audio: **double-click** the parameter port to open the **audio signal picker** (bands + remappers). Only **remappers** can be connected from the picker; bands are for defining analysis. Remappers show which parameters they drive; click an entry to reveal that port on the canvas (picker stays open). **Two modes:** when the port has no audio connection, a **large** popover lists bands and remappers to create or connect; when already connected, a **compact** popover edits that remapper (and lists driven parameters). From compact mode, **Open full** can reopen the large picker without disconnecting. Graph (node) outputs are connected by dragging from the node’s output port to the parameter port, not via this picker.
+- **See and edit each parameter with the right control** — Type-appropriate controls per spec (slider, color, dropdown, text, bezier, grid, etc.); correct defaults; values in `node.parameters`. Preview updates in real time except when: parameter has no effect, overridden by a driver/connection, resource loading (e.g. audio), or preview paused.
+- **Choose fixed value vs graph connection** — Connectable parameters have **input mode** when wired: override (=), add (+), subtract (−), multiply (×); effective value respects mode. Node outputs connect by dragging to the parameter port (not via the driver panel).
+- **Attach and edit parameter drivers from the port** — Float parameters that support drivers use one flow for **audio**, **animation**, and (planned) **MIDI envelope** drivers: open the **parameter driver panel** from the port to add, edit, or remove the attached driver. See [12-parameter-drivers.md](./12-parameter-drivers.md). **Current:** double-click opens the **audio signal picker** only; animation is added via the timeline panel. **Target:** one panel for all driver kinds.
+- **See live values when connected or driven** — Effective (live) value visible on the port or control when a graph wire, audio driver, or evaluable animation lane is active. When animation is evaluable, it follows transport for the **entire** timeline (lead-in, regions, gaps, tail—not only inside region rectangles) unless a connection applies on top per input mode; a timeline cue on the parameter row indicates animation is authoritative for the base value.
 - **Edit color and enum on canvas** — Color: picker; on canvas, popover/overlay (e.g. LCH); apply on confirm or live. Enum: dropdown; on canvas, overlay dropdown. Overlays bridged to DOM so they render above canvas and receive focus.
 - **Choose file for file parameters** — e.g. audio: “choose file” opens file picker; chosen file loads and parameter/audio setup updates; preview may pause during dialog.
-- **Rely on clear data model** — Values stored in graph (`node.parameters`); effective value = graph + connections + input mode + audio/timeline at runtime. Parameter UI from spec; custom layout elements for specific types (e.g. bezier row, color map preview). **Across GPU modes:** the same graph and wiring should drive parameters and live values the same way **where both WebGL2 and WebGPU support that node chain**; if a connection is allowed in one mode but not the other, the editor should surface that early (see [05-connections.md](./05-connections.md) — two layers of validity and wire-time strictness in WebGPU sessions).
-- **Power off a node to A/B its effect** — Eligible nodes (transforms, effects, generators, patterns, shapes/SDFs, blend, color-related inputs and utilities in those families) show a **Power** control in the header. When “off,” the node is skipped in compilation: if it could pass its main input through unchanged, it does; otherwise downstream nodes behave as if nothing were wired from it and use their usual defaults. Math, utility, masking-control, and output nodes do not offer Power. The setting is saved with the graph and comes back after reload.
+- **Rely on clear effective-value rules** — Stored slider values in `node.parameters`; effective value = static/config + **animation base** (when lane evaluable) + **connection/audio** per input mode at runtime. Parameter UI from spec; custom layout elements for specific types (e.g. bezier row, color map preview). **Across GPU modes:** same graph and wiring drive parameters the same way **where both WebGL2 and WebGPU support that node chain**; wire-time feedback in WebGPU sessions (see [05-connections.md](./05-connections.md)).
+- **Copy and paste parameter settings** — Right-click a node → **Copy parameter settings** copies stored parameter values and input modes to the in-app clipboard and system clipboard (JSON). **Paste parameter settings** applies only keys from that snapshot to other nodes of the **same type** (including all selected nodes of that type). Driven parameters copy the **stored slider values**, not live automation/audio/MIDI output.
+- **Power off a node to A/B its effect** — Eligible nodes show a **Power** control in the header. When “off,” the node is skipped in compilation: pass-through where possible, else downstream defaults. Math, utility, masking-control, and output nodes do not offer Power. Saved with the graph.
+- **Use arrangement pattern nodes for MIDI-driven abstract visuals** — Nine **MIDI** nodes (**Note Ripple Field**, **Pitch Wheel**, **Rhythm Wavefield**, **Flashgrid**, **Track Halo Lattice**, **Boundary Shutter Rays**, **Duration Comet Trails**, **Chord Voronoi Bloom**, **Note Gravity Warp**) consume the imported arrangement snapshot at compile time and follow transport via the **Time** port. They complement **Notes** / **Regions** (literal DAW layout) with fullscreen ripples, sectors, stripes, Voronoi, and warps. See [06-audio.md](./06-audio.md) for snapshot import; demo presets: `note-ripple-field-demo`, `arrangement-patterns-showcase`.
 
 ## 4. Key Flows
 
 - **Edit:** Select node → change slider/color/enum → value and preview update.
-- **Connect to parameter:** Drag output to parameter port → connection created → effective value per input mode. For audio: double-click parameter port → audio signal picker (large or compact) → connect a remapper or disconnect.
-- **Signal picker (audio):** Double-click parameter port → band-centric picker (large when not connected, compact when connected) → connect a remapper, jump to a driven parameter, or disconnect; graph outputs are connected via drag only.
+- **Connect graph to parameter:** Drag output to parameter port → connection created → cycle input mode if needed.
+- **Driver (target):** Port → parameter driver panel → add/edit/remove audio, animation, or MIDI envelope driver.
+- **Driver (current, audio):** Double-click port → audio signal picker → connect remapper or disconnect.
+- **Driver (current, animation):** Timeline panel → lane/region/curve editor (see [07-timeline-and-automation.md](./07-timeline-and-automation.md)).
 
 ## 5. Constraints
 
 - Canvas overlays (color, enum) bridged to DOM for focus and layering.
+- Driver attach/edit UX is converging on [12-parameter-drivers.md](./12-parameter-drivers.md); until shipped, behavior follows current audio picker + timeline panel paths.
 
 ## 6. Related
 
 - [02-node-graph-canvas.md](./02-node-graph-canvas.md) — Node rendering and selection.
 - [05-connections.md](./05-connections.md) — Connections to parameter ports.
-- [06-audio.md](./06-audio.md) — Audio signals and file parameters.
-- [07-timeline-and-automation.md](./07-timeline-and-automation.md) — Automation-driven values.
+- [06-audio.md](./06-audio.md) — Audio bands, remappers, playback.
+- [07-timeline-and-automation.md](./07-timeline-and-automation.md) — Transport and animation evaluation.
+- [12-parameter-drivers.md](./12-parameter-drivers.md) — Unified driver model (product intent).

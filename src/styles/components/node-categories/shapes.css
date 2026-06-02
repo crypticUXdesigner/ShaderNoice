@@ -15,7 +15,7 @@
 
   /* Icon box */
   --node-icon-box-bg-shapes: var(--color-teal-gray-80);
-  --node-icon-box-color-shapes: var(--color-yellow-110);
+  --node-icon-box-color-shapes: var(--color-yellow-120);
 
   /* Param group header */
   --param-group-header-color-shapes: var(--color-teal-gray-gray-60);
@@ -28,7 +28,7 @@
   /* Knob: thin ring and active ring; center with border and bg */
   --node-knob-value-bg-shapes: var(--color-teal-gray-40);
   --node-knob-value-color-shapes: var(--color-teal-gray-120);
-  --node-knob-ring-color-shapes: var(--color-yellow-gray-110);
+  --node-knob-ring-color-shapes: var(--color-teal-gray-80);
   --node-knob-arc-active-shapes: var(--color-red-orange-100);
   --node-knob-marker-shapes: var(--color-teal-gray-60);
   --knob-ring-bg-width-shapes: 4px;
@@ -62,7 +62,7 @@
 
   /* Icon box */
   --node-icon-box-bg-shapes-derived: var(--color-orange-80);
-  --node-icon-box-color-shapes-derived: var(--color-blue-110);
+  --node-icon-box-color-shapes-derived: var(--color-blue-120);
 
   /* Param group header */
   --param-group-header-color-shapes-derived: var(--color-blue-gray-100);
@@ -94,6 +94,7 @@
   --node-body-shadow-color-outer: var(--node-body-shadow-color-outer-shapes);
   --node-header-name-color: var(--node-header-print-shapes);
   --param-group-header-color: var(--param-group-header-color-shapes);
+  --param-label-color: var(--node-param-label-color-shapes);
   --knob-ring-color: var(--node-knob-ring-color-shapes);
   --knob-ring-active-color-static: var(--node-knob-arc-active-shapes);
   --knob-marker-color: var(--node-knob-marker-shapes);

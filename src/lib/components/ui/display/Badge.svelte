@@ -5,12 +5,13 @@
   interface Props {
     children?: import('svelte').Snippet;
     value?: string | number;
+    class?: string;
   }
 
-  let { children, value }: Props = $props();
+  let { children, value, class: className = '' }: Props = $props();
 </script>
 
-<span class="badge">
+<span class="badge {className}">
   {#if children}
     {@render children()}
   {:else if value !== undefined}

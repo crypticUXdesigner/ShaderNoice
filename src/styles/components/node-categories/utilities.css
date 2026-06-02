@@ -17,7 +17,7 @@
   --node-icon-box-color-utilities: var(--color-yellow-gray-120);
 
   /* Param group header */
-  --param-group-header-color-utilities: var(--color-yellow-gray-110);
+  --param-group-header-color-utilities: var(--color-yellow-gray-50);
 
   /* Param cell */
   --node-param-cell-bg-utilities: var(--color-blue-gray-100);
@@ -27,8 +27,8 @@
   /* Knob */
   --node-knob-value-bg-utilities: var(--color-yellow-gray-40);
   --node-knob-value-color-utilities: var(--color-yellow-gray-120);
-  --node-knob-ring-color-utilities: var(--color-yellow-gray-110);
-  --node-knob-arc-active-utilities: var(--color-blue-80);
+  --node-knob-ring-color-utilities: var(--color-blue-gray-70);
+  --node-knob-arc-active-utilities: var(--color-yellow-120);
   --node-knob-marker-utilities: var(--color-yellow-gray-120);
   --knob-ring-bg-width-utilities: 10px;
   --knob-ring-active-width-utilities: 10px;
@@ -56,6 +56,7 @@
   --node-body-shadow-color-outer: var(--node-body-shadow-color-outer-utilities);
   --node-header-name-color: var(--node-header-print-utilities);
   --param-group-header-color: var(--param-group-header-color-utilities);
+  --param-label-color: var(--node-param-label-color-utilities);
   --knob-ring-color: var(--node-knob-ring-color-utilities);
   --knob-ring-active-color-static: var(--node-knob-arc-active-utilities);
   --knob-marker-color: var(--node-knob-marker-utilities);
@@ -65,8 +66,27 @@
   --param-control-bg-hover: var(--color-yellow-50);
   --param-control-bg-active: var(--color-yellow-60);
   --param-control-value-color: var(--node-knob-value-color-utilities);
+  --param-control-border: var(--color-yellow-gray-110);
+  --param-control-border-hover: var(--color-yellow-gray-120);
+  --param-control-border-active: var(--color-teal-90);
+  --toggle-bg-off: var(--color-gray-70);
+  --toggle-bg-hover-off: var(--color-gray-80);
+  --toggle-border-color: var(--color-gray-80);
   --node-param-grid-bg: var(--node-param-grid-bg-utilities);
   --node-param-grid-border: var(--node-param-grid-border-utilities);
+  --embed-slot-bg: var(--color-blue-gray-80);
+  --bezier-editor-label-color: var(--color-gray-130);
+  --range-editor-label-color: var(--color-gray-130);
+  --vector2d-editor-label-color: var(--color-gray-130);
+  --vector3d-editor-label-color: var(--color-gray-130);
+  --remap-range-input-label-color: var(--color-gray-130);
+  --bezier-editor-grid-color: var(--color-blue-gray-70);
+  --bezier-editor-grid-border-color: var(--color-blue-gray-80);
+  --bezier-editor-control-line-color: var(--color-yellow-gray-90);
+  --vector2d-editor-grid-color: var(--color-blue-gray-70);
+  --vector2d-editor-axis-color: var(--color-yellow-gray-100);
+  --vector3d-editor-view-bg: var(--color-blue-gray-100);
+  --range-editor-slider-track-color: var(--color-blue-gray-70);
 
   /* Knob: ring widths, marker, center */
   --knob-ring-bg-width: var(--knob-ring-bg-width-utilities);

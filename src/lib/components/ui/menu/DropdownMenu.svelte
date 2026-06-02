@@ -1,7 +1,8 @@
 <script lang="ts">
   import Popover from '../overlay/Popover.svelte';
+  import MenuDivider from './MenuDivider.svelte';
   import MenuItem from './MenuItem.svelte';
-  import type { DropdownMenuItem } from './menuTypes';
+  import { isDropdownMenuSeparator, type DropdownMenuItem } from './menuTypes';
 
   interface Props {
     /** Declarative: controlled open state */
@@ -215,6 +216,7 @@
   }
 
   function handleItemAction(item: DropdownMenuItem) {
+    if (isDropdownMenuSeparator(item)) return;
     item.action();
     hide();
   }
@@ -237,15 +239,19 @@
       {#if contentSnippet}
         {@render contentSnippet()}
       {:else}
-        {#each effectiveItems as item (item.label)}
-          <MenuItem
-            label={item.label}
-            disabled={item.disabled}
-            selected={item.selected}
-            iconName={item.iconName}
-            iconVariant={item.iconVariant}
-            onclick={() => handleItemAction(item)}
-          />
+        {#each effectiveItems as item, index (index)}
+          {#if isDropdownMenuSeparator(item)}
+            <MenuDivider />
+          {:else}
+            <MenuItem
+              label={item.label}
+              disabled={item.disabled}
+              selected={item.selected}
+              iconName={item.iconName}
+              iconVariant={item.iconVariant}
+              onclick={() => handleItemAction(item)}
+            />
+          {/if}
         {/each}
       {/if}
     </div>

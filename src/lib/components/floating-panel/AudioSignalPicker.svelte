@@ -36,9 +36,6 @@
      * remappers can still be created, edited, and deleted.
      */
     browseOnly?: boolean;
-    arrangementImportBusy?: boolean;
-    onImportArrangement?: () => void;
-    onClearArrangement?: () => void;
     onRevealInNodeEditor?: (nodeId: string, paramName: string) => void;
     class?: string;
   }
@@ -62,9 +59,6 @@
     onAudioSetupChange,
     getAudioManager,
     browseOnly = false,
-    arrangementImportBusy = false,
-    onImportArrangement,
-    onClearArrangement,
     onRevealInNodeEditor,
     class: className = ''
   }: Props = $props();
@@ -89,9 +83,6 @@
   onAudioSetupChange={onAudioSetupChange}
   getAudioManager={getAudioManager}
   browseOnly={browseOnly}
-  arrangementImportBusy={arrangementImportBusy}
-  onImportArrangement={onImportArrangement}
-  onClearArrangement={onClearArrangement}
   onRevealInNodeEditor={onRevealInNodeEditor}
   class={className}
 />

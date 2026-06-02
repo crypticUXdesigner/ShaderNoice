@@ -2,7 +2,7 @@
  * Immutable automation updates. Extracted from immutableUpdates.ts for smaller module size.
  */
 
-import type { NodeGraph } from './types';
+import type { NodeGraph, NodeInstance } from './types';
 import type {
   AutomationState,
   AutomationLane,
@@ -10,6 +10,7 @@ import type {
   AutomationCurve,
   AutomationKeyframe,
 } from './types';
+import type { ParameterSpec } from '../types/nodeSpec';
 import { sanitizeAutomationCurveKeyframes } from '../utils/automationKeyframes';
 
 function sanitizeAutomationRegionKeyframes(
@@ -237,4 +238,118 @@ export function setAutomationDuration(graph: NodeGraph, durationSeconds: number)
   const automation = ensureAutomation(graph);
   if (automation.durationSeconds === clamped) return graph;
   return { ...graph, automation: { ...automation, durationSeconds: clamped } };
+}
+
+/** Set whether an automation lane is bypassed (ignored by evaluation / GLSL) without removing it. */
+export function setAutomationLaneDisabled(
+  graph: NodeGraph,
+  laneId: string,
+  disabled: boolean
+): NodeGraph {
+  const automation = ensureAutomation(graph);
+  const laneIndex = automation.lanes.findIndex((l) => l.id === laneId);
+  if (laneIndex === -1) return graph;
+
+  const prev = automation.lanes[laneIndex];
+  const nextDisabled = disabled ? true : undefined;
+  if (prev.disabled === nextDisabled) return graph;
+
+  const newLanes = [...automation.lanes];
+  newLanes[laneIndex] = { ...prev, disabled: nextDisabled };
+  return { ...graph, automation: { ...automation, lanes: newLanes } };
+}
+
+/** Flat two-keyframe curve at the parameter's current normalized value (matches timeline region seeding). */
+export function buildDefaultAutomationCurveForParam(
+  node: NodeInstance | undefined,
+  paramName: string,
+  paramSpec: ParameterSpec | undefined
+): AutomationCurve | undefined {
+  const isFloat = paramSpec?.type === 'float';
+  if (!isFloat || !node || !paramSpec) return undefined;
+
+  const rawValue = node.parameters?.[paramName] ?? paramSpec.default;
+  const numValue = typeof rawValue === 'number' ? rawValue : undefined;
+  const min = typeof paramSpec.min === 'number' ? paramSpec.min : 0;
+  const max = typeof paramSpec.max === 'number' ? paramSpec.max : 1;
+  const range = max - min;
+  const normalized =
+    numValue !== undefined
+      ? range === 0
+        ? 0.5
+        : Math.max(0, Math.min(1, (numValue - min) / range))
+      : undefined;
+
+  if (normalized === undefined) return undefined;
+
+  return {
+    keyframes: [
+      { time: 0, value: normalized },
+      { time: 1, value: normalized },
+    ],
+    interpolation: 'bezier',
+  };
+}
+
+/** Full transport span for a new driver-panel region: prefer live transport duration when provided. */
+export function resolveDefaultAutomationRegionDurationSeconds(
+  graph: NodeGraph,
+  transportDurationSeconds?: number | null
+): number {
+  const automationDuration = graph.automation?.durationSeconds ?? DEFAULT_DURATION_SECONDS;
+  if (
+    transportDurationSeconds != null &&
+    Number.isFinite(transportDurationSeconds) &&
+    transportDurationSeconds > 0
+  ) {
+    return Math.max(MIN_DURATION_SECONDS, transportDurationSeconds, automationDuration);
+  }
+  return Math.max(MIN_DURATION_SECONDS, automationDuration);
+}
+
+export interface AddDefaultAutomationDriverOptions {
+  startTime?: number;
+  durationSeconds?: number;
+  /** When set, used with automation duration for full-length driver-panel regions. */
+  transportDurationSeconds?: number | null;
+  curve?: AutomationCurve;
+}
+
+/**
+ * Ensure a lane exists for `(nodeId, paramName)` and add one default region.
+ * Driver panel: `[0, resolveDefaultAutomationRegionDurationSeconds]` with flat curve at current param value.
+ */
+export function addDefaultAutomationDriverForParam(
+  graph: NodeGraph,
+  nodeId: string,
+  paramName: string,
+  laneId: string,
+  regionId: string,
+  node: NodeInstance | undefined,
+  paramSpec: ParameterSpec | undefined,
+  options: AddDefaultAutomationDriverOptions = {}
+): NodeGraph {
+  const existingLane = graph.automation?.lanes.find(
+    (l) => l.nodeId === nodeId && l.paramName === paramName
+  );
+  let next = graph;
+  const targetLaneId = existingLane?.id ?? laneId;
+  if (!existingLane) {
+    next = addAutomationLane(next, { id: laneId, nodeId, paramName });
+  }
+
+  const startTime = options.startTime ?? 0;
+  const durationSeconds =
+    options.durationSeconds ??
+    resolveDefaultAutomationRegionDurationSeconds(next, options.transportDurationSeconds);
+  const curve =
+    options.curve ?? buildDefaultAutomationCurveForParam(node, paramName, paramSpec);
+
+  return addAutomationRegion(next, targetLaneId, {
+    id: regionId,
+    startTime,
+    duration: durationSeconds,
+    loop: false,
+    ...(curve ? { curve } : {}),
+  });
 }

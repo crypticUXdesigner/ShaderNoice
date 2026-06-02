@@ -4,7 +4,7 @@ import { isVirtualNodeId } from '../../utils/virtualNodes';
 import { clampFloatExpressionGlsl, formatParamLiteralForGlsl, getInputDefaultValue } from './MainCodeGeneratorUtils';
 import { generateParameterCombination } from './NodeShaderCompilerHelpers';
 import { sanitizeAutomationLaneId } from './MainCodeGeneratorOutput';
-import { automationLaneHasEvaluableRegions } from '../../utils/automationEvaluator';
+import { isAutomationLaneDriving } from '../../utils/automationEvaluator';
 import { replacePlaceholders, type PlaceholderContext } from './MainCodeGeneratorPlaceholders';
 import { resolveFloatParameterInputVarsFromConnections } from './resolveFloatParameterInputVarsFromConnections';
 import { arrangementNotesEvalStructName } from '../arrangement/packArrangementNotesForGlsl';
@@ -94,7 +94,7 @@ export function getParameterComponentExpression(
   const paramSpec = nodeSpec.parameters[paramName];
   if (graph?.automation?.lanes && paramSpec?.type === 'float') {
     const lane = graph.automation.lanes.find((l) => l.nodeId === node.id && l.paramName === paramName);
-    if (lane && automationLaneHasEvaluableRegions(lane)) {
+    if (lane && isAutomationLaneDriving(lane)) {
       return clampFloatExpressionGlsl(
         `evalAutomation_${sanitizeAutomationLaneId(lane.id)}(uTimelineTime)`,
         paramSpec
@@ -188,6 +188,23 @@ export type NodeCodeContext = PlaceholderContext & {
 /**
  * Generate code for a single node.
  */
+export function applyNodeSpecificStructNames(
+  nodeCode: string,
+  nodeStructNameMap: Map<string, string> | undefined,
+  escapeRegex: (str: string) => string
+): string {
+  if (!nodeStructNameMap || nodeStructNameMap.size === 0) return nodeCode;
+
+  const renameEntries = [...nodeStructNameMap.entries()].sort((a, b) => b[0].length - a[0].length);
+  for (const [originalName, suffixedName] of renameEntries) {
+    nodeCode = nodeCode.replace(
+      new RegExp(`\\b${escapeRegex(originalName)}\\b(?=\\s*[A-Za-z_(])`, 'g'),
+      suffixedName
+    );
+  }
+  return nodeCode;
+}
+
 export function generateNodeCode(
   node: NodeInstance,
   nodeSpec: NodeSpec,
@@ -196,6 +213,7 @@ export function generateNodeCode(
   variableNames: Map<string, Map<string, string>>,
   uniformNames: Map<string, string>,
   functionNameMap: Map<string, Map<string, string>>,
+  structNameMap: Map<string, Map<string, string>>,
   ctx: NodeCodeContext
 ): string {
   const code: string[] = [];
@@ -414,6 +432,8 @@ export function generateNodeCode(
       nodeCode = nodeCode.replace(functionCallRegex, `${nodeSpecificName}(`);
     }
   }
+
+  nodeCode = applyNodeSpecificStructNames(nodeCode, structNameMap.get(node.id), ctx.escapeRegex);
 
   if (nodeSpec.id === 'generic-raymarcher') {
     const replacements = ctx.getGenericRaymarcherReplacements(

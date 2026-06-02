@@ -36,6 +36,8 @@ export interface CanvasCallbacks {
   onDuplicateSelected?: () => void;
   hasClipboard?: () => boolean;
   onRequestAddNodeAtCanvas?: (screenX: number, screenY: number) => void;
+  /** Fired when a connection wire drag starts or ends. */
+  onConnectionDragActiveChange?: (active: boolean) => void;
   onUndo?: () => void;
   onRedo?: () => void;
 }
@@ -66,6 +68,9 @@ export interface SetCallbacksCanvas {
   onRequestAddNodeAtCanvas?: CanvasCallbacks['onRequestAddNodeAtCanvas'];
   onUndo?: CanvasCallbacks['onUndo'];
   onRedo?: CanvasCallbacks['onRedo'];
+  connectionStateManager?: {
+    updateDependencies: (deps: { onConnectingChange?: (active: boolean) => void }) => void;
+  };
   mouseEventHandler?: {
     deps?: {
       onTypeLabelClick?: CanvasCallbacks['onTypeLabelClick'];
@@ -103,6 +108,9 @@ export function setCallbacksImpl(canvas: SetCallbacksCanvas, callbacks: CanvasCa
   canvas.onDuplicateSelected = callbacks.onDuplicateSelected;
   canvas.hasClipboard = callbacks.hasClipboard;
   canvas.onRequestAddNodeAtCanvas = callbacks.onRequestAddNodeAtCanvas;
+  canvas.connectionStateManager?.updateDependencies({
+    onConnectingChange: callbacks.onConnectionDragActiveChange,
+  });
   canvas.onUndo = callbacks.onUndo;
   canvas.onRedo = callbacks.onRedo;
 

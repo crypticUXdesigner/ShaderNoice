@@ -17,6 +17,7 @@ import {
 } from './compilation/previewDependencyMask';
 import { computeEffectiveNodeSpecs } from './compilation/effectiveNodeSpecs';
 import { clearArrangementNotesBakeCache } from '../audiotool/arrangement/arrangementNotesBakeCache';
+import { clearArrangementPatternOnsetBakeCache } from '../audiotool/arrangement/arrangementPatternOnsetBakeCache';
 import { compileWgslMvp } from './compilation/WgslMvpCompiler';
 import { buildCompileGraphView, filterExecutionOrderForBypass } from './compilation/CompileGraphView';
 import {
@@ -243,7 +244,7 @@ export class NodeShaderCompiler {
 
       const uniformNames = this.uniformGenerator.generateUniformNameMapping(compileGraph, audioSetup ?? null);
 
-      let { functions, functionNameMap } = this.functionGenerator.collectAndDeduplicateFunctions(
+      let { functions, functionNameMap, structNameMap } = this.functionGenerator.collectAndDeduplicateFunctions(
         compileGraph,
         uniformNames,
         variableNames,
@@ -257,6 +258,7 @@ export class NodeShaderCompiler {
         variableNames,
         uniformNames,
         functionNameMap,
+        structNameMap,
         effectiveNodeSpecsById
       );
       if (genericRaymarcherSdfFunctions) {
@@ -320,6 +322,7 @@ export class NodeShaderCompiler {
    */
   compile(graph: NodeGraph, audioSetup?: AudioSetup | null, options?: CompileTargetOptions): CompilationResult {
     clearArrangementNotesBakeCache();
+    clearArrangementPatternOnsetBakeCache();
     const targetBackend: RenderBackendKind = options?.backend ?? 'webgl';
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -499,7 +502,7 @@ export class NodeShaderCompiler {
     // Step 6: Collect functions for the nodes that will actually emit code. Filter to
     // `compileExecutionOrder` so bypassed nodes' helper functions and uniform placeholders never
     // make it into the final shader.
-    let { functions, functionNameMap } = this.functionGenerator.collectAndDeduplicateFunctions(
+    let { functions, functionNameMap, structNameMap } = this.functionGenerator.collectAndDeduplicateFunctions(
       compileGraph,
       uniformNames,
       variableNames,
@@ -516,6 +519,7 @@ export class NodeShaderCompiler {
       variableNames,
       uniformNames,
       functionNameMap,
+      structNameMap,
       effectiveNodeSpecsById
     );
     if (genericRaymarcherSdfFunctions) {

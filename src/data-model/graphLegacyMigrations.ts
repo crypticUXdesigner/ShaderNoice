@@ -34,6 +34,10 @@ import { migrateArrangementNotesParameters } from './arrangementNotesParametersM
 import { migrateBlendNodesUnify } from './blendNodesUnifyMigration';
 import { migratePathDriveRemoveEllipse } from './pathDriveRemoveEllipseMigration';
 import { migrateOklchColorMapUnify } from './oklchColorMapUnifyMigration';
+import { migrateLegacyMidiEnvelopeBindings } from './midiEnvelopePresetMigration';
+import { migrateMidiEnvelopePresetToRemappers } from './midiEnvelopeRemapperMigration';
+import { migrateRemoveRegionContourRingsNodes } from './regionContourRingsRemovalMigration';
+import { migrateNoteGravityWarpParameters } from './noteGravityWarpParametersMigration';
 
 export function migrateLegacyNodeGraph(graph: NodeGraph): NodeGraph {
   let g = migrateNoiseNodes(graph);
@@ -65,5 +69,9 @@ export function migrateLegacyNodeGraph(graph: NodeGraph): NodeGraph {
   g = migrateArrangementNotesParameters(g);
   g = migrateBlendNodesUnify(g);
   g = migratePathDriveRemoveEllipse(g);
+  g = migrateRemoveRegionContourRingsNodes(g);
+  g = migrateNoteGravityWarpParameters(g);
+  g = migrateLegacyMidiEnvelopeBindings(g);
+  g = migrateMidiEnvelopePresetToRemappers(g);
   return migrateOklchColorMapUnify(g);
 }

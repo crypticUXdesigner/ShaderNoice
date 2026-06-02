@@ -2,7 +2,7 @@ import type { NodeGraph, NodeInstance } from '../../data-model/types';
 import type { NodeSpec } from '../../types/nodeSpec';
 import { formatParamLiteralForGlsl } from './MainCodeGeneratorUtils';
 import { sanitizeAutomationLaneId } from './MainCodeGeneratorOutput';
-import { automationLaneHasEvaluableRegions } from '../../utils/automationEvaluator';
+import { isAutomationLaneDriving } from '../../utils/automationEvaluator';
 
 export type PlaceholderContext = {
   escapeRegex: (str: string) => string;
@@ -89,7 +89,7 @@ export function replacePlaceholders(
         const lane = graph.automation.lanes.find(
           (l) => l.nodeId === node.id && l.paramName === paramName
         );
-        if (lane && automationLaneHasEvaluableRegions(lane)) {
+        if (lane && isAutomationLaneDriving(lane)) {
           const expr = clampFloatExpression(
             `evalAutomation_${sanitizeAutomationLaneId(lane.id)}(uTimelineTime)`,
             paramSpec

@@ -20,6 +20,8 @@
     liveInValue?: number | null;
     liveOutValue?: number | null;
     class?: string;
+    /** `driver-focused`: compact slider row for parameter driver panel. */
+    controlsLayout?: 'default' | 'driver-focused';
     onChange?: (payload: {
       inMin: number;
       inMax: number;
@@ -42,9 +44,12 @@
     liveInValue,
     liveOutValue,
     class: className = '',
+    controlsLayout = 'default',
     onChange,
     onCommit,
   }: Props = $props();
+
+  const isDriverFocused = $derived(controlsLayout === 'driver-focused');
 
   const range = $derived(max - min || 1);
   const inMinNorm = $derived(Math.max(0, Math.min(1, (inMin - min) / range)));
@@ -185,6 +190,7 @@
 
 <div
   class="remap-range-editor {className}"
+  class:is-driver-focused={isDriverFocused}
   data-disabled={disabled || undefined}
 >
   <div class="slider-row display-graph">
@@ -294,70 +300,62 @@
     </div>
   </div>
 
-  <div class="inputs">
-    <div class="column">
-      <div class="field-row">
-        <span class="field-label">In Max</span>
-        <ValueInput
-          value={inMax}
-          min={min}
-          max={max}
-          step={step}
-          decimals={3}
-          size="sm"
-          {disabled}
-          onChange={handleInMaxChange}
-          onCommit={() => onCommit?.()}
-          class="value-input"
-        />
-      </div>
-      <div class="field-row">
-        <span class="field-label">In Min</span>
-        <ValueInput
-          value={inMin}
-          min={min}
-          max={max}
-          step={step}
-          decimals={3}
-          size="sm"
-          {disabled}
-          onChange={handleInMinChange}
-          onCommit={() => onCommit?.()}
-          class="value-input"
-        />
-      </div>
+  <div class="controls-grid" role="presentation">
+    <div class="control">
+      <ValueInput
+        value={inMin}
+        min={min}
+        max={max}
+        step={step}
+        decimals={3}
+        size="sm"
+        {disabled}
+        onChange={handleInMinChange}
+        onCommit={() => onCommit?.()}
+      />
+      <span class="label">In Min</span>
     </div>
-    <div class="column">
-      <div class="field-row">
-        <span class="field-label">Out Max</span>
-        <ValueInput
-          value={outMax}
-          min={min}
-          max={max}
-          step={step}
-          decimals={3}
-          size="sm"
-          {disabled}
-          onChange={handleOutMaxChange}
-          onCommit={() => onCommit?.()}
-          class="value-input"
-        />
-      </div>
-      <div class="field-row">
-        <span class="field-label">Out Min</span>
-        <ValueInput
-          value={outMin}
-          min={min}
-          max={max}
-          step={step}
-          decimals={3}
-          size="sm"
-          {disabled}
-          onChange={handleOutMinChange}
-          onCommit={() => onCommit?.()}
-          class="value-input"
-        />
-      </div>
+    <div class="control">
+      <ValueInput
+        value={inMax}
+        min={min}
+        max={max}
+        step={step}
+        decimals={3}
+        size="sm"
+        {disabled}
+        onChange={handleInMaxChange}
+        onCommit={() => onCommit?.()}
+      />
+      <span class="label">In Max</span>
+    </div>
+    <div class="control">
+      <ValueInput
+        value={outMin}
+        min={min}
+        max={max}
+        step={step}
+        decimals={3}
+        size="sm"
+        {disabled}
+        onChange={handleOutMinChange}
+        onCommit={() => onCommit?.()}
+      />
+      <span class="label">Out Min</span>
+    </div>
+    <div class="control">
+      <ValueInput
+        value={outMax}
+        min={min}
+        max={max}
+        step={step}
+        decimals={3}
+        size="sm"
+        {disabled}
+        onChange={handleOutMaxChange}
+        onCommit={() => onCommit?.()}
+      />
+      <span class="label">Out Max</span>
     </div>
   </div>
 </div>
@@ -374,6 +372,19 @@
 
     /* Shorter slider row; overrides token so diagram and sliders stay compact */
     --remap-range-slider-row-height: 80px;
+
+    &.is-driver-focused {
+      padding: 0;
+      gap: var(--pd-sm);
+      --remap-range-slider-row-height: 72px;
+
+      .slider-row {
+        aspect-ratio: 3.2 / 1;
+        min-height: 72px;
+        max-height: 120px;
+        flex: 0 0 auto;
+      }
+    }
     /* Narrower sliders; connection aligns to slider corners */
     --remap-editor-slider-width: 78px;
     --remap-range-slider-width: var(--remap-editor-slider-width);
@@ -475,38 +486,40 @@
       background: var(--remap-range-slider-input-color-active);
     }
 
-    .inputs {
-      display: flex;
-      gap: var(--pd-lg);
-      width: 100%;
-    }
-
     /* Match slider/track min-height to row so remap editor is compact */
     & :global(.vertical-range-slider),
     & :global(.vertical-range-slider .track) {
       min-height: var(--remap-range-slider-row-height);
     }
 
-    .inputs .column {
-      flex: 1;
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      column-gap: var(--pd-sm);
+      width: 100%;
+    }
+
+    .control {
       display: flex;
       flex-direction: column;
-      gap: var(--pd-sm);
-      padding: 0;
+      align-items: stretch;
+      gap: var(--pd-2xs);
+      min-width: 0;
 
-      .field-row {
-        display: flex;
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
-        gap: var(--pd-sm);
+      :global(.value-input-wrapper) {
+        width: 100%;
       }
 
-      .field-label {
-        width: auto;
+      :global(.value-input) {
+        width: 100%;
+        box-sizing: border-box;
+        justify-content: center;
+      }
+
+      .label {
         font-size: var(--text-xs);
-        color: var(--print-subtle);
-        font-weight: 600;
+        color: var(--range-editor-label-color);
+        text-align: center;
       }
     }
   }

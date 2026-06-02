@@ -219,6 +219,15 @@
       var(--node-header-bg-end-audio)
     );
   }
+  .help-callout-headline[data-category="midi"] {
+    --headline-bg: var(--node-header-bg-midi);
+    --headline-print: var(--node-header-print-midi);
+    background: radial-gradient(
+      ellipse var(--node-header-bg-gradient-ellipse-width) var(--node-header-bg-gradient-ellipse-height) at var(--node-header-bg-gradient-ellipse-x) var(--node-header-bg-gradient-ellipse-y),
+      var(--headline-bg),
+      var(--node-header-bg-end-midi)
+    );
+  }
   .help-callout-headline[data-category="sdf"] {
     --headline-bg: var(--node-header-bg-sdf);
     --headline-print: var(--node-header-print-sdf);
@@ -279,6 +288,7 @@
   .help-callout-headline.stylize[data-category="effects"] .headline-icon-box { background: var(--node-icon-box-bg-effects-stylize); }
   .help-callout-headline[data-category="output"] .headline-icon-box { background: var(--node-icon-box-bg-output); }
   .help-callout-headline[data-category="audio"] .headline-icon-box { background: var(--node-icon-box-bg-audio); }
+  .help-callout-headline[data-category="midi"] .headline-icon-box { background: var(--node-icon-box-bg-midi); }
   .help-callout-headline[data-category="sdf"] .headline-icon-box { background: var(--node-icon-box-bg-sdf); }
   .help-callout-headline.raymarcher[data-category="sdf"] .headline-icon-box { background: var(--node-icon-box-bg-sdf-raymarcher); }
   .help-callout-headline[data-category="inputs"] .headline-icon-box :global(svg) { color: var(--node-icon-box-color-inputs, var(--node-header-print-inputs)); }
@@ -299,6 +309,7 @@
   .help-callout-headline.stylize[data-category="effects"] .headline-icon-box :global(svg) { color: var(--node-icon-box-color-effects-stylize, var(--node-header-print-effects-stylize)); }
   .help-callout-headline[data-category="output"] .headline-icon-box :global(svg) { color: var(--node-icon-box-color-output, var(--node-header-print-output)); }
   .help-callout-headline[data-category="audio"] .headline-icon-box :global(svg) { color: var(--node-icon-box-color-audio, var(--node-header-print-audio)); }
+  .help-callout-headline[data-category="midi"] .headline-icon-box :global(svg) { color: var(--node-icon-box-color-midi, var(--node-header-print-midi)); }
   .help-callout-headline[data-category="sdf"] .headline-icon-box :global(svg) { color: var(--node-icon-box-color-sdf, var(--node-header-print-sdf)); }
   .help-callout-headline.raymarcher[data-category="sdf"] .headline-icon-box :global(svg) { color: var(--node-icon-box-color-sdf-raymarcher, var(--node-header-print-sdf-raymarcher)); }
 

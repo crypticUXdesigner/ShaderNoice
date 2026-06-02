@@ -31,6 +31,7 @@ import {
 } from './compilation/parameterTransfer';
 import { reportCompilationErrors, reportCompilationError } from './compilation/compilationErrorReporting';
 import { refreshArrangementNotesBakeCacheFromGraph } from '../audiotool/arrangement/refreshArrangementNotesBakeCache';
+import { refreshArrangementPatternOnsetBakeCacheFromGraph } from '../audiotool/arrangement/refreshArrangementPatternOnsetBakeCache';
 import { cloneableCompilePayload, type WorkerCompilePayload, type WorkerReplyMessage } from './compilation/workerMessages';
 import {
   previewPerformanceMark,
@@ -743,6 +744,7 @@ export class CompilationManager implements Disposable {
           }
 
           refreshArrangementNotesBakeCacheFromGraph(this.graph, this.audioSetup?.arrangementSnapshot);
+          refreshArrangementPatternOnsetBakeCacheFromGraph(this.graph, this.audioSetup?.arrangementSnapshot);
           this.onBeforeFirstRender?.(maybe);
 
           this.shaderInstance = maybe;
@@ -838,6 +840,7 @@ export class CompilationManager implements Disposable {
       }
 
       refreshArrangementNotesBakeCacheFromGraph(this.graph, this.audioSetup?.arrangementSnapshot);
+      refreshArrangementPatternOnsetBakeCacheFromGraph(this.graph, this.audioSetup?.arrangementSnapshot);
       this.onBeforeFirstRender?.(newInstance);
 
       // Swap renderer to the new instance; keep old instance alive until after first successful render.

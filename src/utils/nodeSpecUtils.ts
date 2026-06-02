@@ -34,7 +34,8 @@ const categoryIconMap: Record<string, NodeIconIdentifier> = {
   'Mask': 'subtract-square',  /* line – square subtraction; category masking */
   'Effects': 'adjustments',   /* line – filters/effects; distinct from Patterns sparkles */
   'Output': 'video',
-  'Audio': 'audio-waveform'
+  'Audio': 'audio-waveform',
+  'MIDI': 'piano-keys',
 };
 
 export function getCategoryDefaultIcon(category: string): NodeIconIdentifier | string {

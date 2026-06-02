@@ -1,6 +1,25 @@
+/* Hide scrollbar arrow buttons everywhere (Blink/WebKit; Windows classic scrollbars). */
+*::-webkit-scrollbar-button,
+*::-webkit-scrollbar-button:single-button,
+*::-webkit-scrollbar-button:double-button,
+*::-webkit-scrollbar-button:vertical:start,
+*::-webkit-scrollbar-button:vertical:end,
+*::-webkit-scrollbar-button:horizontal:start,
+*::-webkit-scrollbar-button:horizontal:end {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* Reusable scrollbar styling for scrollable panes (dialogs, panels, etc.). */
 
-.scrollbar-styled {
+/* No reserved gutter — fixed-size compact shells sized to avoid scrolling. */
+.scrollbar-no-gutter {
+  scrollbar-gutter: auto;
+}
+
+.scrollbar-styled {  /* Reserve gutter so content width does not shift when overflow scrollbars appear. */
+  scrollbar-gutter: stable;
   /* Firefox */
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--color-gray-110) 40%, transparent)
@@ -10,12 +29,6 @@
 .scrollbar-styled::-webkit-scrollbar {
   width: 10px;
   height: 10px;
-}
-
-.scrollbar-styled::-webkit-scrollbar-button {
-  display: none;
-  width: 0;
-  height: 0;
 }
 
 .scrollbar-styled::-webkit-scrollbar-track {

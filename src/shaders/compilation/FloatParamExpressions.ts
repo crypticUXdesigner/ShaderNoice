@@ -1,6 +1,6 @@
 import type { NodeGraph } from '../../data-model/types';
 import type { NodeSpec } from '../../types/nodeSpec';
-import { automationLaneHasEvaluableRegions } from '../../utils/automationEvaluator';
+import { isAutomationLaneDriving } from '../../utils/automationEvaluator';
 import { formatParamLiteralForGlsl } from './MainCodeGeneratorUtils';
 import { resolveFloatParameterInputVarsFromConnections } from './resolveFloatParameterInputVarsFromConnections';
 
@@ -27,7 +27,7 @@ export function getAutomationExpressionForParam(
   const lane = graph.automation.lanes.find(
     (l) => l.nodeId === nodeId && l.paramName === paramName
   );
-  if (!lane || !automationLaneHasEvaluableRegions(lane)) return null;
+  if (!lane || !isAutomationLaneDriving(lane)) return null;
   return `evalAutomation_${sanitizeAutomationLaneId(lane.id)}(uTimelineTime)`;
 }
 

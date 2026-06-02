@@ -438,6 +438,7 @@
   .node-panel-item.stylize .icon-box[data-category="effects"] { background: var(--node-icon-box-bg-effects-stylize); }
   .node-panel-item .icon-box[data-category="output"] { background: var(--node-icon-box-bg-output); }
   .node-panel-item .icon-box[data-category="audio"] { background: var(--node-icon-box-bg-audio); }
+  .node-panel-item .icon-box[data-category="midi"] { background: var(--node-icon-box-bg-midi); }
   .node-panel-item .icon-box[data-category="sdf"] { background: var(--node-icon-box-bg-sdf); }
   .node-panel-item.sdf-2d .icon-box[data-category="sdf"] { background: var(--node-icon-box-bg-sdf-2d); }
   .node-panel-item[data-display-mode="grid"] .icon-box[data-category="patterns"] { box-shadow: 0 0 9px 1px rgba(0, 0, 0, 0.15); }
@@ -446,6 +447,7 @@
   .node-panel-item[data-display-mode="grid"] .icon-box[data-category="blend"] { box-shadow: 0 0 9px 1px rgba(0, 0, 0, 0.15); }
   .node-panel-item[data-display-mode="grid"] .icon-box[data-category="mask"] { box-shadow: 0 0 9px 1px rgba(0, 0, 0, 0.15); }
   .node-panel-item[data-display-mode="grid"] .icon-box[data-category="effects"] { box-shadow: 0 0 9px 1px rgba(0, 0, 0, 0.15); }
+  .node-panel-item[data-display-mode="grid"] .icon-box[data-category="midi"] { box-shadow: 0 0 9px 1px rgba(0, 0, 0, 0.15); }
 
   /* Category: icon color */
   .node-panel-item[data-category="inputs"] .icon-box :global(svg) { color: var(--node-icon-box-color-inputs); }
@@ -466,6 +468,7 @@
   .node-panel-item.stylize[data-category="effects"] .icon-box :global(svg) { color: var(--node-icon-box-color-effects-stylize); }
   .node-panel-item[data-category="output"] .icon-box :global(svg) { color: var(--node-icon-box-color-output); }
   .node-panel-item[data-category="audio"] .icon-box :global(svg) { color: var(--node-icon-box-color-audio); }
+  .node-panel-item[data-category="midi"] .icon-box :global(svg) { color: var(--node-icon-box-color-midi); }
   .node-panel-item[data-category="sdf"] .icon-box :global(svg) { color: var(--node-icon-box-color-sdf); }
   .node-panel-item.sdf-2d[data-category="sdf"] .icon-box :global(svg) { color: var(--node-icon-box-color-sdf-2d); }
   .node-panel-item[data-display-mode="grid"][data-category="inputs"] .icon-box :global(svg) { color: var(--node-icon-box-color-inputs); }
@@ -486,6 +489,7 @@
   .node-panel-item[data-display-mode="grid"].stylize[data-category="effects"] .icon-box :global(svg) { color: var(--node-icon-box-color-effects-stylize); }
   .node-panel-item[data-display-mode="grid"][data-category="output"] .icon-box :global(svg) { color: var(--node-icon-box-color-output); }
   .node-panel-item[data-display-mode="grid"][data-category="audio"] .icon-box :global(svg) { color: var(--node-icon-box-color-audio); }
+  .node-panel-item[data-display-mode="grid"][data-category="midi"] .icon-box :global(svg) { color: var(--node-icon-box-color-midi); }
 
   /* Category: title color */
   .node-panel-item[data-category="inputs"] .title { color: var(--node-header-print-inputs); }
@@ -506,6 +510,7 @@
   .node-panel-item.stylize[data-category="effects"] .title { color: var(--node-header-print-effects-stylize); }
   .node-panel-item[data-category="output"] .title { color: var(--node-header-print-output); }
   .node-panel-item[data-category="audio"] .title { color: var(--node-header-print-audio); }
+  .node-panel-item[data-category="midi"] .title { color: var(--node-header-print-midi); }
   .node-panel-item[data-category="sdf"] .title { color: var(--node-header-print-sdf); }
   .node-panel-item.sdf-2d[data-category="sdf"] .title { color: var(--node-header-print-sdf-2d); }
 
@@ -563,6 +568,9 @@
   }
   .node-panel-item[data-display-mode="grid"][data-category="audio"] {
     background: radial-gradient(ellipse 200% 150% at 50% 15%, var(--node-header-bg-audio), var(--node-header-bg-end-audio));
+  }
+  .node-panel-item[data-display-mode="grid"][data-category="midi"] {
+    background: radial-gradient(ellipse 200% 150% at 50% 15%, var(--node-header-bg-midi), var(--node-header-bg-end-midi));
   }
   .node-panel-item[data-display-mode="grid"][data-category="sdf"] {
     background: radial-gradient(ellipse 200% 150% at 50% 15%, var(--node-header-bg-sdf), var(--node-header-bg-end-sdf));

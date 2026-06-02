@@ -16,6 +16,7 @@ import type { NodeSpec } from '../../../../types/nodeSpec';
 import type { NodeRenderMetrics } from '../../NodeRenderer';
 import { getCSSColor, getCSSVariableAsNumber } from '../../../../utils/cssTokens';
 import { ConnectionPathCache } from '../ConnectionPathCache';
+import { appendConnectionBezierToPath } from '../../connectionBezier';
 
 export interface ConnectionLayerContext {
   graph: NodeGraph;
@@ -141,15 +142,7 @@ export class ConnectionLayerRenderer implements LayerRenderer {
     
     if (!path) {
       path = new Path2D();
-      path.moveTo(sourcePos.x, sourcePos.y);
-      path.bezierCurveTo(
-        sourcePos.x + 100,
-        sourcePos.y,
-        targetPos.x - 100,
-        targetPos.y,
-        targetPos.x,
-        targetPos.y
-      );
+      appendConnectionBezierToPath(path, sourcePos, targetPos);
       this.pathCache.setPath(conn.id, path, sourcePos, targetPos);
     }
     

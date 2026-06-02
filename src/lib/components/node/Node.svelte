@@ -24,7 +24,7 @@
   import type { AudioSetup } from '../../../data-model/audioSetupTypes';
   import type { IAudioManager } from '../../../runtime/types';
   import { createStrictDoubleClickHandler } from '../../utils/strictDoubleClick';
-  import { isNodeInteractiveTarget } from './nodeInteractiveTarget';
+  import { isNodeInteractiveTarget, isNodeLabelEditTarget } from './nodeInteractiveTarget';
   import {
     resolveSelectActiveBranchPort,
     type SelectActiveBranchPort,
@@ -61,12 +61,21 @@
       value: import('../../../data-model/types').ParameterValue,
       options?: GraphUndoRecordingOptions
     ) => void;
+    onTrackFilterChange?: (
+      nodeId: string,
+      trackFilterMode: number,
+      trackFilterList: string,
+      options?: GraphUndoRecordingOptions
+    ) => void;
     onParameterGestureCommit?: () => void;
     onParameterInputModeChanged?: (nodeId: string, paramName: string, mode: import('../../../types/nodeSpec').ParameterInputMode) => void;
+    onParamDriverBypassToggle?: (nodeId: string, paramName: string, bypassed: boolean) => void;
     onContextMenu?: (nodeId: string, clientX: number, clientY: number) => void;
     /** Double-click node chrome outside interactive controls → Patch tool: insert this node into a cable on next click. */
     onPatchIntoDoubleClick?: (nodeId: string) => void;
     onPowerToggle?: (nodeId: string, bypassed: boolean) => void;
+    /** Increment to open inline label edit (e.g. context menu Rename). */
+    labelEditRequestSeq?: number;
   }
 
   let {
@@ -91,11 +100,14 @@
     onSelect,
     onLabelChange,
     onParameterChange,
+    onTrackFilterChange,
     onParameterGestureCommit,
     onParameterInputModeChanged,
+    onParamDriverBypassToggle,
     onContextMenu,
     onPatchIntoDoubleClick,
     onPowerToggle,
+    labelEditRequestSeq = 0,
   }: Props = $props();
 
   const label = $derived(node.label ?? spec.displayName);
@@ -144,10 +156,11 @@
     onDrag(nodeId, clientX, clientY, shiftKey);
   }
 
-  /** Patch-into mode: skip label rename (stopped in header), ports/buttons, and parameter controls. */
+  /** Patch-into mode: skip label rename, ports/buttons, and parameter controls. */
   function handlePatchIntoDoubleClick(e: MouseEvent) {
     if (!onPatchIntoDoubleClick) return;
     if (isNodeInteractiveTarget(e.target)) return;
+    if (isNodeLabelEditTarget(e.target)) return;
     e.preventDefault();
     onPatchIntoDoubleClick(nodeId);
   }
@@ -160,7 +173,9 @@
     if (!isNodeInteractiveTarget(e.target)) {
       onSelect(nodeId, e.shiftKey);
     }
-    if (onPatchIntoDoubleClick) patchStrictDoubleClick(e);
+    if (onPatchIntoDoubleClick && !isNodeLabelEditTarget(e.target)) {
+      patchStrictDoubleClick(e);
+    }
   }
 </script>
 
@@ -191,7 +206,9 @@
     onHeaderPortPointerDown={onHeaderPortPointerDown}
     selectActiveBranchPort={selectActiveBranchPort}
     onLabelChange={(l) => onLabelChange(nodeId, l)}
+    onSelect={(shiftKey) => onSelect(nodeId, shiftKey)}
     onDragStart={handleHeaderDragStart}
+    {labelEditRequestSeq}
   />
   {#if metrics.height > metrics.headerHeight}
   <NodeBody
@@ -210,8 +227,14 @@
     onPortPointerDownForConnection={onPortPointerDownForConnection}
     onPortClickForSignalPicker={onPortClickForSignalPicker}
     onParameterChange={(paramName, value, options) => onParameterChange(nodeId, paramName, value, options)}
+    onTrackFilterChange={
+      onTrackFilterChange
+        ? (mode, list, options) => onTrackFilterChange(nodeId, mode, list, options)
+        : undefined
+    }
     onParameterGestureCommit={onParameterGestureCommit}
     onParameterInputModeChanged={onParameterInputModeChanged ? (paramName, mode) => onParameterInputModeChanged(nodeId, paramName, mode) : undefined}
+    onParamDriverBypassToggle={onParamDriverBypassToggle ? (paramName, bypassed) => onParamDriverBypassToggle(nodeId, paramName, bypassed) : undefined}
   />
   {/if}
 </div>

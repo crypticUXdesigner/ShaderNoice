@@ -50,9 +50,6 @@
      * `targetParameter` can be empty strings in this mode.
      */
     browseOnly?: boolean;
-    arrangementImportBusy?: boolean;
-    onImportArrangement?: () => void;
-    onClearArrangement?: () => void;
     onRevealInNodeEditor?: (nodeId: string, paramName: string) => void;
     class?: string;
   }
@@ -76,14 +73,9 @@
     onAudioSetupChange,
     getAudioManager,
     browseOnly = false,
-    arrangementImportBusy = false,
-    onImportArrangement,
-    onClearArrangement,
     onRevealInNodeEditor,
     class: className = ''
   }: AudioSignalPickerPanelProps = $props();
-
-  const hasArrangementSnapshot = $derived(audioSetup.arrangementSnapshot != null);
 
   const connectionState = $derived(
     getParamPortConnectionState(targetNodeId, targetParameter, graph, audioSetup)
@@ -108,6 +100,19 @@
     )
   );
 
+  const targetNode = $derived(graph.nodes.find((n) => n.id === targetNodeId));
+  const nodeSpec = $derived(targetNode ? nodeSpecs.get(targetNode.type) : undefined);
+  const paramSpec = $derived(nodeSpec?.parameters?.[targetParameter]);
+  const parameterTitle = $derived.by(() => {
+    const nodeLabel =
+      targetNode?.label?.trim() ||
+      nodeSpec?.displayName ||
+      targetNode?.type ||
+      'Parameter';
+    const paramLabel = paramSpec?.label ?? targetParameter;
+    return `${nodeLabel} · ${paramLabel}`;
+  });
+
   const compactConnectionInfo = $derived.by(() => {
     if (mode !== 'compact' || !connection) return null;
     const virtualNodeId = connection.sourceNodeId;
@@ -116,7 +121,6 @@
       connectedVirtualNodeId: virtualNodeId,
       connectedSignalId: signalId,
       connectionId: connection.id,
-      connectionDisabled: !!connection.disabled,
     };
   });
 
@@ -151,6 +155,7 @@
   const compactSlotProps = $derived.by((): CompactSlotProps | null => {
     if (!compactConnectionInfo) return null;
     return {
+      parameterTitle,
       targetNodeId,
       targetParameter,
       triggerElement,
@@ -166,6 +171,9 @@
         expandToLargeWithBandId = bandId;
       },
       onRevealInNodeEditor,
+      registerDeleteHandler: (handler: (() => void) | null) => {
+        deleteHandler = handler;
+      },
     };
   });
 
@@ -240,7 +248,8 @@
       ? 'Audio bands and remappers'
       : 'Choose or create audio signal'
     : 'Configure connected audio signal'}
-  class="audio-signal-picker {className}"
+  class="audio-signal-picker {showingLarge ? 'is-large' : 'is-compact'} {className}"
+  mainOverflow={showingLarge ? 'auto' : 'hidden'}
 >
   {#snippet headerLeft()}
     {#if showingLarge}
@@ -251,40 +260,13 @@
           mode="both"
           iconPosition="trailing"
           disabled={!hasFiles}
-          title={hasFiles ? 'New band' : 'Upload'}
+          title={hasFiles ? 'New' : 'Upload'}
           onclick={handleNewBand}
-          aria-label="New band"
+          aria-label={hasFiles ? 'New' : 'Upload'}
         >
           <IconSvg name="plus" variant="line" />
-          New band
+          New
         </Button>
-        {#if browseOnly && onImportArrangement}
-          <Button
-            variant="ghost"
-            size="sm"
-            mode="both"
-            disabled={arrangementImportBusy}
-            title="Fetch arrangement from studio project"
-            onclick={() => onImportArrangement?.()}
-            aria-busy={arrangementImportBusy}
-            aria-label="Fetch project"
-          >
-            {arrangementImportBusy ? 'Fetching…' : 'Fetch project'}
-          </Button>
-          {#if hasArrangementSnapshot && onClearArrangement}
-            <Button
-              variant="ghost"
-              size="sm"
-              mode="icon-only"
-              disabled={arrangementImportBusy}
-              title="Remove fetched arrangement"
-              aria-label="Remove fetched arrangement"
-              onclick={() => onClearArrangement?.()}
-            >
-              <IconSvg name="trash" variant="line" />
-            </Button>
-          {/if}
-        {/if}
       </div>
     {/if}
   {/snippet}

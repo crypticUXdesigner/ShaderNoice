@@ -15,6 +15,9 @@
     getAutomationValueForParam,
     automationLaneHasEvaluableRegions,
   } from '../../../../utils/automationEvaluator';
+  import { evaluateMidiEnvelopeSignalForParam } from '../../../../utils/midiEnvelopeSignals';
+  import { resolveDriverKindForParam } from '../../../../utils/resolveDriverKindForParam';
+  import { hasMidiEnvelopeBindingForParam } from '../../../../data-model/immutableUpdatesMidiEnvelope';
   import { subscribeParameterValueTick } from '../../../stores/parameterValueTickStore';
   import type { NodeGraph } from '../../../../data-model/types';
   import type { NodeSpec, ParameterInputMode } from '../../../../types/nodeSpec';
@@ -79,6 +82,31 @@
   const connX = $derived(getParamPortConnectionState(nodeId, paramX, graph, audioSetup));
   const connY = $derived(getParamPortConnectionState(nodeId, paramY, graph, audioSetup));
 
+  const automationLaneX = $derived(
+    graph.automation?.lanes?.find((l) => l.nodeId === nodeId && l.paramName === paramX)
+  );
+  const automationLaneY = $derived(
+    graph.automation?.lanes?.find((l) => l.nodeId === nodeId && l.paramName === paramY)
+  );
+  const hasEvaluableAutomationLaneX = $derived(
+    Boolean(automationLaneX && automationLaneHasEvaluableRegions(automationLaneX))
+  );
+  const hasEvaluableAutomationLaneY = $derived(
+    Boolean(automationLaneY && automationLaneHasEvaluableRegions(automationLaneY))
+  );
+  const hasMidiEnvelopeBindingX = $derived(
+    hasMidiEnvelopeBindingForParam(graph, nodeId, paramX)
+  );
+  const hasMidiEnvelopeBindingY = $derived(
+    hasMidiEnvelopeBindingForParam(graph, nodeId, paramY)
+  );
+  const attachedDriverKindX = $derived(
+    resolveDriverKindForParam(graph, nodeId, paramX, audioSetup)
+  );
+  const attachedDriverKindY = $derived(
+    resolveDriverKindForParam(graph, nodeId, paramY, audioSetup)
+  );
+
   let liveValueX = $state(0);
   let liveValueY = $state(0);
   let effectiveValueX = $state<number | null>(null);
@@ -100,18 +128,25 @@
   $effect(() => {
     const g = graph;
     const n = node;
+    const setup = audioSetup;
     const specs = nodeSpecs;
     const specX = specs.get(n.type)?.parameters?.[paramX];
     const specY = specs.get(n.type)?.parameters?.[paramY];
+    const infoX = getParamPortConnectionState(nodeId, paramX, g, setup);
+    const infoY = getParamPortConnectionState(nodeId, paramY, g, setup);
     const laneX = g.automation?.lanes?.find((l) => l.nodeId === nodeId && l.paramName === paramX);
     const laneY = g.automation?.lanes?.find((l) => l.nodeId === nodeId && l.paramName === paramY);
     const hasLaneX = Boolean(laneX && automationLaneHasEvaluableRegions(laneX));
     const hasLaneY = Boolean(laneY && automationLaneHasEvaluableRegions(laneY));
+    const hasMidiX = hasMidiEnvelopeBindingForParam(g, nodeId, paramX);
+    const hasMidiY = hasMidiEnvelopeBindingForParam(g, nodeId, paramY);
     if (
-      connX.state === 'default' &&
-      connY.state === 'default' &&
+      infoX.state === 'default' &&
+      infoY.state === 'default' &&
       !hasLaneX &&
-      !hasLaneY
+      !hasLaneY &&
+      !hasMidiX &&
+      !hasMidiY
     ) {
       effectiveValueX = null;
       effectiveValueY = null;
@@ -127,10 +162,34 @@
         specX ? getAutomationValueForParam(n, paramX, g, currentTime, specX) : null;
       const automationY =
         specY ? getAutomationValueForParam(n, paramY, g, currentTime, specY) : null;
-      const configXEffective = automationX !== null && automationX !== undefined ? automationX : configX;
-      const configYEffective = automationY !== null && automationY !== undefined ? automationY : configY;
+      const { value: midiValX } = evaluateMidiEnvelopeSignalForParam(
+        n,
+        paramX,
+        g,
+        currentTime,
+        setup.arrangementSnapshot
+      );
+      const { value: midiValY } = evaluateMidiEnvelopeSignalForParam(
+        n,
+        paramY,
+        g,
+        currentTime,
+        setup.arrangementSnapshot
+      );
+      const configXEffective =
+        automationX !== null && automationX !== undefined
+          ? automationX
+          : midiValX !== null && midiValX !== undefined
+            ? midiValX
+            : configX;
+      const configYEffective =
+        automationY !== null && automationY !== undefined
+          ? automationY
+          : midiValY !== null && midiValY !== undefined
+            ? midiValY
+            : configY;
 
-      if (connX.state === 'audio-connected' && am && specX) {
+      if (infoX.state === 'audio-connected' && am && specX) {
         const rawX = getParameterInputValue(nodeId, paramX, g, specs, am) ?? null;
         if (rawX !== null && typeof rawX === 'number' && isFinite(rawX)) {
           liveValueX = Math.max(0, Math.min(1, rawX));
@@ -138,7 +197,7 @@
         } else {
           effectiveValueX = configXEffective;
         }
-      } else if ((connX.state !== 'default' || hasLaneX) && specX) {
+      } else if ((infoX.state !== 'default' || hasLaneX || hasMidiX) && specX) {
         const v = computeEffectiveParameterValue(
           n,
           paramX,
@@ -146,14 +205,15 @@
           g,
           specs,
           am ?? undefined,
-          automationX ?? undefined
+          automationX ?? undefined,
+          midiValX ?? undefined
         );
         effectiveValueX = v !== null && typeof v === 'number' ? v : null;
       } else {
         effectiveValueX = null;
       }
 
-      if (connY.state === 'audio-connected' && am && specY) {
+      if (infoY.state === 'audio-connected' && am && specY) {
         const rawY = getParameterInputValue(nodeId, paramY, g, specs, am) ?? null;
         if (rawY !== null && typeof rawY === 'number' && isFinite(rawY)) {
           liveValueY = Math.max(0, Math.min(1, rawY));
@@ -161,7 +221,7 @@
         } else {
           effectiveValueY = configYEffective;
         }
-      } else if ((connY.state !== 'default' || hasLaneY) && specY) {
+      } else if ((infoY.state !== 'default' || hasLaneY || hasMidiY) && specY) {
         const v = computeEffectiveParameterValue(
           n,
           paramY,
@@ -169,7 +229,8 @@
           g,
           specs,
           am ?? undefined,
-          automationY ?? undefined
+          automationY ?? undefined,
+          midiValY ?? undefined
         );
         effectiveValueY = v !== null && typeof v === 'number' ? v : null;
       } else {
@@ -203,14 +264,28 @@
     (inputValueY === null || (typeof inputValueY === 'number' && Math.abs(inputValueY) < 1e-10))
   );
   const displayValueX = $derived.by(() => {
-    if (connX.state !== 'default' || connY.state !== 'default') {
+    if (
+      connX.state !== 'default' ||
+      connY.state !== 'default' ||
+      hasEvaluableAutomationLaneX ||
+      hasEvaluableAutomationLaneY ||
+      hasMidiEnvelopeBindingX ||
+      hasMidiEnvelopeBindingY
+    ) {
       const _ = tickCount;
       void _;
     }
     return useConfigForInputX ? getParamValue(paramX) : (effectiveValueX ?? getParamValue(paramX));
   });
   const displayValueY = $derived.by(() => {
-    if (connX.state !== 'default' || connY.state !== 'default') {
+    if (
+      connX.state !== 'default' ||
+      connY.state !== 'default' ||
+      hasEvaluableAutomationLaneX ||
+      hasEvaluableAutomationLaneY ||
+      hasMidiEnvelopeBindingX ||
+      hasMidiEnvelopeBindingY
+    ) {
       const _ = tickCount;
       void _;
     }
@@ -266,6 +341,8 @@
     portState: connX.state,
     signalName: connX.signalName,
     liveValue: liveValueX,
+    attachedDriverKind: attachedDriverKindX,
+    timelineDriven: hasEvaluableAutomationLaneX,
     showModeButton: connX.state !== 'default',
     modeButtonIcon: MODE_TO_ICON[getInputMode(paramX)] ?? 'equal',
     onModeClick: () => handleModeClick(paramX),
@@ -280,6 +357,8 @@
     portState: connY.state,
     signalName: connY.signalName,
     liveValue: liveValueY,
+    attachedDriverKind: attachedDriverKindY,
+    timelineDriven: hasEvaluableAutomationLaneY,
     showModeButton: connY.state !== 'default',
     modeButtonIcon: MODE_TO_ICON[getInputMode(paramY)] ?? 'equal',
     onModeClick: () => handleModeClick(paramY),
@@ -296,22 +375,18 @@
       .replace(/\s+[XY]$/i, '')
   );
 
-  const timelineDrivenPad = $derived.by(() => {
-    const g = graph;
-    const lx = g.automation?.lanes?.find((l) => l.nodeId === nodeId && l.paramName === paramX);
-    const ly = g.automation?.lanes?.find((l) => l.nodeId === nodeId && l.paramName === paramY);
-    return Boolean(
-      (lx && automationLaneHasEvaluableRegions(lx)) ||
-        (ly && automationLaneHasEvaluableRegions(ly))
-    );
-  });
+  const timelineDrivenPad = $derived(
+    hasEvaluableAutomationLaneX || hasEvaluableAutomationLaneY
+  );
 
   /** Hide anchor/line when values can be externally driven — misleading vs graph/audio/automation blend. */
   const displacementNominal = $derived(
     displacementAnchor != null &&
       connX.state === 'default' &&
       connY.state === 'default' &&
-      !timelineDrivenPad
+      !timelineDrivenPad &&
+      !hasMidiEnvelopeBindingX &&
+      !hasMidiEnvelopeBindingY
       ? displacementAnchor
       : null
   );

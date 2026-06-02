@@ -8,7 +8,7 @@
 
   import { autoGenerateLayout } from '../../../utils/layoutMigration';
   import { getCategorySlug } from '../../../utils/cssTokens';
-  import { getParameterEnumMappings, isEnumParameter } from '../../../utils/parameterEnumMappings';
+  import { getParameterEnumMappings, isEnumParameter, shouldShowEnumSteppers } from '../../../utils/parameterEnumMappings';
   import { getParamPortConnectionState } from '../../../utils/paramPortAudioState';
   import {
     getParameterInputValue,
@@ -57,9 +57,18 @@
       value: import('../../../data-model/types').ParameterValue,
       options?: GraphUndoRecordingOptions
     ) => void;
+    onTrackFilterChange?: (
+      trackFilterMode: number,
+      trackFilterList: string,
+      options?: GraphUndoRecordingOptions
+    ) => void;
     /** After a continuous parameter gesture (knob drag, etc.), record one undo snapshot if anything moved. */
     onParameterGestureCommit?: () => void;
     onParameterInputModeChanged?: (paramName: string, mode: ParameterInputMode) => void;
+    onParamDriverBypassToggle?: (
+      paramName: string,
+      bypassed: boolean
+    ) => void;
   }
 
   let {
@@ -78,8 +87,10 @@
     onPortPointerDownForConnection,
     onPortClickForSignalPicker,
     onParameterChange,
+    onTrackFilterChange,
     onParameterGestureCommit,
     onParameterInputModeChanged,
+    onParamDriverBypassToggle,
   }: Props = $props();
 
   let parameterGestureHadTransient = false;
@@ -321,6 +332,11 @@
                     {nodeSpecs}
                     {getAudioManager}
                     getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
                     disabled={false}
                   >
                     {#snippet children({ displayValue, useConfigForInput })}
@@ -437,6 +453,11 @@
                     {nodeSpecs}
                     {getAudioManager}
                     getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
                     disabled={false}
                   >
                     {#snippet children({ displayValue, useConfigForInput })}
@@ -462,6 +483,11 @@
                     {nodeSpecs}
                     {getAudioManager}
                     getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
                     disabled={false}
                   >
                     {#snippet children({ displayValue, useConfigForInput })}
@@ -470,7 +496,7 @@
                         <EnumSelector
                           value={displayValue}
                           options={enumMap}
-                          showSteppers={spec.id === 'color-lut' && paramName === 'preset'}
+                          showSteppers={shouldShowEnumSteppers(spec.id, paramName)}
                           onChange={(v) => transientParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
                         onCommit={commitParameterGestureUndo}
                         />
@@ -496,6 +522,11 @@
                     {nodeSpecs}
                     {getAudioManager}
                     getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
                     disabled={false}
                   >
                     {#snippet children({ displayValue, useConfigForInput, configValue })}
@@ -530,6 +561,11 @@
                     {nodeSpecs}
                     {getAudioManager}
                     getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
                     disabled={false}
                   >
                     {#snippet children({ displayValue, useConfigForInput, configValue })}
@@ -567,6 +603,11 @@
                     {nodeSpecs}
                     {getAudioManager}
                     getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
                     disabled={false}
                   >
                     {#snippet children({ displayValue, useConfigForInput, configValue })}
@@ -655,6 +696,11 @@
                   {nodeSpecs}
                   {getAudioManager}
                   getTimelineCurrentTime={getTimelineCurrentTime}
+                  onParamDriverBypassToggle={
+                    onParamDriverBypassToggle
+                      ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                      : undefined
+                  }
                   disabled={false}
                 >
                   {#snippet children({ displayValue, useConfigForInput })}
@@ -680,6 +726,11 @@
                   {nodeSpecs}
                   {getAudioManager}
                   getTimelineCurrentTime={getTimelineCurrentTime}
+                  onParamDriverBypassToggle={
+                    onParamDriverBypassToggle
+                      ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                      : undefined
+                  }
                   disabled={false}
                 >
                   {#snippet children({ displayValue, useConfigForInput })}
@@ -688,7 +739,7 @@
                       <EnumSelector
                         value={displayValue}
                         options={enumMap}
-                        showSteppers={spec.id === 'color-lut' && paramName === 'preset'}
+                        showSteppers={shouldShowEnumSteppers(spec.id, paramName)}
                         onChange={(v) => transientParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
                         onCommit={commitParameterGestureUndo}
                       />
@@ -714,6 +765,11 @@
                   {nodeSpecs}
                   {getAudioManager}
                   getTimelineCurrentTime={getTimelineCurrentTime}
+                  onParamDriverBypassToggle={
+                    onParamDriverBypassToggle
+                      ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                      : undefined
+                  }
                   disabled={false}
                 >
                   {#snippet children({ displayValue, useConfigForInput, configValue })}
@@ -748,6 +804,11 @@
                   {nodeSpecs}
                   {getAudioManager}
                   getTimelineCurrentTime={getTimelineCurrentTime}
+                  onParamDriverBypassToggle={
+                    onParamDriverBypassToggle
+                      ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                      : undefined
+                  }
                   disabled={false}
                 >
                   {#snippet children({ displayValue, useConfigForInput, configValue })}
@@ -785,6 +846,11 @@
                   {nodeSpecs}
                   {getAudioManager}
                   getTimelineCurrentTime={getTimelineCurrentTime}
+                  onParamDriverBypassToggle={
+                    onParamDriverBypassToggle
+                      ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                      : undefined
+                  }
                   disabled={false}
                 >
                   {#snippet children({ displayValue, useConfigForInput, configValue })}
@@ -828,6 +894,11 @@
                   {nodeSpecs}
                   {getAudioManager}
                   getTimelineCurrentTime={getTimelineCurrentTime}
+                  onParamDriverBypassToggle={
+                    onParamDriverBypassToggle
+                      ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                      : undefined
+                  }
                   disabled={false}
                 >
                   {#snippet children({ displayValue, useConfigForInput })}
@@ -852,6 +923,11 @@
                   {nodeSpecs}
                   {getAudioManager}
                   getTimelineCurrentTime={getTimelineCurrentTime}
+                  onParamDriverBypassToggle={
+                    onParamDriverBypassToggle
+                      ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                      : undefined
+                  }
                   disabled={false}
                 >
                   {#snippet children({ displayValue, useConfigForInput })}
@@ -860,7 +936,7 @@
                       <EnumSelector
                         value={displayValue}
                         options={enumMap}
-                        showSteppers={spec.id === 'color-lut' && paramName === 'preset'}
+                        showSteppers={shouldShowEnumSteppers(spec.id, paramName)}
                         onChange={(v) => transientParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
                         onCommit={commitParameterGestureUndo}
                       />
@@ -885,6 +961,11 @@
                   {nodeSpecs}
                   {getAudioManager}
                   getTimelineCurrentTime={getTimelineCurrentTime}
+                  onParamDriverBypassToggle={
+                    onParamDriverBypassToggle
+                      ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                      : undefined
+                  }
                   disabled={false}
                 >
                   {#snippet children({ displayValue, useConfigForInput, configValue })}
@@ -918,6 +999,11 @@
                 {nodeSpecs}
                 {getAudioManager}
                 getTimelineCurrentTime={getTimelineCurrentTime}
+                onParamDriverBypassToggle={
+                  onParamDriverBypassToggle
+                    ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                    : undefined
+                }
                 disabled={false}
               >
                 {#snippet children({ displayValue, useConfigForInput, configValue })}
@@ -954,6 +1040,11 @@
                   {nodeSpecs}
                   {getAudioManager}
                   getTimelineCurrentTime={getTimelineCurrentTime}
+                  onParamDriverBypassToggle={
+                    onParamDriverBypassToggle
+                      ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                      : undefined
+                  }
                   disabled={false}
                 >
                   {#snippet children({ displayValue, useConfigForInput, configValue })}
@@ -1287,6 +1378,10 @@
                 hideEmpty={element.hideEmpty ?? false}
                 showNoteCounts={element.showNoteCounts ?? false}
                 onFilterChange={(mode, list) => {
+                  if (onTrackFilterChange) {
+                    onTrackFilterChange(mode, list);
+                    return;
+                  }
                   onParameterChange('trackFilterMode', mode);
                   onParameterChange('trackFilterList', list);
                 }}

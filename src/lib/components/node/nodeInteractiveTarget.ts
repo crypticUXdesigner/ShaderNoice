@@ -26,9 +26,16 @@ const NODE_INTERACTIVE_TARGET_SELECTOR = [
   '.arrangement-track-filter',
   '.group-header-actions',
   '.mode-button',
+  '[data-node-label-edit]',
 ].join(', ');
 
 export function isNodeInteractiveTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   return Boolean(target.closest(NODE_INTERACTIVE_TARGET_SELECTOR));
+}
+
+/** Header label rename — double-click here edits the name, not patch-into. */
+export function isNodeLabelEditTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return Boolean(target.closest('[data-node-label-edit]'));
 }

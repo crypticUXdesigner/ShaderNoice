@@ -23,6 +23,7 @@ export const POWER_ELIGIBLE_CATEGORIES: ReadonlySet<string> = new Set([
   'Blend',
   'Inputs',
   'Patterns',
+  'MIDI',
   'Shapes',
   'SDF',
 ]);

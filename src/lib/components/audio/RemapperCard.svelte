@@ -1,12 +1,12 @@
 <script lang="ts">
   /**
-   * RemapperCard - Single remapper card in the large audio signal picker.
-   * Shows remapper name (with band prefix), range editor, and Connect action.
+   * RemapperCard - Single remap card in the audio signal picker.
+   * Shows remap name (with band prefix), range editor, and Connect action.
    */
   import { Button, IconSvg, EditableLabel, RemapRangeEditor } from '../ui';
-  import RemapperConnectionList from './RemapperConnectionList.svelte';
+  import DriverConnectionTargetTags from '../floating-panel/DriverConnectionTargetTags.svelte';
+  import type { DriverConnectionTargetDisplay } from '../floating-panel/driverTargetDisplay';
   import type { AudioRemapperEntry } from '../../../data-model/audioSetupTypes';
-  import type { RemapperParameterConnectionTarget } from '../../../utils/getRemapperParameterConnections';
 
   interface LiveValues {
     incoming: number | null;
@@ -16,98 +16,115 @@
   interface Props {
     remapper: AudioRemapperEntry;
     bandName?: string;
-    isSelected?: boolean;
+    isConnectedToTarget?: boolean;
     liveValues?: LiveValues | null;
-    onSelect?: (e: MouseEvent) => void;
     onConnect?: () => void;
+    onDisconnect?: () => void;
     onDelete?: () => void;
     onDuplicate?: () => void;
     onRemapperChange?: (updater: (r: AudioRemapperEntry) => AudioRemapperEntry) => void;
-    parameterConnections?: RemapperParameterConnectionTarget[];
+    connectionTargets?: DriverConnectionTargetDisplay[];
+    activeTargetNodeId?: string;
+    activeTargetParamName?: string;
     onRevealParameter?: (nodeId: string, paramName: string) => void;
   }
 
   let {
     remapper,
     bandName = 'Band',
-    isSelected = false,
+    isConnectedToTarget = false,
     liveValues = null,
-    onSelect,
     onConnect,
+    onDisconnect,
     onDelete,
     onDuplicate,
     onRemapperChange,
-    parameterConnections = [],
+    connectionTargets = [],
+    activeTargetNodeId,
+    activeTargetParamName,
     onRevealParameter,
   }: Props = $props();
 </script>
 
 <div
   class="remapper-card panel-card"
-  class:selected={isSelected}
-  role="option"
-  aria-selected={isSelected}
-  tabindex="0"
-  aria-label="Remapper. Click or press Space to select or deselect. Delete key removes selected."
-  onclick={onSelect}
-  onkeydown={(e) => {
-    if (e.key === ' ' || e.key === 'Enter') {
-      e.preventDefault();
-      onSelect?.(e as unknown as MouseEvent);
-    }
-  }}
+  class:connected={isConnectedToTarget}
+  role="group"
+  aria-label={`Remap: ${remapper.name || remapper.id}`}
 >
   <div class="header">
     <div class="label-wrap" role="presentation" ondblclick={(e) => e.stopPropagation()}>
       <EditableLabel
         value={remapper.name}
         prefix={`${bandName}: `}
-        placeholder="Remapper name"
-        ariaLabel="Remapper name"
+        placeholder="Remap name"
+        ariaLabel="Remap name"
         onCommit={(value) => onRemapperChange?.((r) => ({ ...r, name: value }))}
       />
     </div>
-    <Button
-      variant="ghost"
-      size="sm"
-      mode="icon-only"
-      title="Delete remapper"
-      aria-label={`Delete remapper: ${remapper.name || remapper.id}`}
-      onclick={(e) => {
-        e.stopPropagation();
-        onDelete?.();
-      }}
-    >
-      <IconSvg name="trash" variant="line" />
-    </Button>
-    {#if onDuplicate}
-      <Button
-        variant="ghost"
-        size="sm"
-        mode="icon-only"
-        title="Duplicate remapper"
-        aria-label={`Duplicate remapper: ${remapper.name || remapper.id}`}
-        onclick={(e) => {
-          e.stopPropagation();
-          onDuplicate();
-        }}
-      >
-        <IconSvg name="copy" variant="line" />
-      </Button>
-    {/if}
-    {#if onConnect}
-      <Button
-        variant="ghost"
-        size="sm"
-        mode="both"
-        title="Connect"
-        aria-label={`Connect: ${remapper.name || remapper.id}`}
-        onclick={(e) => { e.stopPropagation(); onConnect?.(); }}
-      >
-        <IconSvg name="plug" variant="line" />
-        Connect
-      </Button>
-    {/if}
+    <div class="header-actions" role="presentation" ondblclick={(e) => e.stopPropagation()}>
+      {#if onDisconnect}
+        <Button
+          variant="warning"
+          size="sm"
+          mode="both"
+          title="Disconnect from parameter"
+          aria-label="Disconnect from parameter"
+          onclick={(e) => {
+            e.stopPropagation();
+            onDisconnect();
+          }}
+        >
+          <IconSvg name="prohibit" variant="line" />
+          Disconnect
+        </Button>
+      {:else if onConnect}
+        <Button
+          variant="primary"
+          size="sm"
+          mode="both"
+          title="Connect"
+          aria-label={`Connect: ${remapper.name || remapper.id}`}
+          onclick={(e) => {
+            e.stopPropagation();
+            onConnect?.();
+          }}
+        >
+          <IconSvg name="plug" variant="line" />
+          Connect
+        </Button>
+      {/if}
+      {#if onDuplicate}
+        <Button
+          variant="ghost"
+          size="sm"
+          mode="icon-only"
+          title="Duplicate remap"
+          aria-label={`Duplicate remap: ${remapper.name || remapper.id}`}
+          onclick={(e) => {
+            e.stopPropagation();
+            onDuplicate();
+          }}
+        >
+          <IconSvg name="copy" variant="line" />
+        </Button>
+      {/if}
+      {#if onDelete}
+        <Button
+          variant="ghost"
+          size="sm"
+          mode="icon-only"
+          title="Delete remap"
+          aria-label={`Delete remap: ${remapper.name || remapper.id}`}
+          onclick={(e) => {
+            e.stopPropagation();
+            onDelete?.();
+          }}
+        >
+          <IconSvg name="trash" variant="line" />
+        </Button>
+      {/if}
+    </div>
   </div>
   <div class="editor-wrap">
     <RemapRangeEditor
@@ -120,7 +137,13 @@
       onChange={(payload) => onRemapperChange?.((r) => ({ ...r, ...payload }))}
     />
   </div>
-  <RemapperConnectionList connections={parameterConnections} onReveal={onRevealParameter} />
+  <DriverConnectionTargetTags
+    targets={connectionTargets}
+    activeNodeId={activeTargetNodeId}
+    activeParamName={activeTargetParamName}
+    onReveal={onRevealParameter}
+    sectionLabel="Targets"
+  />
 </div>
 
 <style>
@@ -134,6 +157,16 @@
     /* Other */
     cursor: default;
 
+    &:hover,
+    &:active {
+      border-color: var(--panel-card-border);
+    }
+
+    &.connected {
+      outline: 1px solid var(--color-blue-90);
+      outline-offset: -1px;
+    }
+
     .header {
       display: flex;
       align-items: center;
@@ -146,6 +179,10 @@
       :global(.button) {
         border-radius: calc(var(--radius-md) - var(--pd-sm));
       }
+
+      :global(.power-audio-icon.is-dimmed svg) {
+        color: var(--color-blue-110);
+      }
     }
 
     .label-wrap {
@@ -153,6 +190,13 @@
       align-items: center;
       flex: 1;
       min-width: 0;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--pd-xs);
+      flex-shrink: 0;
     }
 
     .editor-wrap {

@@ -170,6 +170,24 @@
       }
     }
 
+    &.xs {
+      min-height: var(--size-xs);
+      padding: var(--pd-2xs) var(--pd-sm);
+      gap: var(--pd-2xs);
+      font-size: var(--text-xs);
+
+      &:not(.rounded) {
+        border-radius: var(--radius-sm);
+      }
+
+      &.icon-only {
+        width: var(--size-xs);
+        height: var(--size-xs);
+        min-width: var(--size-xs);
+        padding: 0;
+      }
+    }
+
     &.sm {
       min-height: var(--size-sm);
       padding: var(--pd-xs) var(--pd-md);

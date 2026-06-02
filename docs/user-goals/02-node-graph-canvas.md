@@ -17,7 +17,7 @@ Canvas for building and editing the shader graph: place nodes, connect, adjust p
 - **Move nodes** — Drag selected node(s); position persisted.
 - **Add nodes from the panel** — Drag node type onto canvas (or equivalent) at chosen position; new node at drop (screen-to-canvas mapped).
 - **Create and remove connections** — Start from output port; complete on input or parameter port; invalid targets rejected (type/rules). Remove: select connection and Delete, or disconnect gesture. One connection per port; new connection to same port replaces previous.
-- **Use node context menu** — Right-click node: Read Guide, Copy node name, Remove.
+- **Use node context menu** — Right-click node: Rename, Duplicate, Read Guide, Copy node name, Reset, Remove.
 - **See live shader preview** — Preview updates as the graph changes. Preview uses **one** GPU API for the session (**WebGL2** or **WebGPU**); see [01-overview-and-app-shell.md](./01-overview-and-app-shell.md) (preview GPU mode). In **WebGPU** mode, expect the composition to work **until** a **blocking** message says otherwise (unsupported graph, device loss, or an explicit parity/product gap)—then follow the message (e.g. switch to **WebGL** mode) rather than relying on hidden fallback.
 
 ## 4. Key Flows

@@ -4,6 +4,43 @@ import { MAX_ARRANGEMENT_NOTES_PACKED } from './types';
 /** Prefer a note track near this count when picking a default **Notes** node filter. */
 const DEFAULT_ARRANGEMENT_NOTES_TRACK_TARGET = 400;
 
+/** Subset mode with no ids — nothing passes {@link trackPassesArrangementFilter}. */
+export const EMPTY_ARRANGEMENT_TRACK_FILTER = {
+  trackFilterMode: 1,
+  trackFilterList: '',
+} as const;
+
+/** All enabled tracks pass {@link trackPassesArrangementFilter}. */
+export const ALL_ARRANGEMENT_TRACK_FILTER = {
+  trackFilterMode: 0,
+  trackFilterList: '',
+} as const;
+
+export type ArrangementTrackFilterParams = {
+  trackFilterMode: number;
+  trackFilterList: string;
+};
+
+/** Stable cache key for arrangement track-filter params (preview bake invalidation). */
+export function arrangementTrackFilterCacheKey(params: ArrangementTrackFilterParams): string {
+  return `${params.trackFilterMode}:${params.trackFilterList}`;
+}
+
+export function readArrangementTrackFilterParams(
+  parameters: Readonly<Record<string, unknown>>,
+  defaultWhenMissing: ArrangementTrackFilterParams = ALL_ARRANGEMENT_TRACK_FILTER
+): ArrangementTrackFilterParams {
+  const trackFilterMode =
+    parameters.trackFilterMode !== undefined
+      ? Number(parameters.trackFilterMode)
+      : defaultWhenMissing.trackFilterMode;
+  const trackFilterList =
+    typeof parameters.trackFilterList === 'string'
+      ? parameters.trackFilterList
+      : defaultWhenMissing.trackFilterList;
+  return { trackFilterMode, trackFilterList };
+}
+
 export type ArrangementTrackFilterRow = {
   id: string;
   label: string;

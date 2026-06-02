@@ -10,6 +10,8 @@ import {
   arrangementTrackFilterButtonLabel,
   pickDefaultArrangementNotesTrackId,
   defaultArrangementNotesTrackFilter,
+  readArrangementTrackFilterParams,
+  EMPTY_ARRANGEMENT_TRACK_FILTER,
   wouldExceedArrangementBakeCap,
 } from './arrangementTrackFilter';
 import { MAX_ARRANGEMENT_NOTES_PACKED } from './types';
@@ -73,6 +75,20 @@ describe('arrangementTrackFilter', () => {
   it('readSelectedTrackIds treats mode 0 as all tracks', () => {
     const ids = ['track-note-1'];
     expect(readSelectedTrackIds(0, '', ids)).toEqual(new Set(ids));
+  });
+
+  it('readArrangementTrackFilterParams defaults to all tracks for lanes-style nodes', () => {
+    expect(readArrangementTrackFilterParams({})).toEqual({
+      trackFilterMode: 0,
+      trackFilterList: '',
+    });
+  });
+
+  it('readArrangementTrackFilterParams defaults to empty subset for pattern nodes', () => {
+    expect(readArrangementTrackFilterParams({}, EMPTY_ARRANGEMENT_TRACK_FILTER)).toEqual({
+      trackFilterMode: 1,
+      trackFilterList: '',
+    });
   });
 
   it('buildTrackFilterParams uses mode 0 when all tracks selected', () => {

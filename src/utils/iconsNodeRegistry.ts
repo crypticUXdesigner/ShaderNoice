@@ -145,6 +145,7 @@ export type NodeIconIdentifier =
   | 'checkerboard'
   | 'circle-half-tilt'
   | 'circle-notch'
+  | 'circles-four'
   | 'circuitry'
   | 'columns-plus-right'
   | 'corners-in'
@@ -167,8 +168,10 @@ export type NodeIconIdentifier =
   | 'fallout-shelter'
   | 'gps'
   | 'gps-fix'
+  | 'ghost'
   | 'hourglass-simple'
   | 'intersect-three'
+  | 'map-trifold'
   | 'meteor'
   | 'mouse-scroll'
   | 'music-note-simple'
@@ -369,6 +372,7 @@ export const ALL_NODE_ICON_IDENTIFIERS: readonly NodeIconIdentifier[] = [
   'checkerboard',
   'circle-half-tilt',
   'circle-notch',
+  'circles-four',
   'circuitry',
   'columns-plus-right',
   'corners-in',
@@ -391,8 +395,10 @@ export const ALL_NODE_ICON_IDENTIFIERS: readonly NodeIconIdentifier[] = [
   'fallout-shelter',
   'gps',
   'gps-fix',
+  'ghost',
   'hourglass-simple',
   'intersect-three',
+  'map-trifold',
   'meteor',
   'mouse-scroll',
   'music-note-simple',

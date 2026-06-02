@@ -9,9 +9,10 @@ export {
   RangeSlider,
   VerticalRangeSlider,
   RemapRangeEditor,
+  AdsrEnvelopeEditor,
   EditableLabel
 } from './input';
-export { IconSvg, NodeIconSvg } from './icon';
+export { IconSvg, NodeIconSvg, EnvelopeCurveIcon } from './icon';
 export { default as MiniGraph } from './MiniGraph.svelte';
 export { Tag, Badge, Message, ErrorAnnouncer, PanelSection, AppSplashScreen } from './display';
 export { Modal, ModalDialog, Popover } from './overlay';

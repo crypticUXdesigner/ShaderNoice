@@ -7,7 +7,7 @@ import { MAX_ARRANGEMENT_REGIONS } from '../../audiotool/arrangement/types';
  */
 export const arrangementLanesNodeSpec: NodeSpec = {
   id: 'arrangement-lanes',
-  category: 'Patterns',
+  category: 'MIDI',
   displayName: 'Regions',
   description:
     'Draws DAW region blocks per track row, windowed against timeline time. Requires an imported arrangement snapshot on the playlist primary.',

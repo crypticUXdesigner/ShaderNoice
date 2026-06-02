@@ -8,8 +8,8 @@ import type { IconName } from '../utils/icons';
 /** Canvas tool: cursor, hand, lasso select, add node (Alt+click), or patch into a wire. */
 export type ToolType = 'cursor' | 'hand' | 'select' | 'add' | 'patch';
 
-/** Single item in a dropdown/menu used by canvas overlays (enum dropdown, etc.). */
-export interface DropdownMenuItem {
+/** Clickable row in a dropdown/menu used by canvas overlays (enum dropdown, etc.). */
+export interface DropdownMenuActionItem {
   label: string;
   action: () => void;
   disabled?: boolean;
@@ -17,6 +17,17 @@ export interface DropdownMenuItem {
   /** Optional decorative leading icon (visual only; label remains accessible name). */
   iconName?: IconName;
   iconVariant?: 'line' | 'filled';
+}
+
+/** Visual separator between menu groups. */
+export interface DropdownMenuSeparatorItem {
+  type: 'separator';
+}
+
+export type DropdownMenuItem = DropdownMenuActionItem | DropdownMenuSeparatorItem;
+
+export function isDropdownMenuSeparator(item: DropdownMenuItem): item is DropdownMenuSeparatorItem {
+  return 'type' in item && item.type === 'separator';
 }
 
 /** OKLCH color triple used by the color picker overlay bridge. */

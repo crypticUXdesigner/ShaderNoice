@@ -30,6 +30,10 @@ export interface HandlerContext {
   
   // UI updates
   setCursor(cursor: string): void;
+  /** Crosshair on canvas + wrapper while dragging a connection wire. */
+  applyConnectingCursor?: () => void;
+  /** Restore cursor from current hover + active tool after connection drag ends. */
+  refreshCursorFromHover?: () => void;
   
   // Callbacks (optional - handlers can trigger these)
   onNodeMoved?: (nodeId: string, x: number, y: number) => void;

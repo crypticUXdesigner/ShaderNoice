@@ -55,6 +55,13 @@ export class EffectiveValueUpdateRunner {
           nodesWithAnimatedParams.add(lane.nodeId);
         }
       }
+      if (timelineState?.isPlaying && graph.midiEnvelopeBindings?.length) {
+        for (const binding of graph.midiEnvelopeBindings) {
+          if (binding.nodeId && binding.paramName) {
+            nodesWithAnimatedParams.add(binding.nodeId);
+          }
+        }
+      }
       if (nodesWithAnimatedParams.size > 0) {
         this.deps.markNodesDirty(Array.from(nodesWithAnimatedParams));
         this.deps.requestRender();

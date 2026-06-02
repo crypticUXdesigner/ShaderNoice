@@ -21,12 +21,16 @@
   } from '../../../data-model';
   import { getVirtualNodeId } from '../../../utils/virtualNodes';
   import { getRemapperParameterConnections } from '../../../utils/getRemapperParameterConnections';
+  import { resolveDriverConnectionTargetDisplay } from './driverTargetDisplay';
+  import { confirmDeleteDriverAsset } from '../../../utils/confirmDriverAssetDelete';
   import { subscribeParameterValueTick } from '../../stores/parameterValueTickStore';
   import type { Action } from 'svelte/action';
 
   const DEFAULT_HALF_LIFE_SECONDS = 1 / 120;
 
   let {
+    targetNodeId,
+    targetParameter,
     graph,
     nodeSpecs,
     audioSetup,
@@ -44,8 +48,6 @@
   const USER_BAND_UNSET = Symbol('userBandUnset');
   const AUTO_BAND_NOOP = Symbol('autoBandNoop');
   let userBandChoice = $state<string | null | typeof USER_BAND_UNSET>(USER_BAND_UNSET);
-  /** Remapper IDs selected for delete (e.g. Del key). */
-  let selectedRemapperIds = $state<Set<string>>(new Set());
   /** After user toggles while `initialBandId` is set, prevents re-snapping to initial every render. */
   let lastAppliedInitialBandId = $state<string | null>(null);
   /** Last committed selection (updated in spectrum effect) so we keep the band when `initialBandId` clears. */
@@ -177,33 +179,16 @@
     }
   }
 
-  function toggleRemapperSelection(remapperId: string, e: MouseEvent) {
-    const target = e.target instanceof HTMLElement ? e.target : null;
-    if (target?.closest('input, textarea, select, button, [contenteditable="true"]')) return;
-    selectedRemapperIds = new Set(
-      selectedRemapperIds.has(remapperId)
-        ? [...selectedRemapperIds].filter((id) => id !== remapperId)
-        : [...selectedRemapperIds, remapperId]
-    );
+  function tryDeleteRemapper(remapperId: string): void {
+    const connectionCount = getRemapperParameterConnections(graph, remapperId, nodeSpecs).length;
+    if (!confirmDeleteDriverAsset({ assetKind: 'remapper', connectionCount })) return;
+    onAudioSetupChange?.(removeAudioRemapper(audioSetup, remapperId));
   }
 
   function deleteSelected() {
-    let next = audioSetup;
-    const hadRemappersToDelete = selectedRemapperIds.size > 0;
-    for (const id of selectedRemapperIds) {
-      next = removeAudioRemapper(next, id);
-    }
-    // Only delete the band when no remappers were selected (so "Del" means "delete band" not "delete remappers only")
-    const bandRemoved =
-      !hadRemappersToDelete && selectedBandId != null;
-    if (bandRemoved) {
-      next = removeAudioBand(next, selectedBandId!);
-    }
-    if (next !== audioSetup) {
-      onAudioSetupChange?.(next);
-      if (bandRemoved) userBandChoice = null;
-      selectedRemapperIds = new Set();
-    }
+    if (!selectedBandId) return;
+    onAudioSetupChange?.(removeAudioBand(audioSetup, selectedBandId));
+    userBandChoice = null;
   }
 
   function handleBandChange(bandId: string, updater: (b: AudioBandEntry) => AudioBandEntry) {
@@ -235,7 +220,6 @@
       .map((r) => r.name);
     const duplicate = createDuplicateRemapperEntry(remapper, newId, existingNames);
     onAudioSetupChange?.(addAudioRemapper(audioSetup, duplicate));
-    selectedRemapperIds = new Set([newId]);
   }
 
   function handleConnectRemapper(remapperId: string) {
@@ -292,7 +276,7 @@
   use:registerDeleteBridge={{ register: registerDeleteHandler, getDelete: () => deleteSelected }}
   use:docDeleteCapture
 >
-  <div class="columns" role="group" aria-label="Audio signal picker: bands and remappers">
+  <div class="columns" role="group" aria-label="Audio signal picker: bands and remaps">
     <div
       class="left scrollbar-styled"
       role={bands.length !== 0 ? 'listbox' : 'group'}
@@ -318,7 +302,7 @@
       {/if}
     </div>
 
-    <div class="right frame-elevated frame-scrollable scrollbar-styled" role="group" aria-label="Remappers for selected band">
+    <div class="right frame-elevated frame-scrollable scrollbar-styled" role="group" aria-label="Remaps for selected band">
       {#if selectedBand}
         <div class="toolbar">
           <div class="controls">
@@ -418,7 +402,7 @@
         {#if selectedBand}
         <Button variant="secondary" size="sm" mode="both" iconPosition="trailing" onclick={handleAddRemapper}>
           <IconSvg name="plus" variant="line" />
-          Add remapper
+          Add remap
         </Button>
       {/if}
 
@@ -430,31 +414,31 @@
             Create your first band.
           {:else if selectedBand}
             {#if browseOnly}
-              No remappers for this band. Add one.
+              No remaps for this band. Add one.
             {:else}
-              No remappers for this band. Add one, then connect it to a parameter.
+              No remaps for this band. Add one, then connect it to a parameter.
             {/if}
           {:else}
-            No remappers yet. Select a band on the left to add one.
+            No remaps yet. Select a band on the left to add one.
           {/if}
         </p>
       {:else}
-        <div class="cards scrollbar-styled" role="listbox" aria-label="Remappers">
+        <div class="cards scrollbar-styled" role="list" aria-label="Remaps">
           {#each selectedBandRemappers as remapper (remapper.id)}
+            {@const connectionTargets = getRemapperParameterConnections(graph, remapper.id, nodeSpecs)
+              .map((c) => resolveDriverConnectionTargetDisplay(graph, nodeSpecs, c.nodeId, c.paramName))
+              .filter((t): t is NonNullable<typeof t> => t != null)}
             <RemapperCard
               remapper={remapper}
               bandName={bands.find((b) => b.id === remapper.bandId)?.name ?? 'Band'}
-              isSelected={selectedRemapperIds.has(remapper.id)}
               liveValues={liveValuesByRemapper.get(remapper.id) ?? null}
-              onSelect={(e) => toggleRemapperSelection(remapper.id, e)}
               onConnect={browseOnly ? undefined : () => handleConnectRemapper(remapper.id)}
-              onDelete={() => {
-                onAudioSetupChange?.(removeAudioRemapper(audioSetup, remapper.id));
-                selectedRemapperIds = new Set([...selectedRemapperIds].filter((id) => id !== remapper.id));
-              }}
+              onDelete={() => tryDeleteRemapper(remapper.id)}
               onDuplicate={() => handleDuplicateRemapper(remapper)}
               onRemapperChange={(updater) => handleRemapperChange(remapper.id, updater)}
-              parameterConnections={getRemapperParameterConnections(graph, remapper.id, nodeSpecs)}
+              {connectionTargets}
+              activeTargetNodeId={targetNodeId}
+              activeTargetParamName={targetParameter}
               onRevealParameter={onRevealInNodeEditor}
             />
           {/each}

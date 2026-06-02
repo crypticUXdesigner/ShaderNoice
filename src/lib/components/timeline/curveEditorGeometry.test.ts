@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   GRAPH_PADDING,
+  applyCurveEditorTimeZoom,
   curveClientToGraph,
   curveTimeToX,
   curveValueToY,
   curveXToTime,
   curveYToValue,
+  normalizeCurveEditorTimeViewport,
 } from './curveEditorGeometry';
 
 describe('curveEditorGeometry', () => {
@@ -33,6 +35,23 @@ describe('curveEditorGeometry', () => {
     const g2 = curveClientToGraph(200, 100, rect, graphWidth, graphHeight);
     expect(g2.t).toBeCloseTo(1, 5);
     expect(g2.v).toBeCloseTo(0, 5);
+  });
+
+  it('maps time through a zoomed viewport', () => {
+    const w = 300;
+    const viewport = normalizeCurveEditorTimeViewport({ start: 0.25, span: 0.5 });
+    expect(curveTimeToX(0.25, w, GRAPH_PADDING, viewport)).toBeCloseTo(GRAPH_PADDING.left, 5);
+    expect(curveTimeToX(0.75, w, GRAPH_PADDING, viewport)).toBeCloseTo(w - GRAPH_PADDING.right, 5);
+    expect(curveXToTime(curveTimeToX(0.5, w, GRAPH_PADDING, viewport), w, GRAPH_PADDING, viewport)).toBeCloseTo(
+      0.5,
+      5
+    );
+  });
+
+  it('applyCurveEditorTimeZoom shrinks span when zooming in', () => {
+    const full = normalizeCurveEditorTimeViewport({ start: 0, span: 1 });
+    const zoomed = applyCurveEditorTimeZoom(full, 0.15, 0.5);
+    expect(zoomed.span).toBeLessThan(full.span);
   });
 
   it('value maps v=0 and v=1 to bottom and top inner edges', () => {

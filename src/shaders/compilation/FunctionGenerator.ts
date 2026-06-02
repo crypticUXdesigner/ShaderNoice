@@ -3,6 +3,15 @@ import type { NodeGraph } from '../../data-model/types';
 import type { NodeSpec } from '../../types/nodeSpec';
 import { injectArrangementLanesNodeFunctions } from '../arrangement/packArrangementRegionsForGlsl';
 import { injectArrangementNotesNodeFunctions } from '../arrangement/packArrangementNotesForGlsl';
+import { emitArrangementPatternHelpersGlsl } from '../arrangement/pattern/arrangementPatternHelpersGlsl';
+import {
+  graphUsesArrangementPatternSharedHelpers,
+  isArrangementPatternNoteBakeNodeType,
+  isArrangementPatternRegionNodeType,
+  isArrangementPatternTrackEnergyNodeType,
+} from '../arrangement/pattern/constants';
+import { injectArrangementPatternNoteBake } from '../arrangement/pattern/notePatternBakeGlsl';
+import { injectArrangementPatternRegionBake } from '../arrangement/pattern/regionBoundaryBakeGlsl';
 import { emitLutGlslFunctions } from '../colorRamps/emitGlsl';
 import { getBakedLutPresetIndex } from '../colorRamps/lutPresets';
 import {
@@ -47,10 +56,16 @@ export class FunctionGenerator {
     variableNames: Map<string, Map<string, string>>,
     executionOrder: string[],
     audioSetup?: AudioSetup | null
-  ): { functions: string; functionNameMap: Map<string, Map<string, string>> } {
+  ): {
+    functions: string;
+    functionNameMap: Map<string, Map<string, string>>;
+    structNameMap: Map<string, Map<string, string>>;
+  } {
     const processedFunctions: Array<{ nodeId: string; funcCode: string }> = [];
     // Map: nodeId -> (originalFunctionName -> nodeSpecificFunctionName)
     const functionNameMap = new Map<string, Map<string, string>>();
+    // Map: nodeId -> (originalStructName -> nodeSpecificStructName)
+    const structNameMap = new Map<string, Map<string, string>>();
 
     // Per-node Power: nodes dropped from execution order (bypassed) must not contribute helper
     // functions either, so the compiled shader stays free of bypassed-node code.
@@ -72,6 +87,21 @@ export class FunctionGenerator {
         );
       } else if (nodeSpec.id === 'arrangement-notes') {
         funcCode = injectArrangementNotesNodeFunctions(
+          funcCode,
+          node,
+          audioSetup?.arrangementSnapshot
+        );
+      } else if (isArrangementPatternNoteBakeNodeType(nodeSpec.id)) {
+        funcCode = injectArrangementPatternNoteBake(
+          funcCode,
+          node,
+          audioSetup?.arrangementSnapshot
+        );
+      } else if (
+        isArrangementPatternRegionNodeType(nodeSpec.id) ||
+        isArrangementPatternTrackEnergyNodeType(nodeSpec.id)
+      ) {
+        funcCode = injectArrangementPatternRegionBake(
           funcCode,
           node,
           audioSetup?.arrangementSnapshot
@@ -191,23 +221,34 @@ export class FunctionGenerator {
         hasParamInputConnections ||
         funcCodeHasNodeUniforms ||
         nodeSpec.id === 'arrangement-lanes' ||
-        nodeSpec.id === 'arrangement-notes';
+        nodeSpec.id === 'arrangement-notes' ||
+        isArrangementPatternNoteBakeNodeType(nodeSpec.id) ||
+        isArrangementPatternRegionNodeType(nodeSpec.id) ||
+        isArrangementPatternTrackEnergyNodeType(nodeSpec.id);
 
       if (needsNodeSpecificNames) {
+        const sanitizedNodeId = node.id.replace(/[^a-zA-Z0-9_]/g, '_');
+        const nodeStructNameMap = new Map<string, string>();
+        funcCode = this.suffixStructTypesForNodeInstance(funcCode, sanitizedNodeId, nodeStructNameMap);
+        if (nodeStructNameMap.size > 0) {
+          structNameMap.set(node.id, nodeStructNameMap);
+        }
+
         const functions = this.extractFunctions(funcCode);
         const nodeFunctionNameMap = new Map<string, string>();
 
         for (const func of functions) {
-          const parts = func.signature.split('_');
-          if (parts.length >= 2) {
-            const originalFunctionName = parts[1];
-            const sanitizedNodeId = node.id.replace(/[^a-zA-Z0-9_]/g, '_');
-            const nodeSpecificName = `${originalFunctionName}_${sanitizedNodeId}`;
-            nodeFunctionNameMap.set(originalFunctionName, nodeSpecificName);
-          }
+          const originalFunctionName = func.name;
+          const nodeSpecificName = `${originalFunctionName}_${sanitizedNodeId}`;
+          nodeFunctionNameMap.set(originalFunctionName, nodeSpecificName);
         }
 
-        for (const [originalName, nodeSpecificName] of nodeFunctionNameMap.entries()) {
+        // Longest names first so e.g. uvWarp_circleInversionUv is not partially matched before a shorter prefix.
+        const renameEntries = [...nodeFunctionNameMap.entries()].sort(
+          (a, b) => b[0].length - a[0].length,
+        );
+
+        for (const [originalName, nodeSpecificName] of renameEntries) {
           // Match any valid GLSL identifier as return type so struct-returning functions are handled too.
           const functionDefRegex = new RegExp(`(\\b[a-zA-Z_][a-zA-Z0-9_]*\\s+)${this.escapeRegex(originalName)}(\\s*\\()`, 'g');
           funcCode = funcCode.replace(functionDefRegex, `$1${nodeSpecificName}$2`);
@@ -261,20 +302,58 @@ export class FunctionGenerator {
       if (preamble) preambleBlocks.push(preamble);
     }
     const preamblesSection = preambleBlocks.length > 0 ? preambleBlocks.join('\n\n') + '\n\n' : '';
-    const finalFunctions = preamblesSection + Array.from(functionMap.values()).map((v) => v.body).join('\n\n');
+    let finalFunctions = preamblesSection + Array.from(functionMap.values()).map((v) => v.body).join('\n\n');
+
+    if (graphUsesArrangementPatternSharedHelpers(graph.nodes, executionOrder)) {
+      finalFunctions = `${emitArrangementPatternHelpersGlsl()}\n\n${finalFunctions}`;
+    }
 
     return {
       functions: finalFunctions,
-      functionNameMap
+      functionNameMap,
+      structNameMap,
     };
+  }
+
+  /**
+   * Suffix user-defined struct types per node instance so preambles from multiple
+   * arrangement-pattern nodes (or duplicate instances) do not redefine the same struct.
+   */
+  private suffixStructTypesForNodeInstance(
+    funcCode: string,
+    sanitizedNodeId: string,
+    outMap: Map<string, string>
+  ): string {
+    const structNames = new Set<string>();
+    const structDefRegex = /\bstruct\s+(\w+)\s*\{/g;
+    let structMatch: RegExpExecArray | null;
+    while ((structMatch = structDefRegex.exec(funcCode)) !== null) {
+      structNames.add(structMatch[1]);
+    }
+    if (structNames.size === 0) return funcCode;
+
+    const sortedStructNames = [...structNames].sort((a, b) => b.length - a.length);
+    for (const structName of sortedStructNames) {
+      const suffixedStructName = `${structName}_${sanitizedNodeId}`;
+      outMap.set(structName, suffixedStructName);
+      funcCode = funcCode.replace(
+        new RegExp(`\\bstruct\\s+${this.escapeRegex(structName)}\\s*\\{`, 'g'),
+        `struct ${suffixedStructName} {`
+      );
+      funcCode = funcCode.replace(
+        new RegExp(`\\b${this.escapeRegex(structName)}\\b(?=\\s*[A-Za-z_(])`, 'g'),
+        suffixedStructName
+      );
+    }
+    return funcCode;
   }
 
   /**
    * Extract individual function definitions from a code block
    * Returns array of {signature, body} objects
    */
-  private extractFunctions(code: string): Array<{signature: string, body: string}> {
-    const functions: Array<{signature: string, body: string}> = [];
+  private extractFunctions(code: string): Array<{ signature: string; name: string; body: string }> {
+    const functions: Array<{ signature: string; name: string; body: string }> = [];
     
     // Scan a comment-masked copy so prose in // comments cannot match as functions, e.g.
     // `// Domain warping (strength...)` or `... single-color output` + newline + `for (...)`.
@@ -361,7 +440,7 @@ export class FunctionGenerator {
       // Create signature: returnType_functionName_paramTypes (normalized, no whitespace)
       const signature = `${funcStart.returnType.trim()}_${funcStart.name.trim()}_${paramTypes.map(t => t.trim()).join('_')}`;
       
-      functions.push({ signature, body: fullFunction });
+      functions.push({ signature, name: funcStart.name.trim(), body: fullFunction });
     }
     
     return functions;

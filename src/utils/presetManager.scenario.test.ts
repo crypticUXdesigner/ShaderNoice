@@ -288,7 +288,13 @@ describe('presetManager scenario tests', () => {
     expect(graph.nodes.some((n) => n.id === finalOutputId)).toBe(true);
   });
 
-  it.each(['color-lut-demo', 'color-gradient-demo'])(
+  it.each([
+    'color-lut-demo',
+    'color-gradient-demo',
+    'note-ripple-field-demo',
+    'note-gravity-warp-demo',
+    'arrangement-patterns-showcase',
+  ])(
     'loads %s preset via loadPreset and compiles without errors',
     async (presetName) => {
       const validationSpecs = toValidationSpecs(nodeSystemSpecs);

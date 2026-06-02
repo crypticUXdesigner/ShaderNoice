@@ -33,6 +33,88 @@
     var(--color-map-row-button-color) 38%,
     var(--color-map-row-button-bg-hover)
   );
+
+  /*
+   * Shared param controls: borders and toggles derive from category label/value tokens
+   * so light and dark node bodies both get visible chips and switch tracks.
+   */
+  --param-control-border: color-mix(
+    in srgb,
+    var(--param-control-value-color) 38%,
+    var(--param-control-bg)
+  );
+  --param-control-border-hover: color-mix(
+    in srgb,
+    var(--param-control-value-color) 52%,
+    var(--param-control-bg)
+  );
+  --param-control-border-active: var(--color-teal-90);
+
+  --toggle-bg-off: color-mix(in srgb, var(--param-label-color) 60%, var(--color-gray-50));
+  --toggle-bg-hover-off: color-mix(in srgb, var(--param-label-color) 72%, var(--color-gray-50));
+  --toggle-border-color: color-mix(in srgb, var(--param-label-color) 78%, var(--color-gray-50));
+  --toggle-border: 1px solid var(--toggle-border-color);
+  --toggle-label-color: var(--param-label-color);
+
+  --param-mode-button-bg: color-mix(in srgb, var(--param-label-color) 12%, var(--param-control-bg));
+  --param-mode-button-color-static: color-mix(in srgb, var(--param-label-color) 88%, transparent);
+  --param-mode-button-bg-hover: color-mix(in srgb, var(--param-label-color) 22%, var(--param-control-bg));
+
+  /*
+   * Embedded editors (bezier, range/remap, vector, color map): slot surfaces and
+   * label/grid tokens derive from category param tokens instead of global gray-20.
+   */
+  --embed-slot-bg: color-mix(
+    in srgb,
+    var(--param-label-color) 14%,
+    var(--param-control-bg)
+  );
+  --bezier-editor-label-color: var(--param-label-color);
+  --bezier-editor-grid-color: color-mix(
+    in srgb,
+    var(--param-label-color) 32%,
+    var(--embed-slot-bg)
+  );
+  --bezier-editor-grid-border-color: color-mix(
+    in srgb,
+    var(--param-label-color) 42%,
+    var(--embed-slot-bg)
+  );
+  --bezier-editor-control-line-color: color-mix(
+    in srgb,
+    var(--param-label-color) 48%,
+    var(--embed-slot-bg)
+  );
+  --range-editor-bg: var(--embed-slot-bg);
+  --range-editor-label-color: var(--param-label-color);
+  --range-editor-slider-track-color: color-mix(
+    in srgb,
+    var(--param-label-color) 36%,
+    var(--embed-slot-bg)
+  );
+  --vector2d-editor-bg: var(--embed-slot-bg);
+  --vector2d-editor-label-color: var(--param-label-color);
+  --vector2d-editor-grid-color: color-mix(
+    in srgb,
+    var(--param-label-color) 32%,
+    var(--embed-slot-bg)
+  );
+  --vector2d-editor-axis-color: color-mix(
+    in srgb,
+    var(--param-label-color) 55%,
+    var(--embed-slot-bg)
+  );
+  --vector3d-editor-bg: var(--embed-slot-bg);
+  --vector3d-editor-view-bg: color-mix(
+    in srgb,
+    var(--param-label-color) 10%,
+    var(--embed-slot-bg)
+  );
+  --vector3d-editor-label-color: var(--param-label-color);
+  --color-picker-node-swatch-bg: var(--embed-slot-bg);
+  --color-map-preview-bg: var(--embed-slot-bg);
+  --remap-range-bg: var(--embed-slot-bg);
+  --remap-range-input-label-color: var(--param-label-color);
 }
 
 /*
@@ -47,6 +129,18 @@
   --secondary-print: var(--param-control-value-color);
   --secondary-print-hover: var(--param-control-value-color);
   --secondary-print-active: var(--param-control-value-color);
+
+  :global(.button.secondary) {
+    border: 1px solid var(--param-control-border);
+  }
+
+  :global(.button.secondary:hover:not(:disabled):not(.disabled)) {
+    border-color: var(--param-control-border-hover, var(--param-control-border));
+  }
+
+  :global(.button.secondary:active:not(:disabled):not(.disabled)) {
+    border-color: var(--param-control-border-active);
+  }
 }
 
 /* Color-picker-row group header: same secondary mapping as param-cell controls. */

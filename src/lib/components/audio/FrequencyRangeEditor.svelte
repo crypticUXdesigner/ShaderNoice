@@ -1,15 +1,24 @@
 <script lang="ts">
   /**
    * FrequencyRangeEditor
-   * Compose: SpectrumStrip, FrequencyScale, RangeSlider (horizontal), ValueInput ×2 (start/end Hz)
-   * Spectrum parity: selected violet, unselected gray; log scale 20–20k Hz.
+   * Compose: SpectrumStrip, FrequencyScale, RangeSlider (horizontal), ValueInput controls grid.
+   * Spectrum parity: selected teal, unselected gray; log scale 20–20k Hz.
    */
   import SpectrumStrip from './SpectrumStrip.svelte';
   import FrequencyScale from './FrequencyScale.svelte';
-  import { RangeSlider, ValueInput } from '../ui';
+  import { RangeSlider, ValueInput, Button, DropdownMenu, MenuItem } from '../ui';
   import { hzToNorm, normToHz, FREQ_MIN, FREQ_MAX } from './frequencyUtils';
+  import type { AudioBandMode } from '../../../data-model/audioSetupTypes';
 
   const DEFAULT_HALF_LIFE_SECONDS = 1 / 120;
+
+  type BandModeOption = { value: AudioBandMode; label: string; desc: string };
+
+  const BAND_MODE_OPTIONS: ReadonlyArray<BandModeOption> = [
+    { value: 'mean', label: 'Mean', desc: 'Smooth response. Transients are softened.' },
+    { value: 'max', label: 'Max', desc: 'Snappy response. Reacts to transients.' },
+    { value: 'rms', label: 'RMS', desc: 'Balanced. Loudness-weighted average.' },
+  ];
 
   interface Props {
     /** [[minHz, maxHz]] - single band */
@@ -24,9 +33,10 @@
     attackHalfLifeSeconds?: number;
     /** Optional release half-life (seconds) for falling edges. When provided with handler, preferred over symmetric half-life. */
     releaseHalfLifeSeconds?: number;
+    bandMode?: AudioBandMode;
     disabled?: boolean;
     class?: string;
-    /** When false, Smooth and FFT size row is hidden (e.g. when shown elsewhere). */
+    /** When false, attack/release/FFT row is hidden (e.g. when shown elsewhere). */
     showSmoothingFft?: boolean;
     onChange?: (bands: [[number, number]]) => void;
     onCommit?: () => void;
@@ -34,6 +44,7 @@
     onAttackHalfLifeSecondsChange?: (value: number | undefined) => void;
     onReleaseHalfLifeSecondsChange?: (value: number | undefined) => void;
     onFftSizeChange?: (value: number) => void;
+    onBandModeChange?: (mode: AudioBandMode) => void;
   }
 
   let {
@@ -45,6 +56,7 @@
     smoothing = 0.5,
     attackHalfLifeSeconds,
     releaseHalfLifeSeconds,
+    bandMode = 'mean',
     disabled = false,
     class: className = '',
     showSmoothingFft = true,
@@ -54,7 +66,11 @@
     onAttackHalfLifeSecondsChange,
     onReleaseHalfLifeSecondsChange,
     onFftSizeChange,
+    onBandModeChange,
   }: Props = $props();
+
+  let modeMenuOpen = $state(false);
+  let modeAnchorEl = $state<HTMLDivElement | undefined>();
 
   const FFT_SIZE_MIN = 256;
   const FFT_SIZE_MAX = 8192;
@@ -66,6 +82,23 @@
 
   const minNorm = $derived(hzToNorm(minHz));
   const maxNorm = $derived(hzToNorm(maxHz));
+
+  const showModeControl = $derived(onBandModeChange != null);
+  const showTimingRow = $derived(
+    showSmoothingFft &&
+      (onFftSizeChange != null ||
+        onAttackHalfLifeSecondsChange != null ||
+        onReleaseHalfLifeSecondsChange != null ||
+        onSmoothingChange != null)
+  );
+  const showAttackControl = $derived(
+    onAttackHalfLifeSecondsChange != null || (showTimingRow && onSmoothingChange != null)
+  );
+  const showReleaseControl = $derived(onReleaseHalfLifeSecondsChange != null);
+  const resolvedBandMode = $derived(bandMode ?? 'mean');
+  const modeLabel = $derived(
+    BAND_MODE_OPTIONS.find((o) => o.value === resolvedBandMode)?.label ?? 'Mean'
+  );
 
   function handleRangeChange(payload: { low: number; high: number }) {
     const newMinHz = Math.round(normToHz(payload.low));
@@ -134,72 +167,95 @@
   <div class="scale">
     <FrequencyScale />
   </div>
-  <div class="inputs">
-    <div class="row">
-      <div class="column">
-        <span class="field-label">Start</span>
-        <ValueInput
-          value={minHz}
-          min={FREQ_MIN}
-          max={FREQ_MAX}
-          step={1}
-          decimals={0}
-          size="sm"
-          {disabled}
-          onChange={handleMinHzChange}
-          onCommit={() => onCommit?.()}
-          class="freq-input freq-input-start"
-        />
-      </div>
-      <div class="column">
-        <span class="field-label">End</span>
-        <ValueInput
-          value={maxHz}
-          min={FREQ_MIN}
-          max={FREQ_MAX}
-          step={1}
-          decimals={0}
-          size="sm"
-          {disabled}
-          onChange={handleMaxHzChange}
-          onCommit={() => onCommit?.()}
-          class="freq-input freq-input-end"
-        />
-      </div>
+  <div class="controls-grid">
+    <div class="control control-start">
+      <ValueInput
+        value={minHz}
+        min={FREQ_MIN}
+        max={FREQ_MAX}
+        step={1}
+        decimals={0}
+        size="sm"
+        {disabled}
+        onChange={handleMinHzChange}
+        onCommit={() => onCommit?.()}
+        class="freq-input freq-input-start"
+      />
+      <span class="label">Start</span>
     </div>
-    {#if showSmoothingFft && onFftSizeChange != null}
-      <div class="row">
-        <div class="column">
-          {#if onAttackHalfLifeSecondsChange != null || onReleaseHalfLifeSecondsChange != null}
-            <span class="field-label">Attack / Release</span>
-            <div class="attack-release">
-              <ValueInput
-                value={Math.round(((attackHalfLifeSeconds ?? DEFAULT_HALF_LIFE_SECONDS) as number) * 1000)}
-                min={0}
-                max={10000}
-                step={1}
-                decimals={0}
-                size="sm"
-                {disabled}
-                onChange={handleAttackHalfLifeMsChange}
-                onCommit={handleAttackHalfLifeMsChange}
-                class="attack-half-life-input"
-              />
-              <ValueInput
-                value={Math.round(((releaseHalfLifeSeconds ?? DEFAULT_HALF_LIFE_SECONDS) as number) * 1000)}
-                min={0}
-                max={10000}
-                step={1}
-                decimals={0}
-                size="sm"
-                {disabled}
-                onChange={handleReleaseHalfLifeMsChange}
-                onCommit={handleReleaseHalfLifeMsChange}
-                class="release-half-life-input"
-              />
-            </div>
-          {:else if onSmoothingChange != null}
-            <span class="field-label">Smooth</span>
+
+    <div class="grid-spacer" aria-hidden="true"></div>
+    <div class="grid-spacer" aria-hidden="true"></div>
+
+    <div class="control control-end">
+      <ValueInput
+        value={maxHz}
+        min={FREQ_MIN}
+        max={FREQ_MAX}
+        step={1}
+        decimals={0}
+        size="sm"
+        {disabled}
+        onChange={handleMaxHzChange}
+        onCommit={() => onCommit?.()}
+        class="freq-input freq-input-end"
+      />
+      <span class="label">End</span>
+    </div>
+
+    {#if showTimingRow}
+      {#if showModeControl}
+        <div class="control control-mode">
+          <div class="mode-anchor" bind:this={modeAnchorEl}>
+            <Button
+              variant="secondary"
+              size="sm"
+              mode="both"
+              class="mode-button"
+              aria-label="Band analysis mode"
+              {disabled}
+              onclick={() => (modeMenuOpen = !modeMenuOpen)}
+            >
+              {modeLabel}
+            </Button>
+            <DropdownMenu open={modeMenuOpen} anchor={modeAnchorEl} onClose={() => (modeMenuOpen = false)}>
+              {#snippet children()}
+                {#each BAND_MODE_OPTIONS as option (option.value)}
+                  <MenuItem
+                    label={option.label}
+                    desc={option.desc}
+                    selected={resolvedBandMode === option.value}
+                    onclick={() => {
+                      onBandModeChange?.(option.value);
+                      modeMenuOpen = false;
+                    }}
+                  />
+                {/each}
+              {/snippet}
+            </DropdownMenu>
+          </div>
+          <span class="label">Mode</span>
+        </div>
+      {:else}
+        <div class="grid-spacer" aria-hidden="true"></div>
+      {/if}
+
+      {#if showAttackControl}
+        <div class="control">
+          {#if onAttackHalfLifeSecondsChange != null}
+            <ValueInput
+              value={Math.round(((attackHalfLifeSeconds ?? DEFAULT_HALF_LIFE_SECONDS) as number) * 1000)}
+              min={0}
+              max={10000}
+              step={1}
+              decimals={0}
+              size="sm"
+              {disabled}
+              onChange={handleAttackHalfLifeMsChange}
+              onCommit={handleAttackHalfLifeMsChange}
+              class="attack-half-life-input"
+            />
+          {:else}
             <ValueInput
               value={smoothing}
               min={0}
@@ -213,9 +269,34 @@
               class="smoothing-input"
             />
           {/if}
+          <span class="label">{onAttackHalfLifeSecondsChange != null ? 'Attack' : 'Smooth'}</span>
         </div>
-        <div class="column">
-          <span class="field-label">FFT size</span>
+      {:else}
+        <div class="grid-spacer" aria-hidden="true"></div>
+      {/if}
+
+      {#if showReleaseControl}
+        <div class="control">
+          <ValueInput
+            value={Math.round(((releaseHalfLifeSeconds ?? DEFAULT_HALF_LIFE_SECONDS) as number) * 1000)}
+            min={0}
+            max={10000}
+            step={1}
+            decimals={0}
+            size="sm"
+            {disabled}
+            onChange={handleReleaseHalfLifeMsChange}
+            onCommit={handleReleaseHalfLifeMsChange}
+            class="release-half-life-input"
+          />
+          <span class="label">Release</span>
+        </div>
+      {:else}
+        <div class="grid-spacer" aria-hidden="true"></div>
+      {/if}
+
+      {#if onFftSizeChange != null}
+        <div class="control">
           <ValueInput
             value={fftSizeValue ?? fftSize}
             min={FFT_SIZE_MIN}
@@ -228,16 +309,18 @@
             onCommit={handleFftSizeChange}
             class="fft-size-input"
           />
+          <span class="label">FFT size</span>
         </div>
-      </div>
+      {:else}
+        <div class="grid-spacer" aria-hidden="true"></div>
+      {/if}
     {/if}
   </div>
 </div>
 
 <style>
-  /* FrequencyRangeEditor styles – visual from .card-display, .display-graph */
   .frequency-range-editor {
-    --spectrum-strip-height: 120px;
+    --spectrum-strip-height: var(--size-sm);
 
     &[data-disabled] {
       opacity: var(--opacity-disabled);
@@ -245,6 +328,7 @@
     }
 
     .spectrum-with-slider {
+      height: var(--spectrum-strip-height);
       min-height: var(--spectrum-strip-height);
     }
 
@@ -263,55 +347,60 @@
         --range-editor-handle-hover-bg: var(--color-teal-110);
         --range-editor-handle-active-bg: var(--color-teal-120);
       }
-
-
     }
 
     .scale {
       width: 100%;
     }
 
-    .inputs {
+    .controls-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      column-gap: var(--pd-sm);
+      row-gap: var(--pd-xs);
+      width: 100%;
+      margin-top: var(--pd-md);
+    }
+
+    .control {
       display: flex;
       flex-direction: column;
-      gap: var(--card-display-gap);
-      width: 100%;
-    }
+      align-items: stretch;
+      gap: var(--pd-2xs);
+      min-width: 0;
 
-    .inputs .row {
-      display: flex;
-      gap: var(--pd-lg);
-      width: 100%;
-    }
+      :global(.value-input-wrapper) {
+        width: 100%;
+      }
 
-    .inputs .column {
-      flex: 1;
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-      gap: var(--pd-sm);
-      padding: 0;
+      :global(.value-input) {
+        width: 100%;
+        box-sizing: border-box;
+        justify-content: center;
+      }
 
-      .field-label {
-        width: auto;
+      .label {
         font-size: var(--text-xs);
-        color: var(--print-subtle);
-        font-weight: 600;
+        color: var(--color-gray-110);
+        text-align: center;
       }
     }
 
-    .attack-release {
-      display: flex;
-      gap: var(--pd-xs);
-      justify-content: flex-end;
-      flex: 1;
-      min-width: 0;
+    .control-mode {
+      .mode-anchor {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+      }
+
+      :global(.mode-button) {
+        width: 100%;
+        justify-content: center;
+      }
     }
 
-    :global(.attack-half-life-input),
-    :global(.release-half-life-input) {
-      width: 90px;
+    .grid-spacer {
+      min-width: 0;
     }
   }
 </style>

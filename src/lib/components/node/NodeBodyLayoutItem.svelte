@@ -8,7 +8,7 @@
 
   import { autoGenerateLayout } from '../../../utils/layoutMigration';
   import { getCategorySlug } from '../../../utils/cssTokens';
-  import { getParameterEnumMappings, isEnumParameter } from '../../../utils/parameterEnumMappings';
+  import { getParameterEnumMappings, isEnumParameter, shouldShowEnumSteppers } from '../../../utils/parameterEnumMappings';
   import { getParamPortConnectionState } from '../../../utils/paramPortAudioState';
   import {
     getParameterInputValue,
@@ -51,6 +51,7 @@
     onPortClickForSignalPicker?: (screenX: number, screenY: number, nodeId: string, paramName: string, triggerElement?: HTMLElement | null) => void;
     onParameterChange: (paramName: string, value: import('../../../data-model/types').ParameterValue) => void;
     onParameterInputModeChanged?: (paramName: string, mode: ParameterInputMode) => void;
+    onParamDriverBypassToggle?: (paramName: string, bypassed: boolean) => void;
   }
 
   let {
@@ -70,6 +71,7 @@
     onPortClickForSignalPicker,
     onParameterChange,
     onParameterInputModeChanged,
+    onParamDriverBypassToggle,
   }: Props = $props();
 
   const bodyHeight = $derived(Math.max(0, height - headerHeight));
@@ -274,8 +276,13 @@
                   {audioSetup}
                   {nodeSpecs}
                   {getAudioManager}
-                  getTimelineCurrentTime={getTimelineCurrentTime}
-                  disabled={false}
+                    getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
+                    disabled={false}
                 >
                   {#snippet children({ displayValue, useConfigForInput })}
                     <Toggle
@@ -364,8 +371,13 @@
                 {audioSetup}
                 {nodeSpecs}
                 {getAudioManager}
-                getTimelineCurrentTime={getTimelineCurrentTime}
-                disabled={false}
+                    getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
+                    disabled={false}
               >
                 {#snippet children({ displayValue, useConfigForInput })}
                   <Toggle
@@ -388,8 +400,13 @@
                 {audioSetup}
                 {nodeSpecs}
                 {getAudioManager}
-                getTimelineCurrentTime={getTimelineCurrentTime}
-                disabled={false}
+                    getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
+                    disabled={false}
               >
                 {#snippet children({ displayValue, useConfigForInput })}
                   {@const enumMap = getParameterEnumMappings(spec.id, paramName)}
@@ -397,7 +414,7 @@
                     <EnumSelector
                       value={displayValue}
                       options={enumMap}
-                      showSteppers={spec.id === 'color-lut' && paramName === 'preset'}
+                      showSteppers={shouldShowEnumSteppers(spec.id, paramName)}
                       onChange={(v) => onParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
                     />
                   {/if}
@@ -421,8 +438,13 @@
                 {audioSetup}
                 {nodeSpecs}
                 {getAudioManager}
-                getTimelineCurrentTime={getTimelineCurrentTime}
-                disabled={false}
+                    getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
+                    disabled={false}
               >
                 {#snippet children({ displayValue, useConfigForInput, configValue })}
                   <ValueInput
@@ -454,8 +476,13 @@
                 {audioSetup}
                 {nodeSpecs}
                 {getAudioManager}
-                getTimelineCurrentTime={getTimelineCurrentTime}
-                disabled={false}
+                    getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
+                    disabled={false}
               >
                 {#snippet children({ displayValue, useConfigForInput, configValue })}
                   <Knob
@@ -490,8 +517,13 @@
                 {audioSetup}
                 {nodeSpecs}
                 {getAudioManager}
-                getTimelineCurrentTime={getTimelineCurrentTime}
-                disabled={false}
+                    getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
+                    disabled={false}
               >
                 {#snippet children({ displayValue, useConfigForInput, configValue })}
                   <ValueInput
@@ -531,8 +563,13 @@
                   {audioSetup}
                   {nodeSpecs}
                   {getAudioManager}
-                  getTimelineCurrentTime={getTimelineCurrentTime}
-                  disabled={false}
+                    getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
+                    disabled={false}
                 >
                   {#snippet children({ displayValue, useConfigForInput })}
                     <Toggle
@@ -554,8 +591,13 @@
                   {audioSetup}
                   {nodeSpecs}
                   {getAudioManager}
-                  getTimelineCurrentTime={getTimelineCurrentTime}
-                  disabled={false}
+                    getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
+                    disabled={false}
                 >
                   {#snippet children({ displayValue, useConfigForInput })}
                     {@const enumMap = getParameterEnumMappings(spec.id, paramName)}
@@ -563,7 +605,7 @@
                       <EnumSelector
                         value={displayValue}
                         options={enumMap}
-                        showSteppers={spec.id === 'color-lut' && paramName === 'preset'}
+                        showSteppers={shouldShowEnumSteppers(spec.id, paramName)}
                         onChange={(v) => onParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
                       />
                     {/if}
@@ -586,8 +628,13 @@
                   {audioSetup}
                   {nodeSpecs}
                   {getAudioManager}
-                  getTimelineCurrentTime={getTimelineCurrentTime}
-                  disabled={false}
+                    getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
+                    disabled={false}
                 >
                   {#snippet children({ displayValue, useConfigForInput, configValue })}
                     <ValueInput
@@ -618,8 +665,13 @@
                 {audioSetup}
                 {nodeSpecs}
                 {getAudioManager}
-                getTimelineCurrentTime={getTimelineCurrentTime}
-                disabled={false}
+                    getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
+                    disabled={false}
               >
                 {#snippet children({ displayValue, useConfigForInput, configValue })}
                   <Knob
@@ -653,8 +705,13 @@
                   {audioSetup}
                   {nodeSpecs}
                   {getAudioManager}
-                  getTimelineCurrentTime={getTimelineCurrentTime}
-                  disabled={false}
+                    getTimelineCurrentTime={getTimelineCurrentTime}
+                    onParamDriverBypassToggle={
+                      onParamDriverBypassToggle
+                        ? (_nid, pname, bypassed) => onParamDriverBypassToggle(pname, bypassed)
+                        : undefined
+                    }
+                    disabled={false}
                 >
                   {#snippet children({ displayValue, useConfigForInput, configValue })}
                     <ValueInput

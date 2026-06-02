@@ -1,0 +1,137 @@
+/* =============================================================================
+   MIDI — arrangement snapshot nodes (DAW layout + pattern visuals)
+   Deep violet lane + amber note highlights — distinct from Audio (cyan),
+   Patterns (leaf), Effects (red-purple), Mask (violet-gray + leaf knob)
+   ============================================================================= */
+
+:root {
+  /* Node body shadow (outermost) */
+  --node-body-shadow-color-mid-midi: var(--color-violet-50);
+  --node-body-shadow-color-outer-midi: var(--color-blue-gray-40);
+
+  /* Node header */
+  --node-header-bg-midi: var(--color-violet-80);
+  --node-header-bg-end-midi: var(--color-violet-50);
+  --node-header-print-midi: var(--color-yellow-120);
+
+  /* Icon box — warm slab on cool violet header (high contrast vs header bg) */
+  --node-icon-box-bg-midi: var(--color-orange-100);
+  --node-icon-box-color-midi: var(--color-violet-20);
+
+  /* Param group header */
+  --param-group-header-color-midi: var(--color-yellow-100);
+
+  /* Param cell */
+  --node-param-cell-bg-midi: rgba(255, 255, 255, 0.06);
+  --node-param-cell-bg-end-midi: rgba(255, 255, 255, 0.02);
+  --node-param-label-color-midi: var(--color-yellow-120);
+
+  /* Knob — dark track + bright amber arc (match mask leaf-120 contrast pattern) */
+  --node-knob-value-bg-midi: var(--color-violet-gray-40);
+  --node-knob-value-color-midi: var(--color-yellow-120);
+  --node-knob-ring-color-midi: var(--color-violet-gray-110);
+  --node-knob-arc-active-midi: var(--color-orange-50);
+  --node-knob-marker-midi: var(--color-yellow-100);
+  --knob-ring-bg-width-midi: 8px;
+  --knob-ring-active-width-midi: 3px;
+  --knob-marker-size-midi: 5px;
+  --knob-marker-radius-offset-midi: -14px;
+
+  /* Bezier editor */
+  --node-bezier-curve-midi: var(--color-violet-90);
+  --node-bezier-control-midi: var(--color-violet-90);
+  --node-bezier-control-hover-midi: var(--color-violet-100);
+}
+
+.node.midi {
+  /* CSS custom properties */
+  --node-body-shadow-color-mid: var(--node-body-shadow-color-mid-midi);
+  --node-body-shadow-color-outer: var(--node-body-shadow-color-outer-midi);
+  --node-header-name-color: var(--node-header-print-midi);
+  --param-group-header-color: var(--param-group-header-color-midi);
+  --param-label-color: var(--node-param-label-color-midi);
+  --knob-ring-color: var(--node-knob-ring-color-midi);
+  --knob-ring-active-color-static: var(--node-knob-arc-active-midi);
+  --knob-marker-color: var(--node-knob-marker-midi);
+  --knob-value-bg: var(--node-knob-value-bg-midi);
+  --knob-value-color: var(--node-knob-value-color-midi);
+  --param-control-bg: var(--node-knob-value-bg-midi);
+  --param-control-bg-hover: var(--color-violet-gray-50);
+  --param-control-bg-active: var(--color-violet-gray-60);
+  --param-control-value-color: var(--node-knob-value-color-midi);
+  --knob-ring-bg-width: var(--knob-ring-bg-width-midi);
+  --knob-ring-active-width: var(--knob-ring-active-width-midi);
+  --knob-marker-size: var(--knob-marker-size-midi);
+  --knob-marker-radius-offset: var(--knob-marker-radius-offset-midi);
+
+  /* Node header (outermost) */
+  background: radial-gradient(
+    ellipse var(--node-header-bg-gradient-ellipse-width) var(--node-header-bg-gradient-ellipse-height) at var(--node-header-bg-gradient-ellipse-x) var(--node-header-bg-gradient-ellipse-y),
+    var(--node-header-bg-midi),
+    var(--node-header-bg-end-midi)
+  );
+
+  /* Node body */
+  .node-body {
+    background: radial-gradient(
+      ellipse 120% 160% at 50% 25%,
+      var(--color-violet-gray-60),
+      var(--color-blue-gray-50)
+    );
+
+    .param-grid {
+      border-radius: var(--radius-xl);
+    }
+  }
+
+  /* Icon box */
+  .icon-box {
+    background: var(--node-icon-box-bg-midi);
+
+    .header-icon {
+      color: var(--node-icon-box-color-midi);
+    }
+  }
+
+  /* Node header */
+  .node-header {
+    .label-text,
+    .label-input,
+    .port .name-label {
+      color: var(--node-header-print-midi);
+    }
+  }
+
+  /* Param cell */
+  .param-cell {
+    background: radial-gradient(
+      ellipse 120% 160% at 50% 25%,
+      var(--node-param-cell-bg-midi),
+      var(--node-param-cell-bg-end-midi)
+    );
+
+    &.connected {
+      background: var(--color-violet-70);
+      border-color: transparent;
+    }
+
+    .left-column .top .label {
+      color: var(--node-param-label-color-midi);
+    }
+  }
+
+  /* Bezier editor */
+  .bezier-editor {
+    .curve {
+      stroke: var(--node-bezier-curve-midi);
+    }
+
+    .control-point {
+      background: var(--node-bezier-control-midi);
+
+      &:hover {
+        background: var(--node-bezier-control-hover-midi);
+      }
+    }
+  }
+}

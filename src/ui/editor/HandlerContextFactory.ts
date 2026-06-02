@@ -53,6 +53,8 @@ export interface HandlerContextSource {
   readonly onParameterInputModeChanged?: (nodeId: string, paramName: string, mode: import('../../types/nodeSpec').ParameterInputMode) => void;
   readonly isSpacePressed: boolean;
   getActiveTool(): import('../../types/editor').ToolType;
+  getCurrentMouse(): { x: number; y: number };
+  getCursorRoot(): HTMLElement | null;
 }
 
 export function createHandlerContext(source: HandlerContextSource): HandlerContext {
@@ -99,7 +101,9 @@ export function createHandlerContext(source: HandlerContextSource): HandlerConte
     onParameterInputModeChanged: source.onParameterInputModeChanged,
     getOnParameterInputModeChanged: () => source.onParameterInputModeChanged,
     isSpacePressed: source.isSpacePressed,
-    getActiveTool: () => source.getActiveTool()
+    getActiveTool: () => source.getActiveTool(),
+    getCurrentMouse: () => source.getCurrentMouse(),
+    getCursorRoot: () => source.getCursorRoot(),
   };
   return new HandlerContextBuilder(deps).build();
 }

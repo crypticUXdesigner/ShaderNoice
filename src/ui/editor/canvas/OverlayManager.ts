@@ -13,7 +13,7 @@ import { NodeRenderer } from '../NodeRenderer';
 import { getCSSVariableAsNumber } from '../../../utils/cssTokens';
 import { getHeaderMainContentBoundsCanvas } from '../../../utils/nodeHeaderGeometry';
 import { snapParameterValue } from '../../../utils/parameterValueCalculator';
-import type { DropdownMenuItem, SignalSelectPayload } from '../../../types/editor';
+import type { DropdownMenuActionItem, DropdownMenuItem, SignalSelectPayload } from '../../../types/editor';
 
 export interface OverlayManagerDependencies {
   uiElementManager: UIElementManager;
@@ -285,7 +285,7 @@ export class OverlayManager {
     const currentValue = (node.parameters[paramName] ?? paramSpec.default) as number;
 
     // Create dropdown items
-    const items: DropdownMenuItem[] = Object.entries(enumMappings)
+    const items: DropdownMenuActionItem[] = Object.entries(enumMappings)
       .sort(([a], [b]) => parseInt(a) - parseInt(b))
       .map(([valueStr, label]) => {
         const value = parseInt(valueStr);

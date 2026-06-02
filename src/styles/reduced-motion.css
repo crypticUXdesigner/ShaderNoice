@@ -9,4 +9,12 @@
   .popover-base {
     transition: none !important;
   }
+
+  .modal-backdrop::before,
+  .modal-backdrop::after {
+    animation: none !important;
+    transform: none;
+    filter: brightness(1);
+    opacity: 0.88;
+  }
 }

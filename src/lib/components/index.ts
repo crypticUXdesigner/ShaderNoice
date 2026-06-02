@@ -20,6 +20,7 @@ export {
   AudioSignalPicker,
   FloatingPanel,
   HelpCallout,
+  ParameterDriverPanel,
 } from './floating-panel';
 export { SignalConnectionPicker } from './audio';
 export { VideoExportDialog, ImageExportDialog } from './export';

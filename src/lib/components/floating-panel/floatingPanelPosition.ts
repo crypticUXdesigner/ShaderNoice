@@ -100,6 +100,35 @@ export function setStoredPosition(
  */
 export const AUDIO_SIGNAL_PICKER_LARGE_CLAMP_BOX = { width: 900, height: 800 } as const;
 
+/** Conservative outer box for the parameter driver panel in overview (browse / connect) mode. */
+export const PARAMETER_DRIVER_PANEL_OVERVIEW_CLAMP_BOX = { width: 920, height: 800 } as const;
+
+/** Focused audio / MIDI envelope driver panel (compact). */
+export const PARAMETER_DRIVER_PANEL_FOCUS_CLAMP_BOX_COMPACT = { width: 520, height: 560 } as const;
+
+/** Focused animation driver panel (wide curve editor). */
+export const PARAMETER_DRIVER_PANEL_FOCUS_CLAMP_BOX_ANIMATION = { width: 840, height: 720 } as const;
+
+/**
+ * @deprecated Use {@link getParameterDriverPanelFocusClampBox} or the per-kind constants.
+ * Kept as alias of the compact box for older call sites.
+ */
+export const PARAMETER_DRIVER_PANEL_FOCUS_CLAMP_BOX =
+  PARAMETER_DRIVER_PANEL_FOCUS_CLAMP_BOX_COMPACT;
+
+export type ParameterDriverPanelFocusKind = 'audio' | 'animation' | 'midi';
+
+export function getParameterDriverPanelFocusClampBox(
+  kind: ParameterDriverPanelFocusKind
+): { readonly width: number; readonly height: number } {
+  return kind === 'animation'
+    ? PARAMETER_DRIVER_PANEL_FOCUS_CLAMP_BOX_ANIMATION
+    : PARAMETER_DRIVER_PANEL_FOCUS_CLAMP_BOX_COMPACT;
+}
+
+/** @deprecated Prefer {@link PARAMETER_DRIVER_PANEL_OVERVIEW_CLAMP_BOX}. */
+export const PARAMETER_DRIVER_PANEL_CLAMP_BOX = PARAMETER_DRIVER_PANEL_OVERVIEW_CLAMP_BOX;
+
 /**
  * Conservative outer box for the **compact** connected-signal picker.
  */

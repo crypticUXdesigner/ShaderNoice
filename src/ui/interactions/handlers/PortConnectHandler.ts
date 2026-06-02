@@ -83,11 +83,13 @@ export class PortConnectHandler implements InteractionHandler {
       hoveredPort: null
     });
     
-    this.context.setCursor('crosshair');
+    this.context.applyConnectingCursor?.() ?? this.context.setCursor('crosshair');
   }
   
   onUpdate(event: InteractionEvent): void {
     if (!this.isConnecting) return;
+
+    this.context.applyConnectingCursor?.() ?? this.context.setCursor('crosshair');
     
     // Store current mouse position for edge scrolling
     this.currentMouseX = event.screenPosition.x;
@@ -156,8 +158,12 @@ export class PortConnectHandler implements InteractionHandler {
       hoveredPort: null
     });
     
-    const cursor = this.context.isSpacePressed?.() ? 'grab' : 'default';
-    this.context.setCursor(cursor);
+    if (this.context.refreshCursorFromHover) {
+      this.context.refreshCursorFromHover();
+    } else {
+      const cursor = this.context.isSpacePressed?.() ? 'grab' : 'default';
+      this.context.setCursor(cursor);
+    }
     this.context.requestRender();
   }
   

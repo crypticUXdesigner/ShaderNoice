@@ -9,7 +9,7 @@
     value: number;
     options: Record<number, string>;
     disabled?: boolean;
-    /** When true, show prev/next chevrons after the preset label button (e.g. color-lut). */
+    /** When true, show prev/next chevrons after the enum label button (e.g. color-lut preset, blend mode). */
     showSteppers?: boolean;
     class?: string;
     onChange?: (value: number) => void;
@@ -104,8 +104,8 @@
       mode="icon-only"
       class="enum-stepper"
       disabled={disabled || valueKeys.length < 2}
-      title="Previous preset"
-      aria-label="Previous preset"
+      title="Previous option"
+      aria-label="Previous option"
       onclick={() => stepPreset(-1)}
     >
       <IconSvg name="chevron-left" variant="line" />
@@ -116,8 +116,8 @@
       mode="icon-only"
       class="enum-stepper"
       disabled={disabled || valueKeys.length < 2}
-      title="Next preset"
-      aria-label="Next preset"
+      title="Next option"
+      aria-label="Next option"
       onclick={() => stepPreset(1)}
     >
       <IconSvg name="chevron-right" variant="line" />

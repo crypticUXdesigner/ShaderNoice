@@ -1,0 +1,82 @@
+{
+  "format": "shadernoice-node-graph",
+  "formatVersion": "2.0",
+  "graph": {
+    "id": "graph-preset-cellular-slip-demo",
+    "name": "Cellular Slip Demo",
+    "version": "2.0",
+    "nodes": [
+      {
+        "id": "node-uv",
+        "type": "uv-coordinates",
+        "position": { "x": -900, "y": 0 },
+        "parameters": {}
+      },
+      {
+        "id": "node-slip",
+        "type": "cellular-slip",
+        "position": { "x": -350, "y": 0 },
+        "parameters": {
+          "cellularSlipScale": 6.0,
+          "cellularSlipJitter": 0.85,
+          "cellularSlipAmount": 0.22,
+          "cellularSlipRotation": 12.0,
+          "cellularSlipEdge": 0.06,
+          "cellularSlipEdgeLock": 1,
+          "cellularSlipSeed": 0.0,
+          "cellularSlipStepHz": 0.0,
+          "cellularSlipBlend": 1.0
+        }
+      },
+      {
+        "id": "node-noise",
+        "type": "noise",
+        "position": { "x": 200, "y": 0 },
+        "parameters": {
+          "noiseMode": 0,
+          "noiseScale": 4.0,
+          "noiseOctaves": 3,
+          "noiseLacunarity": 2.0,
+          "noiseGain": 0.5,
+          "noiseTimeSpeed": 0.2,
+          "noiseIntensity": 1.0
+        }
+      },
+      {
+        "id": "node-output",
+        "type": "final-output",
+        "position": { "x": 750, "y": 0 },
+        "parameters": {}
+      }
+    ],
+    "connections": [
+      {
+        "id": "conn-uv-slip",
+        "sourceNodeId": "node-uv",
+        "sourcePort": "out",
+        "targetNodeId": "node-slip",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-slip-noise",
+        "sourceNodeId": "node-slip",
+        "sourcePort": "out",
+        "targetNodeId": "node-noise",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-noise-out",
+        "sourceNodeId": "node-noise",
+        "sourcePort": "out",
+        "targetNodeId": "node-output",
+        "targetPort": "in"
+      }
+    ],
+    "viewState": {
+      "zoom": 0.85,
+      "panX": 200,
+      "panY": 80,
+      "selectedNodeIds": []
+    }
+  }
+}

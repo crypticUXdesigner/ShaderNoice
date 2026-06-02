@@ -12,6 +12,12 @@ import type { NodeSpec } from '../../../types/nodeSpec';
 import type { NodeRenderMetrics } from '../NodeRenderer';
 import { RenderLayer } from '../rendering/RenderState';
 import type { ToolType } from '../../../types/editor';
+import type { HitTestManager } from './HitTestManager';
+import {
+  applyConnectingCursor,
+  applyEditorCursor,
+  restoreEditorCursorFromHover,
+} from './editorCanvasCursor';
 
 /**
  * Dependencies needed to build a HandlerContext.
@@ -36,26 +42,7 @@ export interface HandlerContextDependencies {
     deselectConnection: (connectionId: string) => void;
     selectConnection: (connectionId: string, multiSelect: boolean) => void;
   };
-  hitTestManager: {
-    hitTestNode: (screenX: number, screenY: number) => string | null;
-    hitTestPort: (screenX: number, screenY: number) => {
-      nodeId: string;
-      port: string;
-      isOutput: boolean;
-      parameter?: string;
-    } | null;
-    hitTestParameter: (screenX: number, screenY: number) => {
-      nodeId: string;
-      paramName: string;
-      isString?: boolean;
-    } | null;
-    hitTestBezierControlPoint: (screenX: number, screenY: number) => {
-      nodeId: string;
-      paramNames: [string, string, string, string];
-      controlIndex: number;
-    } | null;
-    hitTestConnection: (screenX: number, screenY: number) => string | null;
-  };
+  hitTestManager: HitTestManager;
   connectionStateManager: {
     setState: (state: Partial<{
       isConnecting: boolean;
@@ -84,6 +71,8 @@ export interface HandlerContextDependencies {
   
   // UI updates
   canvas: HTMLCanvasElement;
+  getCursorRoot?: () => HTMLElement | null;
+  getCurrentMouse: () => { x: number; y: number };
   
   // Node operations
   nodeMetrics: Map<string, NodeRenderMetrics>;
@@ -187,7 +176,30 @@ export class HandlerContextBuilder {
       canvasToScreen: (canvasX, canvasY) => this.deps.canvasToScreen(canvasX, canvasY),
       requestRender: () => this.deps.requestRender(),
       render: () => this.deps.render(),
-      setCursor: (cursor) => { this.deps.canvas.style.cursor = cursor; },
+      setCursor: (cursor) => {
+        applyEditorCursor(
+          { canvas: this.deps.canvas, cursorRoot: this.deps.getCursorRoot?.() ?? null },
+          cursor
+        );
+      },
+      applyConnectingCursor: () => {
+        applyConnectingCursor({
+          canvas: this.deps.canvas,
+          cursorRoot: this.deps.getCursorRoot?.() ?? null,
+        });
+      },
+      refreshCursorFromHover: () => {
+        restoreEditorCursorFromHover({
+          canvas: this.deps.canvas,
+          cursorRoot: this.deps.getCursorRoot?.() ?? null,
+          hitTestManager: this.deps.hitTestManager,
+          graph: this.deps.getGraph != null ? this.deps.getGraph!() : this.deps.graph,
+          nodeSpecs: this.deps.nodeSpecs,
+          getActiveTool: () => this.deps.getActiveTool(),
+          getIsSpacePressed: () => this.deps.isSpacePressed,
+          getCurrentMouse: () => this.deps.getCurrentMouse(),
+        });
+      },
       onNodeMoved: this.deps.onNodeMoved,
       onNodeSelected: (nodeId, multiSelect) => {
         const fn = this.deps.getOnNodeSelected?.() ?? this.deps.onNodeSelected;

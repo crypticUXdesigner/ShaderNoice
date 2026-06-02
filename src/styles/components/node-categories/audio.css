@@ -27,7 +27,7 @@
   /* Knob */
   --node-knob-value-bg-audio: var(--color-cyan-40);
   --node-knob-value-color-audio: var(--color-cyan-120);
-  --node-knob-ring-color-audio: var(--knob-ring-color);
+  --node-knob-ring-color-audio: var(--color-cyan-110);
   --node-knob-arc-active-audio: var(--color-cyan-100);
   --node-knob-marker-audio: var(--color-cyan-120);
 
@@ -43,6 +43,7 @@
   --node-body-shadow-color-outer: var(--node-body-shadow-color-outer-audio);
   --node-header-name-color: var(--node-header-print-audio);
   --param-group-header-color: var(--param-group-header-color-audio);
+  --param-label-color: var(--node-param-label-color-audio);
   --knob-ring-color: var(--node-knob-ring-color-audio);
   --knob-ring-active-color-static: var(--node-knob-arc-active-audio);
   --knob-marker-color: var(--node-knob-marker-audio);

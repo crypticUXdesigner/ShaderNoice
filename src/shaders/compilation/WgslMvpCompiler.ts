@@ -37,11 +37,28 @@ import {
   filterRegionsForNode,
 } from '../arrangement/packArrangementRegionsForGlsl';
 import { setArrangementNotesBakeCache } from '../../audiotool/arrangement/arrangementNotesBakeCache';
+import { setArrangementPatternOnsetBakeCache } from '../../audiotool/arrangement/arrangementPatternOnsetBakeCache';
 import {
   buildArrangementNotesWgslNodeHelper,
   filterNotesForNode,
 } from '../arrangement/packArrangementNotesForGlsl';
+import {
+  buildNoteRippleFieldWgslNodeHelper,
+  buildPitchClassCompassWgslNodeHelper,
+  buildRhythmStripeFieldWgslNodeHelper,
+  buildVelocitySparkGridWgslNodeHelper,
+  buildDurationCometTrailsWgslNodeHelper,
+  buildNoteGravityWarpWgslNodeHelper,
+  buildChordVoronoiBloomWgslNodeHelper,
+  buildBoundaryShutterRaysWgslNodeHelper,
+  buildTrackHaloLatticeWgslNodeHelper,
+  filterNotePatternForNode,
+  filterRegionPatternForNode,
+  graphUsesArrangementPatternSharedHelpers,
+  registerArrangementPatternSharedWgslHelpers,
+} from '../arrangement/pattern';
 import { emitWgslBlendNode } from './wgslBlendNode';
+import { emitCircleInversionWgsl, emitVoronoiCellWgsl } from '../uvWarp';
 import { emitLutWgslFunctions, emitThreeStopWgslFunctions, lutWgslSampleFunctionName } from '../colorRamps/emitWgsl';
 import { getBakedLutPresetIndex } from '../colorRamps/lutPresets';
 
@@ -77,6 +94,11 @@ export const WGSL_SUPPORTED_NODE_TYPES = new Set([
   'infinite-zoom',
   'iridescent-tunnel',
   'kaleidoscope',
+  'crease-fold',
+  'cellular-slip',
+  'mobius-portal',
+  'wake-smear',
+  'circle-inversion',
   'quad-warp',
   'plane-project',
   'rain-drops',
@@ -112,6 +134,15 @@ export const WGSL_SUPPORTED_NODE_TYPES = new Set([
   'arc-tangent-2',
   'arrangement-lanes',
   'arrangement-notes',
+  'note-ripple-field',
+  'pitch-class-compass',
+  'rhythm-stripe-field',
+  'velocity-spark-grid',
+  'track-halo-lattice',
+  'boundary-shutter-rays',
+  'duration-comet-trails',
+  'note-gravity-warp',
+  'chord-voronoi-bloom',
   'exponential',
   'natural-logarithm',
   'lerp',
@@ -2436,6 +2467,10 @@ fn rotate2(p: vec2<f32>, angle: f32) -> vec2<f32> {
     return { type: 'vec3<f32>', code: `vec3<f32>(${x}, ${y}, ${z})` };
   };
 
+  if (graphUsesArrangementPatternSharedHelpers(graph.nodes, executionOrder)) {
+    registerArrangementPatternSharedWgslHelpers(requireHelper);
+  }
+
   for (const nodeId of executionOrder) {
     if (!reachable.has(nodeId)) continue;
     const node = graph.nodes.find((n) => n.id === nodeId);
@@ -3620,6 +3655,416 @@ fn kaleidoscopeFold(p: vec2<f32>, segments: i32, rotation: f32, smoothEdge: f32)
         setNodeOut(nodeId, 'out', {
           type: 'vec2<f32>',
           code: `(${center} + kaleidoscopeFold(${p}, ${segI}, ${rotation}, ${smoothEdge}))`,
+        });
+        break;
+      }
+      case 'crease-fold': {
+        const uv = resolveInputVec2(nodeId, 'in');
+        if (!uv) break;
+
+        const angleDeg = paramSlotExprWired(paramLayout, nodeId, 'creaseFoldAngle', 0);
+        const offset = paramSlotExprWired(paramLayout, nodeId, 'creaseFoldOffset', 0);
+        const foldAmount = paramSlotExprWired(paramLayout, nodeId, 'creaseFoldAmount', 0);
+        const soft = paramSlotExprWired(paramLayout, nodeId, 'creaseFoldSoftness', 0);
+        const spacing = paramSlotExprWired(paramLayout, nodeId, 'creaseFoldRepeatSpacing', 0);
+        const repeatCountF = paramSlotExprWired(paramLayout, nodeId, 'creaseFoldRepeatCount', 0);
+        const phase = paramSlotExprWired(paramLayout, nodeId, 'creaseFoldPhase', 0);
+        const blend = paramSlotExprWired(paramLayout, nodeId, 'creaseFoldBlend', 0);
+
+        requireHelper(
+          'creaseFold',
+          `
+fn creaseFoldUv(
+  p: vec2<f32>,
+  n: vec2<f32>,
+  effOffset: f32,
+  foldAmount: f32,
+  soft: f32,
+  repeatSpacing: f32,
+  repeatCount: i32
+) -> vec2<f32> {
+  var acc = p;
+  for (var i: i32 = 0; i < 8; i = i + 1) {
+    if (i >= repeatCount) { break; }
+    var d = dot(acc, n) - effOffset;
+    if (repeatSpacing > 0.0001) {
+      let band = floor(d / repeatSpacing);
+      d = d - band * repeatSpacing;
+      if (i32(band) % 2 != 0) {
+        d = repeatSpacing - d;
+      }
+    }
+    let pRef = acc - 2.0 * n * max(d, 0.0);
+    let w = smoothstep(-soft, soft, d);
+    acc = mix(acc, pRef, foldAmount * w);
+  }
+  return acc;
+}
+          `
+        );
+
+        const angleRad = `(${angleDeg} * 0.017453292519943295)`;
+        const n = `vec2<f32>(cos(${angleRad}), sin(${angleRad}))`;
+        const effOffset = `(${offset} + ${phase})`;
+        const softClamped = `max(${soft}, 0.0001)`;
+        const foldAmt = `clamp(${foldAmount}, 0.0, 1.0)`;
+        const spacingClamped = `max(${spacing}, 0.0)`;
+        const repeatCount = `clamp(i32(${repeatCountF} + 0.5), 1, 8)`;
+        const pFold = `creaseFoldUv(${uv.code}, ${n}, ${effOffset}, ${foldAmt}, ${softClamped}, ${spacingClamped}, ${repeatCount})`;
+        setNodeOut(nodeId, 'out', {
+          type: 'vec2<f32>',
+          code: `mix(${uv.code}, ${pFold}, clamp(${blend}, 0.0, 1.0))`,
+        });
+        break;
+      }
+      case 'cellular-slip': {
+        const uv = resolveInputVec2(nodeId, 'in');
+        if (!uv) break;
+
+        const scale = paramSlotExprWired(paramLayout, nodeId, 'cellularSlipScale', 0);
+        const jitter = paramSlotExprWired(paramLayout, nodeId, 'cellularSlipJitter', 0);
+        const slipAmount = paramSlotExprWired(paramLayout, nodeId, 'cellularSlipAmount', 0);
+        const rotationDeg = paramSlotExprWired(paramLayout, nodeId, 'cellularSlipRotation', 0);
+        const edgeSoft = paramSlotExprWired(paramLayout, nodeId, 'cellularSlipEdge', 0);
+        const edgeLockF = paramSlotExprWired(paramLayout, nodeId, 'cellularSlipEdgeLock', 0);
+        const seed = paramSlotExprWired(paramLayout, nodeId, 'cellularSlipSeed', 0);
+        const stepHz = paramSlotExprWired(paramLayout, nodeId, 'cellularSlipStepHz', 0);
+        const blend = paramSlotExprWired(paramLayout, nodeId, 'cellularSlipBlend', 0);
+
+        requireHelper('uvWarp_voronoiCell', emitVoronoiCellWgsl());
+        requireHelper(
+          'cellularSlip',
+          `
+fn cellularSlipUv(
+  p: vec2<f32>,
+  scale: f32,
+  jitter: f32,
+  slipAmount: f32,
+  rotationDeg: f32,
+  edgeSoftness: f32,
+  edgeLock: i32,
+  seedOffset: vec2<f32>
+) -> vec2<f32> {
+  let vor = uvWarp_voronoiCellLookup(p, scale, jitter);
+  let cellId = vor.cellId + seedOffset;
+  let slipHash = uvWarp_hashCell(cellId);
+  let slipVec = (slipHash * 2.0 - 1.0) * slipAmount;
+  let angleRad = (slipHash.y * 2.0 - 1.0) * rotationDeg * 0.017453292519943295;
+  let c = cos(angleRad);
+  let sn = sin(angleRad);
+  var q = p - vor.seed;
+  q = vec2<f32>(c * q.x - sn * q.y, sn * q.x + c * q.y);
+  var pCell = vor.seed + q + slipVec;
+  if (edgeLock >= 1) {
+    let edgeGap = vor.f2 - vor.f1;
+    let soft = max(edgeSoftness, 0.0001);
+    let w = smoothstep(0.0, soft, edgeGap);
+    pCell = mix(p, pCell, w);
+  }
+  return pCell;
+}
+          `
+        );
+
+        const stepHzClamped = `max(${stepHz}, 0.0)`;
+        const seedTick = `floor(globals.v0.x * ${stepHzClamped})`;
+        const seedBase = `(${seed} + ${seedTick})`;
+        const seedOffset = `vec2<f32>(${seedBase}, ${seedBase})`;
+        const edgeLock = `i32(${edgeLockF} + 0.5)`;
+        const pSlip = `cellularSlipUv(${uv.code}, ${scale}, ${jitter}, ${slipAmount}, ${rotationDeg}, ${edgeSoft}, ${edgeLock}, ${seedOffset})`;
+        setNodeOut(nodeId, 'out', {
+          type: 'vec2<f32>',
+          code: `mix(${uv.code}, ${pSlip}, clamp(${blend}, 0.0, 1.0))`,
+        });
+        break;
+      }
+      case 'mobius-portal': {
+        const uv = resolveInputVec2(nodeId, 'in');
+        if (!uv) break;
+
+        const centerX = paramSlotExprWired(paramLayout, nodeId, 'mobiusPortalCenterX', 0);
+        const centerY = paramSlotExprWired(paramLayout, nodeId, 'mobiusPortalCenterY', 0);
+        const poleX = paramSlotExprWired(paramLayout, nodeId, 'mobiusPortalPoleX', 0);
+        const poleY = paramSlotExprWired(paramLayout, nodeId, 'mobiusPortalPoleY', 0);
+        const poleRadius = paramSlotExprWired(paramLayout, nodeId, 'mobiusPortalPoleRadius', 0);
+        const rotationDeg = paramSlotExprWired(paramLayout, nodeId, 'mobiusPortalRotation', 0);
+        const zoom = paramSlotExprWired(paramLayout, nodeId, 'mobiusPortalZoom', 0);
+        const boundarySoft = paramSlotExprWired(paramLayout, nodeId, 'mobiusPortalBoundarySoft', 0);
+        const blend = paramSlotExprWired(paramLayout, nodeId, 'mobiusPortalBlend', 0);
+
+        requireHelper(
+          'mobiusPortal',
+          `
+fn mobiusPortalUv(
+  p: vec2<f32>,
+  center: vec2<f32>,
+  pole: vec2<f32>,
+  poleRadius: f32,
+  rotationDeg: f32,
+  zoom: f32,
+  boundarySoft: f32
+) -> vec2<f32> {
+  let z = (p - center) * zoom;
+  var a = pole * poleRadius;
+  let aLen = length(a);
+  if (aLen > 0.95) {
+    a = a * (0.95 / aLen);
+  }
+
+  let num = z - a;
+  let denomRe = 1.0 - dot(a, z);
+  let denom = max(abs(denomRe), 0.0001);
+  var w = num / denom;
+
+  let rotRad = rotationDeg * 0.017453292519943295;
+  let c = cos(rotRad);
+  let s = sin(rotRad);
+  w = vec2<f32>(c * w.x - s * w.y, s * w.x + c * w.y);
+
+  let soft = max(boundarySoft, 0.0001);
+  let edgeFade = 1.0 - smoothstep(1.0 - soft, 1.0, length(z));
+  w = mix(z, w, edgeFade);
+
+  let wLen = length(w);
+  if (wLen > 8.0) {
+    w = w * (8.0 / wLen);
+  }
+
+  return center + w;
+}
+          `
+        );
+
+        const center = `vec2<f32>(${centerX}, ${centerY})`;
+        const pole = `vec2<f32>(${poleX}, ${poleY})`;
+        const pPortal = `mobiusPortalUv(${uv.code}, ${center}, ${pole}, ${poleRadius}, ${rotationDeg}, ${zoom}, ${boundarySoft})`;
+        setNodeOut(nodeId, 'out', {
+          type: 'vec2<f32>',
+          code: `mix(${uv.code}, ${pPortal}, clamp(${blend}, 0.0, 1.0))`,
+        });
+        break;
+      }
+      case 'wake-smear': {
+        const uv = resolveInputVec2(nodeId, 'in');
+        if (!uv) break;
+
+        const emitterCount = paramSlotExprWired(paramLayout, nodeId, 'wakeSmearEmitterCount', 0);
+        const pathPreset = paramSlotExprWired(paramLayout, nodeId, 'wakeSmearPathPreset', 0);
+        const speed = paramSlotExprWired(paramLayout, nodeId, 'wakeSmearSpeed', 0);
+        const trailLength = paramSlotExprWired(paramLayout, nodeId, 'wakeSmearTrailLength', 0);
+        const trailWidth = paramSlotExprWired(paramLayout, nodeId, 'wakeSmearTrailWidth', 0);
+        const dragStrength = paramSlotExprWired(paramLayout, nodeId, 'wakeSmearDragStrength', 0);
+        const curl = paramSlotExprWired(paramLayout, nodeId, 'wakeSmearCurl', 0);
+        const decay = paramSlotExprWired(paramLayout, nodeId, 'wakeSmearDecay', 0);
+        const quantizeHz = paramSlotExprWired(paramLayout, nodeId, 'wakeSmearQuantizeHz', 0);
+        const blend = paramSlotExprWired(paramLayout, nodeId, 'wakeSmearBlend', 0);
+
+        requireHelper(
+          'wakeSmear',
+          `
+const WAKE_SMEAR_MAX_EMITTERS: i32 = 6;
+
+fn ws_pathCore(preset: i32, t: f32, size: f32) -> vec2<f32> {
+  var px = 0.0;
+  var py = 0.0;
+  if (preset == 0) {
+    px = size * cos(t);
+  } else if (preset == 1) {
+    px = size * cos(t);
+    py = size * sin(t);
+  } else if (preset == 2) {
+    px = size * cos(t);
+    py = size * sin(2.0 * t) * 0.5;
+  } else {
+    px = size * (0.62 * sin(t * 0.71) + 0.34 * sin(t * 1.11 + 1.17) + 0.19 * sin(t * 1.89 + 2.61));
+    py = size * (0.58 * sin(t * 0.79 + 0.83) + 0.36 * sin(t * 1.03 + 2.07) + 0.21 * sin(t * 1.67 + 0.49));
+  }
+  return vec2<f32>(px, py);
+}
+
+fn ws_capsuleDrag(
+  p: vec2<f32>,
+  tail: vec2<f32>,
+  head: vec2<f32>,
+  width: f32,
+  decayAmt: f32,
+  drag: f32,
+  curl: f32
+) -> vec2<f32> {
+  let ab = head - tail;
+  let len2 = dot(ab, ab);
+  var tangent = vec2<f32>(1.0, 0.0);
+  var along = 0.0;
+  var closest = tail;
+  if (len2 > 1e-8) {
+    along = clamp(dot(p - tail, ab) / len2, 0.0, 1.0);
+    closest = tail + along * ab;
+    tangent = ab / sqrt(len2);
+  }
+  let diff = p - closest;
+  let dPerp = length(diff);
+  var w = exp(-dPerp * dPerp / max(width * width, 1e-6));
+  let age = 1.0 - along;
+  w = w * exp(-decayAmt * age);
+  let perp = vec2<f32>(-tangent.y, tangent.x);
+  return drag * w * (tangent + curl * perp);
+}
+
+fn wakeSmearUv(
+  p: vec2<f32>,
+  timeSec: f32,
+  emitterCount: i32,
+  pathPreset: i32,
+  speed: f32,
+  trailLen: f32,
+  trailW: f32,
+  drag: f32,
+  curlAmt: f32,
+  decayAmt: f32,
+  quantizeHz: f32
+) -> vec2<f32> {
+  let wsTau = 6.283185307179586;
+  var wsTime = timeSec;
+  let wsQHz = max(quantizeHz, 0.0);
+  if (wsQHz > 0.0) {
+    wsTime = floor(timeSec * wsQHz) / wsQHz;
+  }
+  let nEmit = clamp(emitterCount, 1, WAKE_SMEAR_MAX_EMITTERS);
+  let wsSize = max(trailLen * 0.75, 0.12);
+  let wsTrailDt = trailLen * 1.5;
+  var wsDelta = vec2<f32>(0.0, 0.0);
+  for (var i: i32 = 0; i < WAKE_SMEAR_MAX_EMITTERS; i = i + 1) {
+    if (i >= nEmit) {
+      break;
+    }
+    let fi = f32(i);
+    let wsPhase = fi * wsTau / f32(nEmit);
+    let wsT = wsTime * speed * wsTau + wsPhase;
+    let wsHead = ws_pathCore(pathPreset, wsT, wsSize);
+    let wsTail = ws_pathCore(pathPreset, wsT - wsTrailDt, wsSize);
+    wsDelta = wsDelta + ws_capsuleDrag(p, wsTail, wsHead, trailW, decayAmt, drag, curlAmt);
+  }
+  var wsWarped = p + wsDelta;
+  let wsLen = length(wsWarped);
+  if (wsLen > 8.0) {
+    wsWarped = wsWarped * (8.0 / wsLen);
+  }
+  return wsWarped;
+}
+          `
+        );
+
+        const wsTime = `(globals.v0.x)`;
+        const pSmear = `wakeSmearUv(${uv.code}, ${wsTime}, i32(${emitterCount} + 0.5), i32(${pathPreset} + 0.5), ${speed}, ${trailLength}, ${trailWidth}, ${dragStrength}, ${curl}, ${decay}, ${quantizeHz})`;
+        setNodeOut(nodeId, 'out', {
+          type: 'vec2<f32>',
+          code: `mix(${uv.code}, ${pSmear}, clamp(${blend}, 0.0, 1.0))`,
+        });
+        break;
+      }
+      case 'circle-inversion': {
+        const uv = resolveInputVec2(nodeId, 'in');
+        if (!uv) break;
+
+        const layoutPreset = paramSlotExprWired(paramLayout, nodeId, 'circleInversionLayoutPreset', 0);
+        const circleCount = paramSlotExprWired(paramLayout, nodeId, 'circleInversionCircleCount', 0);
+        const radius = paramSlotExprWired(paramLayout, nodeId, 'circleInversionRadius', 0);
+        const strength = paramSlotExprWired(paramLayout, nodeId, 'circleInversionStrength', 0);
+        const iterations = paramSlotExprWired(paramLayout, nodeId, 'circleInversionIterations', 0);
+        const softBoundary = paramSlotExprWired(paramLayout, nodeId, 'circleInversionSoftBoundary', 0);
+        const globalRotation = paramSlotExprWired(paramLayout, nodeId, 'circleInversionGlobalRotation', 0);
+        const globalScale = paramSlotExprWired(paramLayout, nodeId, 'circleInversionGlobalScale', 0);
+        const escapeLimit = paramSlotExprWired(paramLayout, nodeId, 'circleInversionEscapeLimit', 0);
+        const blend = paramSlotExprWired(paramLayout, nodeId, 'circleInversionBlend', 0);
+
+        requireHelper('uvWarp_circleInversion', emitCircleInversionWgsl());
+        requireHelper(
+          'circleInversion',
+          `
+const CIRCLE_INVERSION_MAX_CIRCLES: i32 = 4;
+const CIRCLE_INVERSION_MAX_ITERATIONS: i32 = 6;
+
+fn circleInversionLayoutCenter(preset: i32, idx: i32) -> vec2<f32> {
+  if (preset == 0) {
+    if (idx == 0) { return vec2<f32>(0.0, 0.35); }
+    if (idx == 1) { return vec2<f32>(-0.303, -0.175); }
+    if (idx == 2) { return vec2<f32>(0.303, -0.175); }
+    return vec2<f32>(0.0, 0.0);
+  }
+  if (preset == 1) {
+    if (idx == 0) { return vec2<f32>(-0.45, 0.0); }
+    if (idx == 1) { return vec2<f32>(-0.15, 0.0); }
+    if (idx == 2) { return vec2<f32>(0.15, 0.0); }
+    return vec2<f32>(0.45, 0.0);
+  }
+  if (preset == 2) {
+    if (idx == 0) { return vec2<f32>(0.38, 0.0); }
+    if (idx == 1) { return vec2<f32>(0.0, 0.38); }
+    if (idx == 2) { return vec2<f32>(-0.38, 0.0); }
+    return vec2<f32>(0.0, -0.38);
+  }
+  if (idx == 0) { return vec2<f32>(0.31, 0.22); }
+  if (idx == 1) { return vec2<f32>(-0.27, 0.35); }
+  if (idx == 2) { return vec2<f32>(0.18, -0.41); }
+  return vec2<f32>(-0.36, -0.15);
+}
+
+fn circleInversionMultiUv(
+  p: vec2<f32>,
+  layoutPreset: i32,
+  circleCount: i32,
+  radius: f32,
+  strength: f32,
+  iterations: i32,
+  softBoundary: f32,
+  globalRotationDeg: f32,
+  globalScale: f32,
+  escapeLimit: f32
+) -> vec2<f32> {
+  var z = p;
+  let activePreset = clamp(layoutPreset, 0, 3);
+  let circles = clamp(circleCount, 1, CIRCLE_INVERSION_MAX_CIRCLES);
+  let iters = clamp(iterations, 1, CIRCLE_INVERSION_MAX_ITERATIONS);
+  let rotRad = globalRotationDeg * 0.017453292519943295;
+  let c = cos(rotRad);
+  let s = sin(rotRad);
+  let soft = max(softBoundary, 0.0001);
+  let r = max(radius, 0.001);
+  let str = clamp(strength, 0.0, 1.0);
+  let scale = max(globalScale, 0.001);
+
+  for (var iter: i32 = 0; iter < CIRCLE_INVERSION_MAX_ITERATIONS; iter = iter + 1) {
+    if (iter < iters) {
+      for (var circleIdx: i32 = 0; circleIdx < CIRCLE_INVERSION_MAX_CIRCLES; circleIdx = circleIdx + 1) {
+        if (circleIdx < circles) {
+          let center = circleInversionLayoutCenter(activePreset, circleIdx) * scale;
+          let rel = z - center;
+          let dist = length(rel);
+          let w = smoothstep(0.0, soft * r, dist);
+          z = uvWarp_circleInversionUv(z, center, r, str * w);
+          z = vec2<f32>(c * z.x - s * z.y, s * z.x + c * z.y);
+        }
+      }
+    }
+  }
+
+  let zLen = length(z);
+  let limit = max(escapeLimit, 0.001);
+  if (zLen > limit) {
+    z = z * (limit / zLen);
+  }
+  return z;
+}
+          `
+        );
+
+        const layout = `i32(${layoutPreset} + 0.5)`;
+        const circles = `i32(${circleCount} + 0.5)`;
+        const iters = `i32(${iterations} + 0.5)`;
+        const pInv = `circleInversionMultiUv(${uv.code}, ${layout}, ${circles}, ${radius}, ${strength}, ${iters}, ${softBoundary}, ${globalRotation}, ${globalScale}, ${escapeLimit})`;
+        setNodeOut(nodeId, 'out', {
+          type: 'vec2<f32>',
+          code: `mix(${uv.code}, ${pInv}, clamp(${blend}, 0.0, 1.0))`,
         });
         break;
       }
@@ -8341,6 +8786,293 @@ fn arrangementNotesOklchToRgbWgsl(oklch: vec3<f32>) -> vec3<f32> {
         const out = `evalArrangementNotes_${suffix}(${noteUv.code}, ${timelineTime}, ${windowSeconds}, ${timelineAnchor}, ${noteSize}, ${velocityScale}, ${opacity}, ${bg}, ${layoutOrientation}, ${pitchPadding}, ${playheadShow}, ${playheadOklch}, ${noteLoopStart}, ${noteLoopEnd})`;
         setNodeOut(nodeId, 'out', { type: 'vec4<f32>', code: `${out}.color` });
         setNodeOut(nodeId, 'mask', { type: 'f32', code: `${out}.mask` });
+        break;
+      }
+      case 'note-ripple-field': {
+        const rippleUv = resolveInputVec2(nodeId, 'in');
+        if (!rippleUv) break;
+
+        const timeLinked = tryResolveInputF32(nodeId, 'time');
+        const timelineTime = timeLinked ? timeLinked.code : 'globals.v0.y';
+
+        const windowSeconds = paramSlotExprWired(paramLayout, nodeId, 'windowSeconds', 0);
+        const speed = paramSlotExprWired(paramLayout, nodeId, 'speed', 0);
+        const width = paramSlotExprWired(paramLayout, nodeId, 'width', 0);
+        const feather = paramSlotExprWired(paramLayout, nodeId, 'feather', 0);
+        const pitchSpread = paramSlotExprWired(paramLayout, nodeId, 'pitchSpread', 0);
+        const centerX = paramSlotExprWired(paramLayout, nodeId, 'centerX', 0);
+        const centerY = paramSlotExprWired(paramLayout, nodeId, 'centerY', 0);
+        const onsetLoopStart = paramSlotExprWired(paramLayout, nodeId, 'onsetLoopStart', 0);
+        const onsetLoopEnd = paramSlotExprWired(paramLayout, nodeId, 'onsetLoopEnd', 0);
+
+        const suffix = arrangementLanesGlslSuffix(nodeId);
+        const pack = filterNotePatternForNode(audioSetup?.arrangementSnapshot, node);
+        setArrangementPatternOnsetBakeCache(nodeId, pack.onsets);
+        requireHelper(`note-ripple-field-${suffix}`, buildNoteRippleFieldWgslNodeHelper(nodeId, pack));
+
+        const uvN = `noteRippleFieldUvFromPWgsl(${rippleUv.code})`;
+        const center = `vec2<f32>(${centerX}, ${centerY})`;
+        const evalExpr = `evalNoteRippleField_${suffix}(${uvN}, ${timelineTime}, ${windowSeconds}, ${speed}, ${width}, ${feather}, ${pitchSpread}, ${center}, i32(${onsetLoopStart}), i32(${onsetLoopEnd}))`;
+        setNodeOut(nodeId, 'out', { type: 'f32', code: `${evalExpr}.mask` });
+        setNodeOut(nodeId, 'energy', { type: 'f32', code: `${evalExpr}.energy` });
+        break;
+      }
+      case 'boundary-shutter-rays': {
+        const shutterUv = resolveInputVec2(nodeId, 'in');
+        if (!shutterUv) break;
+
+        const timeLinked = tryResolveInputF32(nodeId, 'time');
+        const timelineTime = timeLinked ? timeLinked.code : 'globals.v0.y';
+
+        const window = paramSlotExprWired(paramLayout, nodeId, 'window', 0);
+        const rayCount = paramSlotExprWired(paramLayout, nodeId, 'rayCount', 0);
+        const width = paramSlotExprWired(paramLayout, nodeId, 'width', 0);
+        const spin = paramSlotExprWired(paramLayout, nodeId, 'spin', 0);
+        const endPolarity = paramSlotExprWired(paramLayout, nodeId, 'endPolarity', 0);
+        const kindFilter = paramSlotExprWired(paramLayout, nodeId, 'kindFilter', 0);
+        const centerX = paramSlotExprWired(paramLayout, nodeId, 'centerX', 0);
+        const centerY = paramSlotExprWired(paramLayout, nodeId, 'centerY', 0);
+
+        const suffix = arrangementLanesGlslSuffix(nodeId);
+        const pack = filterRegionPatternForNode(audioSetup?.arrangementSnapshot, node);
+        requireHelper(`boundary-shutter-rays-${suffix}`, buildBoundaryShutterRaysWgslNodeHelper(nodeId, pack));
+
+        const uvN = `boundaryShutterRaysUvFromPWgsl(${shutterUv.code})`;
+        const center = `vec2<f32>(${centerX}, ${centerY})`;
+        const evalExpr = `evalBoundaryShutterRays_${suffix}(${uvN}, ${timelineTime}, ${window}, i32(${rayCount}), ${width}, ${spin}, ${endPolarity}, i32(${kindFilter}), ${center})`;
+        setNodeOut(nodeId, 'out', { type: 'f32', code: evalExpr });
+        break;
+      }
+      case 'pitch-class-compass': {
+        const compassUv = resolveInputVec2(nodeId, 'in');
+        if (!compassUv) break;
+
+        const timeLinked = tryResolveInputF32(nodeId, 'time');
+        const timelineTime = timeLinked ? timeLinked.code : 'globals.v0.y';
+
+        const windowSeconds = paramSlotExprWired(paramLayout, nodeId, 'windowSeconds', 0);
+        const decay = paramSlotExprWired(paramLayout, nodeId, 'decay', 0);
+        const sectors = paramSlotExprWired(paramLayout, nodeId, 'sectors', 0);
+        const innerRadius = paramSlotExprWired(paramLayout, nodeId, 'innerRadius', 0);
+        const outerRadius = paramSlotExprWired(paramLayout, nodeId, 'outerRadius', 0);
+        const sectorSoftness = paramSlotExprWired(paramLayout, nodeId, 'sectorSoftness', 0);
+        const radialBands = paramSlotExprWired(paramLayout, nodeId, 'radialBands', 0);
+        const centerX = paramSlotExprWired(paramLayout, nodeId, 'centerX', 0);
+        const centerY = paramSlotExprWired(paramLayout, nodeId, 'centerY', 0);
+        const onsetLoopStart = paramSlotExprWired(paramLayout, nodeId, 'onsetLoopStart', 0);
+        const onsetLoopEnd = paramSlotExprWired(paramLayout, nodeId, 'onsetLoopEnd', 0);
+
+        const suffix = arrangementLanesGlslSuffix(nodeId);
+        const pack = filterNotePatternForNode(audioSetup?.arrangementSnapshot, node);
+        requireHelper(`pitch-class-compass-${suffix}`, buildPitchClassCompassWgslNodeHelper(nodeId, pack));
+
+        const uvN = `pitchClassCompassUvFromPWgsl(${compassUv.code})`;
+        const center = `vec2<f32>(${centerX}, ${centerY})`;
+        const evalExpr = `evalPitchClassCompass_${suffix}(${uvN}, ${timelineTime}, ${windowSeconds}, ${decay}, ${sectors}, ${innerRadius}, ${outerRadius}, ${sectorSoftness}, ${radialBands}, ${center}, i32(${onsetLoopStart}), i32(${onsetLoopEnd}))`;
+        setNodeOut(nodeId, 'out', { type: 'f32', code: `${evalExpr}.mask` });
+        setNodeOut(nodeId, 'color', { type: 'vec4<f32>', code: `${evalExpr}.color` });
+        break;
+      }
+      case 'rhythm-stripe-field': {
+        const stripeUv = resolveInputVec2(nodeId, 'in');
+        if (!stripeUv) break;
+
+        const timeLinked = tryResolveInputF32(nodeId, 'time');
+        const timelineTime = timeLinked ? timeLinked.code : 'globals.v0.y';
+
+        const angleLinked = tryResolveInputF32(nodeId, 'angle');
+        const angleRad = angleLinked ? angleLinked.code : '0.0';
+
+        const baseScale = paramSlotExprWired(paramLayout, nodeId, 'baseScale', 0);
+        const densityGain = paramSlotExprWired(paramLayout, nodeId, 'densityGain', 0);
+        const bendGain = paramSlotExprWired(paramLayout, nodeId, 'bendGain', 0);
+        const windowSec = paramSlotExprWired(paramLayout, nodeId, 'window', 0);
+        const releaseSec = paramSlotExprWired(paramLayout, nodeId, 'release', 0);
+        const sharpness = paramSlotExprWired(paramLayout, nodeId, 'sharpness', 0);
+        const warpAmount = paramSlotExprWired(paramLayout, nodeId, 'warpAmount', 0);
+        const phaseSpeed = paramSlotExprWired(paramLayout, nodeId, 'phaseSpeed', 0);
+        const phaseOffset = paramSlotExprWired(paramLayout, nodeId, 'phaseOffset', 0);
+        const velocityMix = paramSlotExprWired(paramLayout, nodeId, 'velocityMix', 0);
+        const intensity = paramSlotExprWired(paramLayout, nodeId, 'intensity', 0);
+        const idleMode = paramSlotExprWired(paramLayout, nodeId, 'idleMode', 0);
+
+        const suffix = arrangementLanesGlslSuffix(nodeId);
+        const pack = filterNotePatternForNode(audioSetup?.arrangementSnapshot, node);
+        requireHelper(`rhythm-stripe-field-${suffix}`, buildRhythmStripeFieldWgslNodeHelper(nodeId, pack));
+
+        const uvN = `rhythmStripeFieldUvFromPWgsl(${stripeUv.code})`;
+        const evalExpr = `evalRhythmStripeField_${suffix}(${uvN}, ${timelineTime}, ${angleRad}, ${baseScale}, ${densityGain}, ${bendGain}, ${windowSec}, ${releaseSec}, ${sharpness}, ${warpAmount}, ${phaseSpeed}, ${phaseOffset}, ${velocityMix}, ${intensity}, i32(${idleMode}))`;
+        setNodeOut(nodeId, 'out', { type: 'f32', code: `${evalExpr}.mask` });
+        setNodeOut(nodeId, 'warp', { type: 'vec2<f32>', code: `${evalExpr}.warp` });
+        setNodeOut(nodeId, 'energy', { type: 'f32', code: `${evalExpr}.energy` });
+        break;
+      }
+      case 'velocity-spark-grid': {
+        const sparkUv = resolveInputVec2(nodeId, 'in');
+        if (!sparkUv) break;
+
+        const timeLinked = tryResolveInputF32(nodeId, 'time');
+        const timelineTime = timeLinked ? timeLinked.code : 'globals.v0.y';
+
+        const gridScale = paramSlotExprWired(paramLayout, nodeId, 'gridScale', 0);
+        const gridScaleY = paramSlotExprWired(paramLayout, nodeId, 'gridScaleY', 0);
+        const decay = paramSlotExprWired(paramLayout, nodeId, 'decay', 0);
+        const dotSize = paramSlotExprWired(paramLayout, nodeId, 'dotSize', 0);
+        const feather = paramSlotExprWired(paramLayout, nodeId, 'feather', 0);
+        const pitchShuffle = paramSlotExprWired(paramLayout, nodeId, 'pitchShuffle', 0);
+        const shape = paramSlotExprWired(paramLayout, nodeId, 'shape', 0);
+        const velSize = paramSlotExprWired(paramLayout, nodeId, 'velSize', 0);
+        const velBright = paramSlotExprWired(paramLayout, nodeId, 'velBright', 0);
+        const minVelocity = paramSlotExprWired(paramLayout, nodeId, 'minVelocity', 0);
+        const blendMode = paramSlotExprWired(paramLayout, nodeId, 'blendMode', 0);
+        const decayCurve = paramSlotExprWired(paramLayout, nodeId, 'decayCurve', 0);
+        const attack = paramSlotExprWired(paramLayout, nodeId, 'attack', 0);
+        const onsetLoopStart = paramSlotExprWired(paramLayout, nodeId, 'onsetLoopStart', 0);
+        const onsetLoopEnd = paramSlotExprWired(paramLayout, nodeId, 'onsetLoopEnd', 0);
+
+        const suffix = arrangementLanesGlslSuffix(nodeId);
+        const pack = filterNotePatternForNode(audioSetup?.arrangementSnapshot, node);
+        setArrangementPatternOnsetBakeCache(nodeId, pack.onsets);
+        requireHelper(`velocity-spark-grid-${suffix}`, buildVelocitySparkGridWgslNodeHelper(nodeId, pack));
+
+        const uvN = `velocitySparkGridUvFromPWgsl(${sparkUv.code})`;
+        const evalExpr = `evalVelocitySparkGrid_${suffix}(${uvN}, ${timelineTime}, ${gridScale}, ${gridScaleY}, ${decay}, ${dotSize}, ${feather}, ${pitchShuffle}, i32(${shape}), ${velSize}, ${velBright}, ${minVelocity}, i32(${blendMode}), i32(${decayCurve}), ${attack}, i32(${onsetLoopStart}), i32(${onsetLoopEnd}))`;
+        setNodeOut(nodeId, 'out', { type: 'f32', code: `${evalExpr}.mask` });
+        setNodeOut(nodeId, 'cellId', { type: 'f32', code: `${evalExpr}.cellId` });
+        setNodeOut(nodeId, 'energy', { type: 'f32', code: `${evalExpr}.energy` });
+        setNodeOut(nodeId, 'lines', { type: 'f32', code: `${evalExpr}.lines` });
+        break;
+      }
+      case 'chord-voronoi-bloom': {
+        const bloomUv = resolveInputVec2(nodeId, 'in');
+        if (!bloomUv) break;
+
+        const timeLinked = tryResolveInputF32(nodeId, 'time');
+        const timelineTime = timeLinked ? timeLinked.code : 'globals.v0.y';
+
+        const seedLinked = tryResolveInputF32(nodeId, 'seed');
+        const seed = seedLinked ? seedLinked.code : '0.0';
+
+        const release = paramSlotExprWired(paramLayout, nodeId, 'release', 0);
+        const edgeWidth = paramSlotExprWired(paramLayout, nodeId, 'edgeWidth', 0);
+        const siteJitter = paramSlotExprWired(paramLayout, nodeId, 'siteJitter', 0);
+        const fill = paramSlotExprWired(paramLayout, nodeId, 'fill', 0);
+        const maxSites = paramSlotExprWired(paramLayout, nodeId, 'maxSites', 0);
+        const centerX = paramSlotExprWired(paramLayout, nodeId, 'centerX', 0);
+        const centerY = paramSlotExprWired(paramLayout, nodeId, 'centerY', 0);
+
+        const suffix = arrangementLanesGlslSuffix(nodeId);
+        const pack = filterNotePatternForNode(audioSetup?.arrangementSnapshot, node);
+        requireHelper(`chord-voronoi-bloom-${suffix}`, buildChordVoronoiBloomWgslNodeHelper(nodeId, pack));
+
+        const uvN = `chordVoronoiBloomUvFromPWgsl(${bloomUv.code})`;
+        const center = `vec2<f32>(${centerX}, ${centerY})`;
+        const evalExpr = `evalChordVoronoiBloom_${suffix}(${uvN}, ${timelineTime}, ${seed}, ${release}, ${edgeWidth}, ${siteJitter}, ${fill}, ${maxSites}, ${center})`;
+        setNodeOut(nodeId, 'out', { type: 'f32', code: `${evalExpr}.mask` });
+        setNodeOut(nodeId, 'color', { type: 'vec4<f32>', code: `${evalExpr}.color` });
+        break;
+      }
+      case 'duration-comet-trails': {
+        const cometUv = resolveInputVec2(nodeId, 'in');
+        if (!cometUv) break;
+
+        const timeLinked = tryResolveInputF32(nodeId, 'time');
+        const timelineTime = timeLinked ? timeLinked.code : 'globals.v0.y';
+
+        const trailTime = paramSlotExprWired(paramLayout, nodeId, 'trailTime', 0);
+        const length = paramSlotExprWired(paramLayout, nodeId, 'length', 0);
+        const width = paramSlotExprWired(paramLayout, nodeId, 'width', 0);
+        const bend = paramSlotExprWired(paramLayout, nodeId, 'bend', 0);
+        const durationGain = paramSlotExprWired(paramLayout, nodeId, 'durationGain', 0);
+        const centerX = paramSlotExprWired(paramLayout, nodeId, 'centerX', 0);
+        const centerY = paramSlotExprWired(paramLayout, nodeId, 'centerY', 0);
+        const onsetLoopStart = paramSlotExprWired(paramLayout, nodeId, 'onsetLoopStart', 0);
+        const onsetLoopEnd = paramSlotExprWired(paramLayout, nodeId, 'onsetLoopEnd', 0);
+
+        const suffix = arrangementLanesGlslSuffix(nodeId);
+        const pack = filterNotePatternForNode(audioSetup?.arrangementSnapshot, node);
+        setArrangementPatternOnsetBakeCache(nodeId, pack.onsets);
+        requireHelper(
+          `duration-comet-trails-${suffix}`,
+          buildDurationCometTrailsWgslNodeHelper(nodeId, pack)
+        );
+
+        const uvN = `durationCometTrailsUvFromPWgsl(${cometUv.code})`;
+        const center = `vec2<f32>(${centerX}, ${centerY})`;
+        const evalExpr = `evalDurationCometTrails_${suffix}(${uvN}, ${timelineTime}, ${trailTime}, ${length}, ${width}, ${bend}, ${durationGain}, ${center}, i32(${onsetLoopStart}), i32(${onsetLoopEnd}))`;
+        setNodeOut(nodeId, 'out', { type: 'f32', code: `${evalExpr}.trail` });
+        setNodeOut(nodeId, 'head', { type: 'f32', code: `${evalExpr}.head` });
+        break;
+      }
+      case 'note-gravity-warp': {
+        const gravityUv = resolveInputVec2(nodeId, 'in');
+        if (!gravityUv) break;
+
+        const timeLinked = tryResolveInputF32(nodeId, 'time');
+        const timelineTime = timeLinked ? timeLinked.code : 'globals.v0.y';
+
+        const windowSec = paramSlotExprWired(paramLayout, nodeId, 'windowSeconds', 0);
+        const decaySec = paramSlotExprWired(paramLayout, nodeId, 'decay', 0);
+        const decayCurve = paramSlotExprWired(paramLayout, nodeId, 'decayCurve', 0);
+        const attack = paramSlotExprWired(paramLayout, nodeId, 'attack', 0);
+        const strength = paramSlotExprWired(paramLayout, nodeId, 'strength', 0);
+        const reach = paramSlotExprWired(paramLayout, nodeId, 'reach', 0);
+        const swirl = paramSlotExprWired(paramLayout, nodeId, 'swirl', 0);
+        const maxWarp = paramSlotExprWired(paramLayout, nodeId, 'maxWarp', 0);
+        const falloffPower = paramSlotExprWired(paramLayout, nodeId, 'falloff', 0);
+        const pitchSpread = paramSlotExprWired(paramLayout, nodeId, 'pitchSpread', 0);
+        const velGain = paramSlotExprWired(paramLayout, nodeId, 'velGain', 0);
+        const blendMode = paramSlotExprWired(paramLayout, nodeId, 'blendMode', 0);
+        const fieldGamma = paramSlotExprWired(paramLayout, nodeId, 'fieldGamma', 0);
+        const pitchLow = paramSlotExprWired(paramLayout, nodeId, 'pitchLow', 0);
+        const pitchHigh = paramSlotExprWired(paramLayout, nodeId, 'pitchHigh', 0);
+        const centerX = paramSlotExprWired(paramLayout, nodeId, 'centerX', 0);
+        const centerY = paramSlotExprWired(paramLayout, nodeId, 'centerY', 0);
+        const onsetLoopStart = paramSlotExprWired(paramLayout, nodeId, 'onsetLoopStart', 0);
+        const onsetLoopEnd = paramSlotExprWired(paramLayout, nodeId, 'onsetLoopEnd', 0);
+
+        const suffix = arrangementLanesGlslSuffix(nodeId);
+        const pack = filterNotePatternForNode(audioSetup?.arrangementSnapshot, node);
+        setArrangementPatternOnsetBakeCache(nodeId, pack.onsets);
+        requireHelper(
+          `note-gravity-warp-${suffix}`,
+          buildNoteGravityWarpWgslNodeHelper(nodeId, pack)
+        );
+
+        const uvN = `noteGravityWarpUvFromPWgsl(${gravityUv.code})`;
+        const center = `vec2<f32>(${centerX}, ${centerY})`;
+        const evalExpr = `evalNoteGravityWarp_${suffix}(${uvN}, ${timelineTime}, ${windowSec}, ${decaySec}, i32(${decayCurve}), ${attack}, ${strength}, ${reach}, ${swirl}, ${maxWarp}, ${falloffPower}, ${pitchSpread}, ${velGain}, i32(${blendMode}), ${fieldGamma}, ${pitchLow}, ${pitchHigh}, ${center}, i32(${onsetLoopStart}), i32(${onsetLoopEnd}))`;
+        setNodeOut(nodeId, 'warp', { type: 'vec2<f32>', code: `${evalExpr}.warp` });
+        setNodeOut(nodeId, 'uv', { type: 'vec2<f32>', code: `${uvN} + ${evalExpr}.warp` });
+        setNodeOut(nodeId, 'out', { type: 'f32', code: `${evalExpr}.field` });
+        setNodeOut(nodeId, 'energy', { type: 'f32', code: `${evalExpr}.energy` });
+        break;
+      }
+      case 'track-halo-lattice': {
+        const haloUv = resolveInputVec2(nodeId, 'in');
+        if (!haloUv) break;
+
+        const timeLinked = tryResolveInputF32(nodeId, 'time');
+        const timelineTime = timeLinked ? timeLinked.code : 'globals.v0.y';
+
+        const latticeScale = paramSlotExprWired(paramLayout, nodeId, 'latticeScale', 0);
+        const haloSize = paramSlotExprWired(paramLayout, nodeId, 'haloSize', 0);
+        const decay = paramSlotExprWired(paramLayout, nodeId, 'decay', 0);
+        const trackSpread = paramSlotExprWired(paramLayout, nodeId, 'trackSpread', 0);
+        const contrast = paramSlotExprWired(paramLayout, nodeId, 'contrast', 0);
+        const maxTracks = paramSlotExprWired(paramLayout, nodeId, 'maxTracks', 0);
+        const centerX = paramSlotExprWired(paramLayout, nodeId, 'centerX', 0);
+        const centerY = paramSlotExprWired(paramLayout, nodeId, 'centerY', 0);
+
+        const suffix = arrangementLanesGlslSuffix(nodeId);
+        const pack = filterRegionPatternForNode(audioSetup?.arrangementSnapshot, node);
+        requireHelper(`track-halo-lattice-${suffix}`, buildTrackHaloLatticeWgslNodeHelper(nodeId, pack));
+
+        const uvN = `trackHaloLatticeUvFromPWgsl(${haloUv.code})`;
+        const center = `vec2<f32>(${centerX}, ${centerY})`;
+        const evalExpr = `evalTrackHaloLattice_${suffix}(${uvN}, ${timelineTime}, ${latticeScale}, ${haloSize}, ${decay}, ${trackSpread}, ${contrast}, i32(${maxTracks}), ${center})`;
+        setNodeOut(nodeId, 'out', { type: 'f32', code: `${evalExpr}.mask` });
+        setNodeOut(nodeId, 'trackMask', { type: 'f32', code: `${evalExpr}.trackMask` });
         break;
       }
       case 'final-output': {

@@ -13,7 +13,18 @@ import {
 } from './types';
 import type { ArrangementSnapshot } from '../audiotool/arrangement/types';
 import type { AudioSetup } from './audioSetupTypes';
-import { validateGraph } from './validation';
+import type {
+  MidiEnvelopeBinding,
+  MidiEnvelopePreset,
+  MidiEnvelopeDefinition,
+  MidiEnvelopeAdsr,
+  MidiEnvelopeRemapper,
+} from './midiEnvelopeTypes';
+import { DEFAULT_MIDI_ENVELOPE_ADSR, DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT } from './midiEnvelopeTypes';
+import { migrateLegacyMidiEnvelopeBindings } from './midiEnvelopePresetMigration';
+import { migrateMidiEnvelopePresetToRemappers } from './midiEnvelopeRemapperMigration';
+import { isEnvelopeCurve } from '../utils/envelopeEasing';
+import { validateGraph, validateMidiEnvelopeBindingsAgainstSnapshot } from './validation';
 import type { NodeSpecification } from './validation';
 import { migrateBandRemapToRemappers } from './audioBandRemapMigration';
 import { migrateMixedWaveSignalShapes } from './mixedWaveSignalShapeMigration';
@@ -192,9 +203,12 @@ export function deserializeGraph(
     graphResult = migrated.graph;
     audioSetup = migrated.audioSetup;
 
+    graphResult = sanitizeGraphMidiEnvelopeBindings(graphResult);
+
     const validationResult = validateGraph(graphResult, nodeSpecs);
     errors.push(...validationResult.errors);
     warnings.push(...validationResult.warnings);
+    warnings.push(...validateMidiEnvelopeBindingsAgainstSnapshot(graphResult, audioSetup?.arrangementSnapshot));
 
     if (validationResult.errors.length > 0) {
       return { graph: null, errors, warnings };
@@ -321,4 +335,187 @@ function sanitizeAudioSetup(val: Record<string, unknown>): AudioSetup | undefine
     }
   }
   return setup;
+}
+
+function sanitizeAdsr(val: unknown): MidiEnvelopeAdsr {
+  const o = val && typeof val === 'object' ? (val as Record<string, unknown>) : {};
+  const num = (
+    key: 'attackSeconds' | 'decaySeconds' | 'sustainLevel' | 'releaseSeconds',
+    fallback: number
+  ): number => {
+    const v = o[key];
+    return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : fallback;
+  };
+  const curve = (key: 'attackCurve' | 'decayCurve' | 'releaseCurve') =>
+    isEnvelopeCurve(o[key]) ? o[key] : 'linear';
+  const sustain = num('sustainLevel', DEFAULT_MIDI_ENVELOPE_ADSR.sustainLevel);
+  const adsr: MidiEnvelopeAdsr = {
+    attackSeconds: num('attackSeconds', DEFAULT_MIDI_ENVELOPE_ADSR.attackSeconds),
+    decaySeconds: num('decaySeconds', DEFAULT_MIDI_ENVELOPE_ADSR.decaySeconds),
+    sustainLevel: Math.max(0, Math.min(1, sustain)),
+    releaseSeconds: num('releaseSeconds', DEFAULT_MIDI_ENVELOPE_ADSR.releaseSeconds),
+  };
+  const attackCurve = curve('attackCurve');
+  const decayCurve = curve('decayCurve');
+  const releaseCurve = curve('releaseCurve');
+  if (attackCurve !== 'linear') adsr.attackCurve = attackCurve;
+  if (decayCurve !== 'linear') adsr.decayCurve = decayCurve;
+  if (releaseCurve !== 'linear') adsr.releaseCurve = releaseCurve;
+  if (o.sustainHoldUsesNoteLength === false) {
+    adsr.sustainHoldUsesNoteLength = false;
+  }
+  return adsr;
+}
+
+function sanitizeEnvelopeDefinition(val: unknown): MidiEnvelopeDefinition {
+  const o = val && typeof val === 'object' ? (val as Record<string, unknown>) : {};
+  return {
+    adsr: sanitizeAdsr(o.adsr),
+    velocityToPeak: o.velocityToPeak !== false,
+  };
+}
+
+/** Preset sanitize during load — keeps legacy out range until remapper migration strips it. */
+function sanitizeMidiEnvelopePresetForLoad(val: unknown): MidiEnvelopePreset | null {
+  const preset = sanitizeMidiEnvelopePreset(val);
+  if (!preset || !val || typeof val !== 'object') return preset;
+  const o = val as Record<string, unknown>;
+  const env = o.envelope;
+  if (!env || typeof env !== 'object') return preset;
+  const envO = env as Record<string, unknown>;
+  const outMin =
+    typeof envO.outMin === 'number' && Number.isFinite(envO.outMin) ? envO.outMin : undefined;
+  const outMax =
+    typeof envO.outMax === 'number' && Number.isFinite(envO.outMax) ? envO.outMax : undefined;
+  if (outMin === undefined && outMax === undefined) return preset;
+  return {
+    ...preset,
+    envelope: {
+      ...preset.envelope,
+      ...(outMin !== undefined ? { outMin } : {}),
+      ...(outMax !== undefined ? { outMax } : {}),
+    } as MidiEnvelopePreset['envelope'],
+  };
+}
+
+function sanitizeMidiEnvelopeRemapper(val: unknown): MidiEnvelopeRemapper | null {
+  if (!val || typeof val !== 'object') return null;
+  const o = val as Record<string, unknown>;
+  if (typeof o.id !== 'string' || typeof o.envelopePresetId !== 'string') return null;
+  const outMin =
+    typeof o.outMin === 'number' && Number.isFinite(o.outMin)
+      ? o.outMin
+      : DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT.outMin;
+  const outMax =
+    typeof o.outMax === 'number' && Number.isFinite(o.outMax)
+      ? o.outMax
+      : DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT.outMax;
+  const name = typeof o.name === 'string' && o.name.trim() ? o.name.trim() : undefined;
+  return {
+    id: o.id,
+    envelopePresetId: o.envelopePresetId,
+    outMin,
+    outMax,
+    ...(name ? { name } : {}),
+  };
+}
+
+function sanitizeMidiEnvelopePreset(val: unknown): MidiEnvelopePreset | null {
+  if (!val || typeof val !== 'object') return null;
+  const o = val as Record<string, unknown>;
+  if (typeof o.id !== 'string') return null;
+  const trackIds = Array.isArray(o.trackIds)
+    ? o.trackIds.filter((t): t is string => typeof t === 'string')
+    : [];
+  const label = typeof o.label === 'string' && o.label.trim() ? o.label.trim() : undefined;
+  return {
+    id: o.id,
+    ...(label ? { label } : {}),
+    trackIds,
+    envelope: sanitizeEnvelopeDefinition(o.envelope),
+  };
+}
+
+function sanitizeMidiEnvelopeBinding(val: unknown): MidiEnvelopeBinding | null {
+  if (!val || typeof val !== 'object') return null;
+  const o = val as Record<string, unknown>;
+  if (typeof o.id !== 'string' || typeof o.nodeId !== 'string' || typeof o.paramName !== 'string') {
+    return null;
+  }
+  if (typeof o.remapperId === 'string') {
+    return {
+      id: o.id,
+      remapperId: o.remapperId,
+      nodeId: o.nodeId,
+      paramName: o.paramName,
+      ...(o.disabled === true ? { disabled: true } : {}),
+    };
+  }
+  if (typeof o.presetId === 'string') {
+    return null;
+  }
+  return null;
+}
+
+function sanitizeGraphMidiEnvelopeBindings(graph: NodeGraph): NodeGraph {
+  const rawPresets = graph.midiEnvelopePresets;
+  const rawBindings = graph.midiEnvelopeBindings;
+  const rawRemappers = graph.midiEnvelopeRemappers;
+
+  const presets = rawPresets?.length
+    ? rawPresets
+        .map((p) => sanitizeMidiEnvelopePresetForLoad(p))
+        .filter((p): p is MidiEnvelopePreset => p !== null)
+    : [];
+
+  const remappers = rawRemappers?.length
+    ? rawRemappers
+        .map((r) => sanitizeMidiEnvelopeRemapper(r))
+        .filter((r): r is MidiEnvelopeRemapper => r !== null)
+    : [];
+
+  // Preserve legacy inline / presetId bindings for migration.
+  const bindings = rawBindings?.length ? [...rawBindings] : [];
+
+  let next: NodeGraph = {
+    ...graph,
+    midiEnvelopePresets: presets.length > 0 ? presets : undefined,
+    midiEnvelopeRemappers: remappers.length > 0 ? remappers : undefined,
+    midiEnvelopeBindings: bindings.length > 0 ? bindings : undefined,
+  };
+
+  next = migrateLegacyMidiEnvelopeBindings(next);
+  next = migrateMidiEnvelopePresetToRemappers(next);
+
+  const sanitizedRemappers = next.midiEnvelopeRemappers
+    ?.map((r) => sanitizeMidiEnvelopeRemapper(r))
+    .filter((r): r is MidiEnvelopeRemapper => r !== null);
+
+  const sanitizedBindings = next.midiEnvelopeBindings
+    ?.map((b) => sanitizeMidiEnvelopeBinding(b))
+    .filter((b): b is MidiEnvelopeBinding => b !== null);
+
+  next = {
+    ...next,
+    midiEnvelopeRemappers:
+      sanitizedRemappers && sanitizedRemappers.length > 0 ? sanitizedRemappers : undefined,
+    midiEnvelopeBindings:
+      sanitizedBindings && sanitizedBindings.length > 0 ? sanitizedBindings : undefined,
+  };
+
+  if (
+    !next.midiEnvelopePresets?.length &&
+    !next.midiEnvelopeRemappers?.length &&
+    !next.midiEnvelopeBindings?.length
+  ) {
+    const {
+      midiEnvelopePresets: _p,
+      midiEnvelopeRemappers: _r,
+      midiEnvelopeBindings: _b,
+      ...rest
+    } = next;
+    return rest;
+  }
+
+  return next;
 }

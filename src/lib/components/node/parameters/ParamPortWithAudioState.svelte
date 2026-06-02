@@ -16,7 +16,11 @@
     getParameterInputValue,
   } from '../../../../utils/parameterValueCalculator';
   import { evaluateAutomationSignalBindingForParam } from '../../../../utils/automationSignals';
+  import { evaluateMidiEnvelopeSignalForParam } from '../../../../utils/midiEnvelopeSignals';
   import { automationLaneHasEvaluableRegions } from '../../../../utils/automationEvaluator';
+  import { getParamDriverBypassState } from '../../../../utils/paramDriverBypass';
+  import { resolveDriverKindForParam } from '../../../../utils/resolveDriverKindForParam';
+  import { hasMidiEnvelopeBindingForParam } from '../../../../data-model/immutableUpdatesMidiEnvelope';
   import { subscribeParameterValueTick } from '../../../stores/parameterValueTickStore';
   import type { NodeGraph } from '../../../../data-model/types';
   import type { NodeSpec, ParameterInputMode } from '../../../../types/nodeSpec';
@@ -50,6 +54,7 @@
     getTimelineCurrentTime?: () => number;
     onPortPointerDown?: (e: PointerEvent) => void;
     onPortDoubleClick?: (e: MouseEvent) => void;
+    onParamDriverBypassToggle?: (nodeId: string, paramName: string, bypassed: boolean) => void;
     disabled?: boolean;
     class?: string;
     /** Compact ParamCell (no label column); use in group headers, etc. */
@@ -82,6 +87,7 @@
     getTimelineCurrentTime,
     onPortPointerDown,
     onPortDoubleClick,
+    onParamDriverBypassToggle,
     disabled = false,
     class: className = '',
     inlineControl = false,
@@ -100,6 +106,16 @@
     Boolean(
       automationLaneForParam && automationLaneHasEvaluableRegions(automationLaneForParam)
     )
+  );
+
+  const hasMidiEnvelopeBinding = $derived(
+    hasMidiEnvelopeBindingForParam(graph, nodeId, paramName)
+  );
+
+  const driverBypassState = $derived(getParamDriverBypassState(graph, nodeId, paramName));
+
+  const attachedDriverKind = $derived(
+    resolveDriverKindForParam(graph, nodeId, paramName, audioSetup)
   );
 
   const paramSpec = $derived(nodeSpecs.get(node.type)?.parameters?.[paramName]);
@@ -133,9 +149,14 @@
     const mode = inputMode;
     void mode;
     const info = getParamPortConnectionState(nodeId, paramName, g, setup);
+    const conn = g.connections.find(
+      (c) => c.targetNodeId === nodeId && c.targetParameter === paramName
+    );
+    const connectionBypassed = conn?.disabled === true;
     const lane = g.automation?.lanes?.find((l) => l.nodeId === nodeId && l.paramName === paramName);
     const hasLane = Boolean(lane && automationLaneHasEvaluableRegions(lane));
-    if (info.state === 'default' && !hasLane) {
+    const hasMidi = hasMidiEnvelopeBindingForParam(g, nodeId, paramName);
+    if (info.state === 'default' && !hasLane && !hasMidi) {
       effectiveValue = null;
       return;
     }
@@ -159,9 +180,22 @@
         currentTime,
         spec,
       );
-      const config = automationVal !== null && automationVal !== undefined ? automationVal : configNum;
+      const { value: midiVal } = evaluateMidiEnvelopeSignalForParam(
+        n,
+        paramName,
+        g,
+        currentTime,
+        setup.arrangementSnapshot
+      );
+      const driverConfig =
+        automationVal !== null && automationVal !== undefined
+          ? automationVal
+          : midiVal !== null && midiVal !== undefined
+            ? midiVal
+            : configNum;
+      const config = driverConfig;
 
-      if (info.state === 'audio-connected' && am) {
+      if (info.state === 'audio-connected' && am && !connectionBypassed) {
         const raw = getParameterInputValue(nodeId, paramName, g, specs, am) ?? null;
         if (raw !== null && typeof raw === 'number' && isFinite(raw)) {
           liveValue = Math.max(0, Math.min(1, raw));
@@ -177,7 +211,8 @@
           g,
           specs,
           am ?? undefined,
-          automationVal ?? undefined
+          automationVal ?? undefined,
+          midiVal ?? undefined
         );
         effectiveValue = v !== null && typeof v === 'number' ? v : null;
       }
@@ -204,7 +239,7 @@
   );
   /** When connected or has evaluable automation lane, depend on tickCount so display updates when playhead moves. */
   const displayValue = $derived.by(() => {
-    if (connectionInfo.state !== 'default' || hasEvaluableAutomationLane) {
+    if (connectionInfo.state !== 'default' || hasEvaluableAutomationLane || hasMidiEnvelopeBinding) {
       const _ = tickCount;
       void _;
     }
@@ -217,11 +252,17 @@
     const nextMode = MODE_ORDER[nextIndex];
     onParameterInputModeChanged?.(nextMode);
   }
+  function handleDriverBypassToggle() {
+    onParamDriverBypassToggle?.(nodeId, paramName, !driverBypassState.bypassed);
+  }
 </script>
 
 <ParameterCell
   {label}
   {showPort}
+  showDriverPowerToggle={showPort && driverBypassState.hasBypassTarget}
+  driverBypassed={driverBypassState.bypassed}
+  onDriverBypassToggle={handleDriverBypassToggle}
   {showModeButton}
   modeButtonIcon={modeButtonIcon}
   {portId}
@@ -230,6 +271,7 @@
   {paramName}
   portState={portState}
   signalName={signalName}
+  attachedDriverKind={attachedDriverKind}
   liveValue={liveValue}
   supportsAudio={supportsAudio}
   supportsAnimation={supportsAnimation}

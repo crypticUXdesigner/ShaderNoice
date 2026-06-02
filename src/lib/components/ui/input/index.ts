@@ -6,4 +6,5 @@ export { default as ValueInput } from './ValueInput.svelte';
 export { default as RangeSlider } from './RangeSlider.svelte';
 export { default as VerticalRangeSlider } from './VerticalRangeSlider.svelte';
 export { default as RemapRangeEditor } from './RemapRangeEditor.svelte';
+export { default as AdsrEnvelopeEditor } from './AdsrEnvelopeEditor.svelte';
 export { default as EditableLabel } from './EditableLabel.svelte';

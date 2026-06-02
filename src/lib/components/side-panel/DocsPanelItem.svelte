@@ -149,6 +149,7 @@
   .docs-panel-item.stylize .icon-box[data-category="effects"] { background: var(--node-icon-box-bg-effects-stylize); }
   .docs-panel-item .icon-box[data-category="output"] { background: var(--node-icon-box-bg-output); }
   .docs-panel-item .icon-box[data-category="audio"] { background: var(--node-icon-box-bg-audio); }
+  .docs-panel-item .icon-box[data-category="midi"] { background: var(--node-icon-box-bg-midi); }
   .docs-panel-item .icon-box[data-category="sdf"] { background: var(--node-icon-box-bg-sdf); }
 
   /* Category: icon color (adapted from NodePanelItem) */
@@ -170,6 +171,7 @@
   .docs-panel-item.stylize[data-category="effects"] .icon-box :global(svg) { color: var(--node-icon-box-color-effects-stylize); }
   .docs-panel-item[data-category="output"] .icon-box :global(svg) { color: var(--node-icon-box-color-output); }
   .docs-panel-item[data-category="audio"] .icon-box :global(svg) { color: var(--node-icon-box-color-audio); }
+  .docs-panel-item[data-category="midi"] .icon-box :global(svg) { color: var(--node-icon-box-color-midi); }
   .docs-panel-item[data-category="sdf"] .icon-box :global(svg) { color: var(--node-icon-box-color-sdf); }
 </style>
 

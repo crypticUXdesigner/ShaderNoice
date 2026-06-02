@@ -178,7 +178,7 @@
         </div>
       {/if}
     </header>
-    <div class="main scrollbar-styled" style:overflow={mainOverflow}>
+    <div class="main" class:scrollbar-styled={mainOverflow === 'auto'} style:overflow={mainOverflow}>
       {#if children}
         {@render children()}
       {/if}

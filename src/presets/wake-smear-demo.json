@@ -1,0 +1,83 @@
+{
+  "format": "shadernoice-node-graph",
+  "formatVersion": "2.0",
+  "graph": {
+    "id": "graph-preset-wake-smear-demo",
+    "name": "Wake Smear Demo",
+    "version": "2.0",
+    "nodes": [
+      {
+        "id": "node-uv",
+        "type": "uv-coordinates",
+        "position": { "x": -900, "y": 0 },
+        "parameters": {}
+      },
+      {
+        "id": "node-smear",
+        "type": "wake-smear",
+        "position": { "x": -350, "y": 0 },
+        "parameters": {
+          "wakeSmearEmitterCount": 3,
+          "wakeSmearPathPreset": 1,
+          "wakeSmearSpeed": 0.45,
+          "wakeSmearTrailLength": 0.5,
+          "wakeSmearTrailWidth": 0.1,
+          "wakeSmearDragStrength": 0.35,
+          "wakeSmearCurl": 0.15,
+          "wakeSmearDecay": 2.0,
+          "wakeSmearQuantizeHz": 0.0,
+          "wakeSmearBlend": 0.85
+        }
+      },
+      {
+        "id": "node-noise",
+        "type": "noise",
+        "position": { "x": 200, "y": 0 },
+        "parameters": {
+          "noiseMode": 0,
+          "noiseScale": 4.5,
+          "noiseOctaves": 3,
+          "noiseLacunarity": 2.0,
+          "noiseGain": 0.5,
+          "noiseTimeSpeed": 0.25,
+          "noiseIntensity": 1.0
+        }
+      },
+      {
+        "id": "node-output",
+        "type": "final-output",
+        "position": { "x": 750, "y": 0 },
+        "parameters": {}
+      }
+    ],
+    "connections": [
+      {
+        "id": "conn-uv-smear",
+        "sourceNodeId": "node-uv",
+        "sourcePort": "out",
+        "targetNodeId": "node-smear",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-smear-noise",
+        "sourceNodeId": "node-smear",
+        "sourcePort": "out",
+        "targetNodeId": "node-noise",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-noise-out",
+        "sourceNodeId": "node-noise",
+        "sourcePort": "out",
+        "targetNodeId": "node-output",
+        "targetPort": "in"
+      }
+    ],
+    "viewState": {
+      "zoom": 0.85,
+      "panX": 200,
+      "panY": 80,
+      "selectedNodeIds": []
+    }
+  }
+}

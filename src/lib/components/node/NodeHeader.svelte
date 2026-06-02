@@ -1,11 +1,12 @@
 <script lang="ts">
   /**
    * NodeHeader
-   * Icon, label (double-click the label text to edit). Drag handle for node drag.
+   * Icon + label (double-click the label text to edit). Entire center column is the drag handle.
    * Output ports are positioned to align with the connection layer.
    * Input ports: port -> type -> name. Output ports: name -> type -> port.
    */
 
+  import { tick, untrack } from 'svelte';
   import { IconSvg, NodeIconSvg } from '../ui';
   import { getNodeIcon, isRedundantOutputLabel } from '../../../utils/nodeSpecUtils';
   import type { NodeSpec, PortSpec } from '../../../types/nodeSpec';
@@ -49,10 +50,14 @@
     bypassed?: boolean;
     onPowerToggle?: (nodeId: string, nextBypassed: boolean) => void;
     onLabelChange: (label: string | undefined) => void;
+    /** Single-click on header label (label owns click propagation). */
+    onSelect?: (shiftKey: boolean) => void;
     onDragStart: (clientX: number, clientY: number, shiftKey: boolean) => void;
     onHeaderPortPointerDown?: (screenX: number, screenY: number, pointerId?: number) => void;
     /** Select node: which value input is active (condition > 0.5 → trueValue). */
     selectActiveBranchPort?: SelectActiveBranchPort | null;
+    /** Increment to open inline label edit (e.g. context menu Rename). */
+    labelEditRequestSeq?: number;
   }
 
   let {
@@ -66,9 +71,11 @@
     bypassed = false,
     onPowerToggle,
     onLabelChange,
+    onSelect,
     onDragStart,
     onHeaderPortPointerDown,
     selectActiveBranchPort = null,
+    labelEditRequestSeq = 0,
   }: Props = $props();
 
   let isEditing = $state(false);
@@ -99,14 +106,42 @@
     e.stopPropagation();
   }
 
-  function beginLabelEdit(e: MouseEvent) {
-    e.stopPropagation();
+  async function startLabelEdit() {
+    if (isEditing) return;
     isEditing = true;
     editValue = displayLabel;
-    requestAnimationFrame(() => inputEl?.focus());
+    await tick();
+    inputEl?.focus();
+    inputEl?.select();
   }
 
+  async function beginLabelEdit(e: MouseEvent) {
+    e.stopPropagation();
+    await startLabelEdit();
+  }
+
+  $effect(() => {
+    const seq = labelEditRequestSeq;
+    if (seq > 0) untrack(() => void startLabelEdit());
+  });
+
   const labelStrictDoubleClick = createStrictDoubleClickHandler((e: MouseEvent) => beginLabelEdit(e));
+
+  /**
+   * Label owns its click/dblclick sequence (like ValueInput): stop bubbling to `.node`, which
+   * uses click pairing for patch-into. Without this, label clicks arm patch even when the
+   * second click lands on `.drag-area` beside the text.
+   */
+  function handleLabelClick(e: MouseEvent) {
+    e.stopPropagation();
+    labelStrictDoubleClick(e);
+    onSelect?.(e.shiftKey);
+  }
+
+  function handleLabelDblClick(e: MouseEvent) {
+    e.stopPropagation();
+    beginLabelEdit(e);
+  }
 
   function commitEdit() {
     isEditing = false;
@@ -129,9 +164,10 @@
   }
 
   function handlePointerDown(e: PointerEvent) {
-    if (e.button !== 0) return;
-    // Capture pointer so canvas doesn't receive move/up during drag (prevents unwanted pan)
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    if (e.button !== 0 || isEditing) return;
+    if (e.target instanceof Element && e.target.closest('.label-edit-input')) return;
+    // No pointer capture here — DomNodeLayer commits drag after a move threshold so label
+    // click/double-click (rename) and patch isolation keep the correct event target.
     onDragStart(e.clientX, e.clientY, e.shiftKey);
   }
 </script>
@@ -157,31 +193,38 @@
       </button>
     </div>
   {/if}
-  <div class="header-columns">
+  <div
+    class="header-columns"
+    role="button"
+    tabindex="-1"
+    aria-label="Drag node"
+    onpointerdown={handlePointerDown}
+  >
     <div class="header-col header-col-inputs" aria-hidden="true"></div>
     <div class="header-col header-col-center">
-      <div
-        class="drag-area"
-        role="button"
-        tabindex="-1"
-        onpointerdown={handlePointerDown}
-      >
+      <div class="drag-area">
         <div class="icon-box">
           <NodeIconSvg identifier={getNodeIcon(spec)} class="header-icon" />
         </div>
-        <div class="label">
+        <div
+          class="label"
+          data-node-label-edit
+          onclick={handleLabelClick}
+          ondblclick={handleLabelDblClick}
+        >
           {#if isEditing}
             <input
               bind:this={inputEl}
               bind:value={editValue}
-              class="label-input"
+              class="label-edit-input"
               onblur={commitEdit}
               onkeydown={handleKeydown}
               onclick={(e) => e.stopPropagation()}
               ondblclick={(e) => e.stopPropagation()}
+              onpointerdown={(e) => e.stopPropagation()}
             />
           {:else}
-            <span class="label-text" onclick={labelStrictDoubleClick}>{displayLabel}</span>
+            <span class="label-text">{displayLabel}</span>
           {/if}
         </div>
       </div>
@@ -283,6 +326,16 @@
       min-height: 0;
       width: 100%;
       min-width: 0;
+      cursor: default;
+
+      &:focus,
+      &:focus-visible {
+        outline: none;
+      }
+
+      &:active {
+        cursor: grabbing;
+      }
     }
 
     .header-col-inputs,
@@ -295,7 +348,7 @@
       flex: 1 1 auto;
       min-width: 0;
       display: flex;
-      flex-direction: row;
+      flex-direction: column;
       justify-content: center;
       align-items: stretch;
     }
@@ -347,26 +400,15 @@
 
     .drag-area {
       /* Layout */
-      flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: var(--pd-md);
+      flex: 1 1 auto;
+      width: 100%;
       min-width: 0;
-      padding: var(--pd-2xl) 0;
-
-      /* Other */
-      cursor: default;
-
-      &:focus,
-      &:focus-visible {
-        outline: none;
-      }
-
-      &:active {
-        cursor: grabbing;
-      }
+      gap: var(--pd-md);
+      padding-top: var(--pd-2xl);
 
       .icon-box {
         /* Layout */
@@ -391,47 +433,53 @@
           }
         }
       }
+    }
 
-      .label {
-        /* Layout */
-        display: flex;
-        justify-content: center;
-        min-width: 0;
+    .label {
+      /* Layout */
+      display: flex;
+      justify-content: center;
+      min-width: 0;
+      padding-bottom: var(--pd-md);
 
-        .label-text {
-          /* Box model */
-          max-width: 100%;
+      .label-text {
+        /* Box model */
+        max-width: 100%;
 
-          /* Visual */
-          color: var(--node-header-name-color);
+        /* Visual */
+        color: var(--node-header-name-color);
 
-          /* Typography */
-          font-size: var(--text-4xl);
-          font-weight: 900;
-          font-family: var(--font-sans);
-          text-align: center;
-          overflow: hidden;
-          text-overflow: ellipsis; 
-          white-space: nowrap;
-        }
+        /* Typography */
+        font-size: var(--text-4xl);
+        font-weight: 900;
+        font-family: var(--font-sans);
+        text-align: center;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
 
-        .label-input {
-          /* Box model */
-          width: 100%;
-          max-width: 200px; /* One-off - label edit field max width */
-          padding: var(--pd-2xs) var(--pd-md);
-          border: 1px solid var(--color-gray-80);
-          border-radius: var(--radius-md);
-          outline: none;
+      .label-edit-input {
+        /* Edit field uses neutral light surface — not header print colors (category CSS targets .label-text only). */
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 220px;
+        padding: var(--pd-xs) var(--pd-md);
+        border: 1px solid var(--color-gray-80);
+        border-radius: var(--radius-md);
+        outline: none;
+        color: var(--color-gray-130);
+        background: var(--color-gray-20);
+        caret-color: var(--color-gray-130);
+        font-size: var(--text-3xl);
+        font-weight: 800;
+        font-family: var(--font-sans);
+        text-align: center;
 
-          /* Visual */
-          color: var(--node-header-name-color);
-          background: var(--color-gray-70);
-
-          /* Typography */
-          font-size: var(--text-xl);
-          font-weight: 600;
-          font-family: var(--font-sans);
+        &:focus-visible {
+          border-color: var(--color-blue-90);
+          outline: 2px solid var(--color-blue-90);
+          outline-offset: var(--pd-2xs);
         }
       }
     }

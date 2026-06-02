@@ -130,6 +130,34 @@
 {/if}
 
 <style>
+  @keyframes modal-backdrop-sheen-drift-a {
+    0%,
+    100% {
+      transform: translate3d(-3.5%, -2.5%, 0) scale(0.97);
+      filter: brightness(var(--modal-backdrop-sheen-brightness-min));
+      opacity: var(--modal-backdrop-sheen-opacity-min);
+    }
+    50% {
+      transform: translate3d(4.5%, 3.5%, 0) scale(1.05);
+      filter: brightness(var(--modal-backdrop-sheen-brightness-max));
+      opacity: var(--modal-backdrop-sheen-opacity-max);
+    }
+  }
+
+  @keyframes modal-backdrop-sheen-drift-b {
+    0%,
+    100% {
+      transform: translate3d(3%, 2%, 0) scale(1.03);
+      filter: brightness(var(--modal-backdrop-sheen-brightness-max));
+      opacity: var(--modal-backdrop-sheen-opacity-max);
+    }
+    50% {
+      transform: translate3d(-4%, -3%, 0) scale(0.96);
+      filter: brightness(var(--modal-backdrop-sheen-brightness-min));
+      opacity: var(--modal-backdrop-sheen-opacity-min);
+    }
+  }
+
   /* Modal styles */
   .modal-backdrop {
     /* Layout */
@@ -138,6 +166,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    isolation: isolate;
+    overflow: hidden;
 
     /* Visual */
     background: var(--search-dialog-overlay);
@@ -147,6 +177,41 @@
     /* Other */
     z-index: 9998;
     pointer-events: auto;
+
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      inset: -35%;
+      pointer-events: none;
+      z-index: 0;
+      mix-blend-mode: hard-light;
+      will-change: transform, filter, opacity;
+    }
+
+    /* Primary matte highlight — upper-left, slow drift */
+    &::before {
+      background: radial-gradient(
+        ellipse 52% 46% at 34% 30%,
+        var(--modal-backdrop-sheen-core) 0%,
+        var(--modal-backdrop-sheen-mid) 34%,
+        var(--modal-backdrop-sheen-fade) 56%,
+        transparent 74%
+      );
+      animation: modal-backdrop-sheen-drift-a var(--modal-backdrop-sheen-duration) ease-in-out infinite;
+    }
+
+    /* Secondary highlight — lower-right, offset phase */
+    &::after {
+      background: radial-gradient(
+        ellipse 48% 40% at 66% 70%,
+        var(--modal-backdrop-sheen-core) 0%,
+        var(--modal-backdrop-sheen-mid) 38%,
+        var(--modal-backdrop-sheen-fade) 58%,
+        transparent 76%
+      );
+      animation: modal-backdrop-sheen-drift-b var(--modal-backdrop-sheen-duration-secondary) ease-in-out infinite;
+    }
 
     .content {
       /* Layout */
@@ -159,7 +224,7 @@
       max-height: 90vh; /* one-off */
 
       /* Other */
-      z-index: 9999;
+      z-index: 1;
       pointer-events: auto;
     }
   }

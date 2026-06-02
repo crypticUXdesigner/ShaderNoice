@@ -77,6 +77,7 @@ export class MainCodeGenerator {
     variableNames: Map<string, Map<string, string>>,
     uniformNames: Map<string, string>,
     functionNameMap: Map<string, Map<string, string>> = new Map(),
+    structNameMap: Map<string, Map<string, string>> = new Map(),
     effectiveNodeSpecsById?: Map<string, NodeSpec>
   ): { variableDeclarations: string; mainCode: string; genericRaymarcherSdfFunctions: string } {
     // Per-node Power: restrict variable declarations to nodes still in `executionOrder` so
@@ -127,6 +128,7 @@ export class MainCodeGenerator {
         variableNames,
         uniformNames,
         functionNameMap,
+        structNameMap,
         nodeCodeCtx
       );
       mainCode.push(`  // Node: ${nodeSpec.displayName} (${nodeId})`);

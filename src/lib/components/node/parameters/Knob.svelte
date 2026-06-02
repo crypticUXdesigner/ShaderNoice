@@ -335,7 +335,7 @@
 
     &.read-only .ring {
       cursor: default;
-      opacity: var(--opacity-disabled);
+      opacity: var(--knob-readonly-ring-opacity);
     }
 
     .ring {

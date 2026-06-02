@@ -14,6 +14,8 @@
 @import './components/scrollbar.css';
 @import './components/menu.css';
 @import './components/node-categories.css';
+@import './components/parameter-driver-kind.css';
+@import './components/category-section-badge.css';
 @import './reduced-motion.css';
 
 /* Import layout styles (top-bar, bottom-bar, timeline in 02A–02C) */

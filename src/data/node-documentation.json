@@ -4910,6 +4910,349 @@
         ]
       }
     },
+    "node:cellular-slip": {
+      "title": "Cellular Slip",
+      "titleType": "node",
+      "tagline": "Voronoi glass-plate UV warp—each cell slides and rotates on its own",
+      "description": "Partitions UV into Voronoi cells and displaces each cell independently (slide + rotation) with optional edge lock so seams stay soft or crisp. Chain **UV Coords → Cellular Slip → Noise** to see shifting tiles—not rectangular **Block Glitch** jumps or the float **Cells** pattern. Use **Blend** to mix back toward the input UV.",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "vec2",
+          "description": "UV coordinates to warp (aspect-correct p from UV Coords is typical).",
+          "suggestedSources": [
+            "type:vec2",
+            "node:uv-coordinates",
+            "node:displace",
+            "node:transform"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "vec2",
+          "description": "Cell-slipped UV for downstream sampling or further Distort nodes.",
+          "suggestedTargets": [
+            "node:noise",
+            "node:voronoi-noise",
+            "node:fbm-noise",
+            "node:displace"
+          ]
+        }
+      ],
+      "parameters": [
+        { "name": "Scale", "description": "Voronoi cell density; higher = more, smaller cells." },
+        { "name": "Jitter", "description": "Randomizes seed positions; 0 = regular grid, 1 = organic cells." },
+        { "name": "Slip", "description": "Per-cell translation amount; animate or audio-drive for motion." },
+        { "name": "Rotate", "description": "Per-cell rotation in degrees (hash-driven per cell)." },
+        { "name": "Edge", "description": "Softness width at cell borders when Lock is on." },
+        { "name": "Lock", "description": "When on, blends slipped UV back toward input near cell edges." },
+        { "name": "Seed", "description": "Offsets cell IDs for different plate layouts." },
+        { "name": "Step Hz", "description": "Quantizes seed stepping to time for stuttered plate updates." },
+        { "name": "Blend", "description": "Mix between input UV and warped UV (0 = passthrough, 1 = full slip)." }
+      ],
+      "relatedItems": [
+        "node:uv-block-glitch",
+        "node:voronoi-noise",
+        "node:displace",
+        "node:kaleidoscope",
+        "type:vec2"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          { "id": "a", "type": "uv-coordinates" },
+          { "id": "b", "type": "cellular-slip" },
+          { "id": "c", "type": "noise" },
+          { "id": "d", "type": "final-output" }
+        ],
+        "connections": [
+          { "from": "a", "fromPort": "out", "to": "b", "toPort": "in" },
+          { "from": "b", "fromPort": "out", "to": "c", "toPort": "in" },
+          { "from": "c", "fromPort": "out", "to": "d", "toPort": "in" }
+        ]
+      },
+      "examples": [
+        "UV → Cellular Slip → Noise: raise Scale and Slip for sliding glass plates over a texture field.",
+        "Enable Lock with small Edge for soft seams; disable Lock for hard cell motion.",
+        "Drive Slip or Rotate from audio bands for beat-reactive plate shifts."
+      ],
+      "advanced": "Per-cell motion uses hashed offsets—not shared global translation like **Displace**. Distinct from **Cells** (float F1/F2 pattern) and **Block Glitch** (rectangular UV jumps)."
+    },
+    "node:circle-inversion": {
+      "title": "Circle Inversion",
+      "titleType": "node",
+      "tagline": "Iterative multi-circle UV inversion with layout presets",
+      "description": "Applies one or more circle inversions per iteration around preset centers (triangle, chain, flower, random), with soft boundaries and global rotation/scale. Outputs **vec2 UV** for chaining—**not** **Spotlight** color accumulation and **not** **KIFS SDF** 3D folds. Keep **Blend** below 1 for safer previews; strength and radius affect how aggressively space inverts.",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "vec2",
+          "description": "UV to invert (typically from UV Coords or an upstream Distort).",
+          "suggestedSources": [
+            "type:vec2",
+            "node:uv-coordinates",
+            "node:displace",
+            "node:kaleidoscope"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "vec2",
+          "description": "Inversion-warped UV coordinates.",
+          "suggestedTargets": [
+            "node:noise",
+            "node:displace",
+            "node:radial-uv-warp",
+            "node:fbm-noise"
+          ]
+        }
+      ],
+      "parameters": [
+        { "name": "Layout", "description": "Preset arrangement of inversion circle centers." },
+        { "name": "Circles", "description": "How many circles participate per iteration (up to four)." },
+        { "name": "Radius", "description": "Inversion circle radius in UV space." },
+        { "name": "Strength", "description": "How strongly each inversion pulls coordinates (0–1)." },
+        { "name": "Iterations", "description": "Repeat the multi-circle inversion pass." },
+        { "name": "Soft", "description": "Soft boundary width so inversions fade in smoothly." },
+        { "name": "Rotation", "description": "Global rotation applied after each circle step." },
+        { "name": "Scale", "description": "Scales preset center positions." },
+        { "name": "Clamp", "description": "Max UV length after warp; prevents runaway coordinates." },
+        { "name": "Blend", "description": "Mix input UV with inverted UV." }
+      ],
+      "relatedItems": [
+        "node:iterated-inversion",
+        "node:kifs-sdf",
+        "node:radial-uv-warp",
+        "node:kaleidoscope",
+        "type:vec2"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          { "id": "a", "type": "uv-coordinates" },
+          { "id": "b", "type": "circle-inversion" },
+          { "id": "c", "type": "noise" },
+          { "id": "d", "type": "final-output" }
+        ],
+        "connections": [
+          { "from": "a", "fromPort": "out", "to": "b", "toPort": "in" },
+          { "from": "b", "fromPort": "out", "to": "c", "toPort": "in" },
+          { "from": "c", "fromPort": "out", "to": "d", "toPort": "in" }
+        ]
+      },
+      "examples": [
+        "Start with Layout Triangle, Circles 3, Iterations 2, Blend ~0.7 for bubble-like UV folds before Noise.",
+        "Lower Strength and raise Soft for gentler inversions; use Clamp if previews blow out.",
+        "Compare with Spotlight: same inversion idea but Spotlight outputs accumulated color, not UV."
+      ],
+      "advanced": "Singularities near circle boundaries are softened and clamped; conservative defaults avoid poles on the unit boundary. Not a migration path from legacy Bulge/Fisheye nodes."
+    },
+    "node:crease-fold": {
+      "title": "Crease Fold",
+      "titleType": "node",
+      "tagline": "Soft hinged mirror fold across a moving crease line—optional repeat grid",
+      "description": "Reflects/compresses UV across a crease defined by **Angle** and **Offset** (plus **Phase**), with softness and optional repeating bands. Linear hinge fold—not radial **Kaleidoscope** symmetry. Wire **UV Coords → Crease Fold → Noise**; use **Blend** to dial effect strength.",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "vec2",
+          "description": "UV coordinates to fold.",
+          "suggestedSources": [
+            "type:vec2",
+            "node:uv-coordinates",
+            "node:displace"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "vec2",
+          "description": "Folded UV coordinates.",
+          "suggestedTargets": [
+            "node:noise",
+            "node:displace",
+            "node:kaleidoscope"
+          ]
+        }
+      ],
+      "parameters": [
+        { "name": "Angle", "description": "Crease line orientation in degrees." },
+        { "name": "Offset", "description": "Slides the crease along its normal (two-sided knob)." },
+        { "name": "Fold", "description": "Fold amount; 0 = no mirror, 1 = full reflection mix." },
+        { "name": "Soft", "description": "Softens the crease transition." },
+        { "name": "Repeat", "description": "Spacing for repeated crease bands; 0 = single crease." },
+        { "name": "Count", "description": "Number of repeat folds to apply." },
+        { "name": "Phase", "description": "Animatable offset along the crease normal." },
+        { "name": "Blend", "description": "Mix between input and folded UV." }
+      ],
+      "relatedItems": [
+        "node:kaleidoscope",
+        "node:kifs-sdf",
+        "node:transform",
+        "node:uv-block-glitch",
+        "type:vec2"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          { "id": "a", "type": "uv-coordinates" },
+          { "id": "b", "type": "crease-fold" },
+          { "id": "c", "type": "noise" },
+          { "id": "d", "type": "final-output" }
+        ],
+        "connections": [
+          { "from": "a", "fromPort": "out", "to": "b", "toPort": "in" },
+          { "from": "b", "fromPort": "out", "to": "c", "toPort": "in" },
+          { "from": "c", "fromPort": "out", "to": "d", "toPort": "in" }
+        ]
+      },
+      "examples": [
+        "Animate Phase or Offset for a traveling crease; add Repeat for accordion stripes.",
+        "Keep Soft > 0 when Fold is high to avoid harsh seams.",
+        "Pair with Kaleidoscope only when you want both linear folds and radial mirrors—order matters."
+      ],
+      "advanced": "Repeat alternates fold direction per band (even/odd). Distinct from **KIFS SDF** iterated 3D folds used in raymarching."
+    },
+    "node:mobius-portal": {
+      "title": "Möbius Portal",
+      "titleType": "node",
+      "tagline": "Conformal disk automorphism—off-center pole bends UV through a portal",
+      "description": "Maps aspect-correct UV with a Möbius transform on the disk: move **Center** and **Pole** to bend space so straight lines become circles—different from symmetric **Radial Warp** bulge. **Pole limit** keeps the pole inside the disk; **Edge soft** fades the map near the boundary. Singularities are clamped—avoid pole on the rim with defaults.",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "vec2",
+          "description": "UV entering the portal (UV Coords or upstream Distort).",
+          "suggestedSources": [
+            "type:vec2",
+            "node:uv-coordinates",
+            "node:kaleidoscope",
+            "node:displace"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "vec2",
+          "description": "Portal-warped UV.",
+          "suggestedTargets": [
+            "node:noise",
+            "node:displace",
+            "node:radial-uv-warp"
+          ]
+        }
+      ],
+      "parameters": [
+        { "name": "Center X", "description": "Disk map center X (coords UI)." },
+        { "name": "Center Y", "description": "Disk map center Y (coords UI)." },
+        { "name": "Pole X", "description": "Möbius pole X; drives conformal bend direction." },
+        { "name": "Pole Y", "description": "Möbius pole Y." },
+        { "name": "Pole limit", "description": "Scales pole vector; keeps pole inside unit disk." },
+        { "name": "Rotation", "description": "Post-map rotation in degrees." },
+        { "name": "Zoom", "description": "Scales coordinates before the map." },
+        { "name": "Edge soft", "description": "Fades warp near disk edge." },
+        { "name": "Blend", "description": "Mix input UV with portal UV." }
+      ],
+      "relatedItems": [
+        "node:radial-uv-warp",
+        "node:vortex",
+        "node:path-drive",
+        "node:kaleidoscope",
+        "type:vec2"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          { "id": "a", "type": "uv-coordinates" },
+          { "id": "b", "type": "kaleidoscope" },
+          { "id": "c", "type": "mobius-portal" },
+          { "id": "d", "type": "noise" },
+          { "id": "e", "type": "final-output" }
+        ],
+        "connections": [
+          { "from": "a", "fromPort": "out", "to": "b", "toPort": "in" },
+          { "from": "b", "fromPort": "out", "to": "c", "toPort": "in" },
+          { "from": "c", "fromPort": "out", "to": "d", "toPort": "in" },
+          { "from": "d", "fromPort": "out", "to": "e", "toPort": "in" }
+        ]
+      },
+      "examples": [
+        "UV → Kaleidoscope → Möbius Portal → Noise for symmetric segments bent through a portal.",
+        "Wire **Path Drive** X/Y into Pole X/Y for wandering portal centers.",
+        "Lower Blend (~0.5) while tuning pole; raise Edge soft if rim artifacts appear."
+      ],
+      "advanced": "Rational map denominator is epsilon-clamped; output length is capped. Conformal on the disk—not a fisheye lens (**Radial Warp** Fisheye mode)."
+    },
+    "node:wake-smear": {
+      "title": "Wake Smear",
+      "titleType": "node",
+      "tagline": "Capsule-trail UV drag along preset paths—datamosh-like smear without frame history",
+      "description": "Multiple emitters follow **Path** presets (line, orbit, figure-8, drift); each leaves a capsule-shaped UV drag trail with decay, curl, and optional **Quantize** stepping. Procedural motion-vector smear—no ping-pong buffers or video optical flow. Chain after **UV Coords**; reduce **Blend** for subtle trails.",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "vec2",
+          "description": "UV to drag along emitter trails.",
+          "suggestedSources": [
+            "type:vec2",
+            "node:uv-coordinates",
+            "node:displace"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "vec2",
+          "description": "Smear-warped UV.",
+          "suggestedTargets": [
+            "node:noise",
+            "node:uv-block-glitch",
+            "node:displace"
+          ]
+        }
+      ],
+      "parameters": [
+        { "name": "Emitters", "description": "Number of simultaneous trail emitters (up to six)." },
+        { "name": "Path", "description": "Emitter motion preset: Line, Orbit, Figure-8, or Drift." },
+        { "name": "Speed", "description": "How fast emitters move along the path." },
+        { "name": "Length", "description": "Trail extent along the path (head–tail separation)." },
+        { "name": "Width", "description": "Perpendicular falloff of the capsule influence." },
+        { "name": "Drag", "description": "UV pull strength along the trail tangent." },
+        { "name": "Curl", "description": "Adds perpendicular swirl along the trail (two-sided)." },
+        { "name": "Decay", "description": "How quickly drag fades toward the tail." },
+        { "name": "Quantize", "description": "Step time for stuttered smear updates (Hz)." },
+        { "name": "Blend", "description": "Mix input UV with smeared UV." }
+      ],
+      "relatedItems": [
+        "node:uv-block-glitch",
+        "node:path-drive",
+        "node:turbulence",
+        "node:vector-field",
+        "type:vec2"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          { "id": "a", "type": "uv-coordinates" },
+          { "id": "b", "type": "wake-smear" },
+          { "id": "c", "type": "noise" },
+          { "id": "d", "type": "final-output" }
+        ],
+        "connections": [
+          { "from": "a", "fromPort": "out", "to": "b", "toPort": "in" },
+          { "from": "b", "fromPort": "out", "to": "c", "toPort": "in" },
+          { "from": "c", "fromPort": "out", "to": "d", "toPort": "in" }
+        ]
+      },
+      "examples": [
+        "Path Orbit + Speed ~0.5 + Drag ~0.3: circular smear wakes over Noise.",
+        "Raise Quantize Hz for stepped datamosh stutter; add Curl for swirly trails.",
+        "Use **Path Drive** to offset emitter paths indirectly via downstream center params on other nodes, or animate Speed/Drag from audio."
+      ],
+      "advanced": "No interframe feedback—pure procedural trails. Distinct from **Block Glitch** rectangular jumps and continuous **Turbulence** noise warp."
+    },
     "node:color-gradient": {
       "title": "Color Gradient",
       "titleType": "node",
@@ -8361,6 +8704,1266 @@
         "Use Tracks to hide duplicate MIDI layers and stay under the bake cap."
       ],
       "advanced": "**Layout Lanes** distributes each note’s UV Y at compile time using project track order (`orderAmongTracks`): visible note tracks with at least one filtered note get a horizontal band; band height ∝ that track’s MIDI span (minimum one semitone step so single hits still get area). **Overlap** mode bakes a global min–max pitch norm as before. Shader loop cap: 2048 notes (`MAX_ARRANGEMENT_NOTES_PACKED`). Snapshot may store up to 8192 notes. Background and playhead use OKLCH pickers (converted to linear RGB in-shader). **mask** matches **out.a** for compositing weights."
+    },
+    "node:note-ripple-field": {
+      "title": "Note Ripple Field",
+      "titleType": "node",
+      "tagline": "Pitch-placed expanding ripples from recent MIDI note onsets (requires imported arrangement snapshot)",
+      "description": "Each note onset in the trailing **Window** launches an expanding ring from a UV position derived from pitch class (angle) and pitch height (radius from **Center**). **Speed**, **Width**, and **Feather** shape the wavefront; MIDI velocity scales brightness. **Value** is the strongest ring mask; **Energy** accumulates overlapping ripples (capped at 1). Complements **Notes** and **Regions** — abstract fullscreen pattern, not a piano roll. Wire **UV Coords** into **UV**; timeline follows the **Time** port (defaults to transport). Use **Tracks** to filter note lanes.",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "vec2",
+          "description": "**UV Coords** output **p**: center **0**, aspect-correct X, Y ∈ [−1, 1]. Remapped internally to 0–1 UV.",
+          "suggestedSources": [
+            "type:vec2",
+            "node:uv-coordinates",
+            "node:transform"
+          ]
+        },
+        {
+          "name": "time",
+          "type": "float",
+          "description": "Timeline seconds; defaults to `uTimelineTime` when unwired.",
+          "suggestedSources": [
+            "type:float",
+            "node:time"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "float",
+          "description": "0–1 ring mask — brightest where an expanding wavefront crosses this UV.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:color-lut",
+            "node:final-output"
+          ]
+        },
+        {
+          "name": "energy",
+          "type": "float",
+          "description": "Summed ripple contribution in the window (capped at 1) — useful for density-driven tints or secondary mixes.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:multiply",
+            "node:color-gradient"
+          ]
+        }
+      ],
+      "parameters": [
+        {
+          "name": "Window",
+          "description": "Trailing seconds of note onsets that can spawn ripples."
+        },
+        {
+          "name": "Speed",
+          "description": "Outward expansion rate of each ring in UV units per second."
+        },
+        {
+          "name": "Spread",
+          "description": "How far from **Center** pitch maps radially (0 = all ripples at center)."
+        },
+        {
+          "name": "Tracks",
+          "description": "Dropdown checklist of note tracks from the imported snapshot."
+        }
+      ],
+      "relatedItems": [
+        "node:arrangement-notes",
+        "node:arrangement-lanes",
+        "node:radial-pulse",
+        "node:rings",
+        "node:uv-coordinates",
+        "type:vec2"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          {
+            "id": "a",
+            "type": "uv-coordinates"
+          },
+          {
+            "id": "b",
+            "type": "note-ripple-field"
+          },
+          {
+            "id": "c",
+            "type": "mix"
+          },
+          {
+            "id": "d",
+            "type": "final-output"
+          }
+        ],
+        "connections": [
+          {
+            "from": "a",
+            "fromPort": "out",
+            "to": "b",
+            "toPort": "in"
+          },
+          {
+            "from": "b",
+            "fromPort": "out",
+            "to": "c",
+            "toPort": "a"
+          },
+          {
+            "from": "c",
+            "fromPort": "out",
+            "to": "d",
+            "toPort": "in"
+          }
+        ]
+      },
+      "examples": [
+        "Note Ripple Field (Value) → Mix over a gradient background → Color LUT → Output.",
+        "Drive **Energy** into a second Mix input for brighter sections when many notes fire.",
+        "Filter **Tracks** to drums only for kick/snare ripple bursts."
+      ],
+      "advanced": "Onsets bake at compile time (≤2048, subsampled when dense). Preview clamps the per-pixel onset scan via internal loop uniforms. Missing snapshot: compile succeeds with zero **Value** and **Energy**."
+    },
+    "node:note-gravity-warp": {
+      "title": "Note Gravity Warp",
+      "titleType": "node",
+      "tagline": "Temporary gravity wells from recent MIDI notes bend UV for downstream patterns (requires imported arrangement snapshot)",
+      "description": "Each note onset in the trailing **Window** becomes a pitch-placed attractor around **Center**. **Strength** and **Reach** control pull and spatial influence; **Spread** sets how far notes sit from center on the pitch wheel; **Swirl** mixes tangential spin with radial suction (negative values reverse spin). **Decay** fades wells over time (0 = match **Window**); **Curve** picks exponential vs linear fade; **Attack** adds a brief strength boost at onset. **Max warp** caps total displacement length; **Falloff** sharpens the spatial rim; **Vel gain** scales MIDI velocity; **Blend** chooses sum, strongest-well, or average accumulation for dense chords. **Field γ** shapes the **Value** mask. **Warp** is the vec2 offset; **UV** is input UV plus warp; **Value** is peak well strength; **Energy** sums active well weights (like **Note Ripple Field**). Complements **Note Ripple Field** and **Rhythm Wavefield**. Wire **UV Coords** into **UV**; timeline follows **Time** (defaults to transport). Use **Tracks** to filter note lanes.",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "vec2",
+          "description": "**UV Coords** output **p**: center **0**, aspect-correct X, Y ∈ [−1, 1]. Remapped internally to 0–1 UV.",
+          "suggestedSources": [
+            "type:vec2",
+            "node:uv-coordinates",
+            "node:transform"
+          ]
+        },
+        {
+          "name": "time",
+          "type": "float",
+          "description": "Timeline seconds; defaults to `uTimelineTime` when unwired.",
+          "suggestedSources": [
+            "type:float",
+            "node:time"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "warp",
+          "type": "vec2",
+          "description": "Accumulated UV displacement from active gravity wells (length capped by **Max warp**).",
+          "suggestedTargets": [
+            "node:transform",
+            "node:displace",
+            "node:stripes",
+            "node:mix"
+          ]
+        },
+        {
+          "name": "uv",
+          "type": "vec2",
+          "description": "Input UV remapped from **UV Coords** plus accumulated **Warp** (ready to feed pattern nodes).",
+          "suggestedTargets": [
+            "node:stripes",
+            "node:dots",
+            "node:transform",
+            "node:mix"
+          ]
+        },
+        {
+          "name": "out",
+          "type": "float",
+          "description": "Peak well strength in the window, shaped by **Field γ** (good for masking).",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:color-lut",
+            "node:final-output"
+          ]
+        },
+        {
+          "name": "energy",
+          "type": "float",
+          "description": "Sum of active well weights (capped at 1), similar to **Note Ripple Field** **Energy**.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:color-lut"
+          ]
+        }
+      ],
+      "parameters": [
+        {
+          "name": "Window",
+          "description": "Trailing seconds of note onsets that can exert gravity."
+        },
+        {
+          "name": "Decay",
+          "description": "Fade duration after each onset; 0 uses **Window** (legacy behavior)."
+        },
+        {
+          "name": "Curve",
+          "description": "Exponential vs linear fade over **Decay** / **Window**."
+        },
+        {
+          "name": "Attack",
+          "description": "Brief strength boost at note onset (0 = off)."
+        },
+        {
+          "name": "Strength",
+          "description": "Pull/swirl scale; negative values repel instead of attract."
+        },
+        {
+          "name": "Reach",
+          "description": "Spatial influence radius in UV space (not pitch orbit size)."
+        },
+        {
+          "name": "Swirl",
+          "description": "Tangential spin mixed with radial pull; negative reverses rotation."
+        },
+        {
+          "name": "Max warp",
+          "description": "Maximum length of the accumulated **Warp** vector."
+        },
+        {
+          "name": "Falloff",
+          "description": "Power on spatial rim (higher = sharper well edges)."
+        },
+        {
+          "name": "Spread",
+          "description": "How far attractors sit from **Center** on the pitch wheel (matches ripple **Spread**)."
+        },
+        {
+          "name": "Vel gain",
+          "description": "Scales MIDI velocity before weighting each well."
+        },
+        {
+          "name": "Blend",
+          "description": "Sum, strongest well, or average displacement when many notes overlap."
+        },
+        {
+          "name": "Field γ",
+          "description": "Gamma on the **Value** mask (>1 sharpens, <1 softens)."
+        },
+        {
+          "name": "Low",
+          "description": "MIDI note for minimum pitch orbit (with **High**)."
+        },
+        {
+          "name": "High",
+          "description": "MIDI note for maximum pitch orbit (with **Low**)."
+        },
+        {
+          "name": "Tracks",
+          "description": "Dropdown checklist of note tracks from the imported snapshot."
+        }
+      ],
+      "relatedItems": [
+        "node:note-ripple-field",
+        "node:rhythm-stripe-field",
+        "node:vortex",
+        "node:displace",
+        "node:arrangement-notes",
+        "node:uv-coordinates",
+        "type:vec2"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          {
+            "id": "a",
+            "type": "uv-coordinates"
+          },
+          {
+            "id": "b",
+            "type": "note-gravity-warp"
+          },
+          {
+            "id": "c",
+            "type": "mix"
+          },
+          {
+            "id": "d",
+            "type": "final-output"
+          }
+        ],
+        "connections": [
+          {
+            "from": "a",
+            "fromPort": "out",
+            "to": "b",
+            "toPort": "in"
+          },
+          {
+            "from": "b",
+            "fromPort": "out",
+            "to": "c",
+            "toPort": "a"
+          },
+          {
+            "from": "c",
+            "fromPort": "out",
+            "to": "d",
+            "toPort": "in"
+          }
+        ]
+      },
+      "examples": [
+        "Wire **UV** out to **Stripes** or **Dots** for warped patterns without extra **Displace** nodes.",
+        "Set **Blend** to strongest well for cleaner chords; use **Energy** to drive **Mix** when many notes overlap.",
+        "Filter **Tracks** to bass only; raise **Spread** for wider pitch layout."
+      ],
+      "advanced": "Onsets bake at compile time (≤2048). Per-pixel loop capped at 96 onsets in the trailing window; preview clamps scan range via internal loop uniforms. Missing snapshot: compile succeeds with zero **Warp**, **UV**, **Value**, and **Energy**. Legacy graphs migrate `window`→**Window**, `radius`→**Reach**, `clamp`→**Max warp** on load."
+    },
+    "node:pitch-class-compass": {
+      "title": "Pitch Wheel",
+      "titleType": "node",
+      "tagline": "Angular sectors pulse on MIDI note onsets from the arrangement snapshot (requires imported arrangement snapshot)",
+      "description": "Maps UV around **Center** into **Sectors** wedges (2–24). Each wedge lights when a note onset maps to that sector: pitch is folded into chromatic groups (12 sectors = one per pitch class; fewer sectors merge neighbors). **Window** sets how far back onsets are scanned; **Decay** is how long each hit stays bright after its start. **Inner** / **Outer** define the annulus; **Soft** feathers wedge edges; **Bands** adds optional radial sine modulation. **Value** is the mask; **Color** uses the pitch-class palette with energy as alpha. Wire **UV Coords** into **UV**; timeline follows **Time** (defaults to transport). Use **Tracks** to filter note lanes.",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "vec2",
+          "description": "**UV Coords** output **p**: center **0**, aspect-correct X, Y ∈ [−1, 1]. Remapped internally to 0–1 UV.",
+          "suggestedSources": [
+            "type:vec2",
+            "node:uv-coordinates",
+            "node:transform"
+          ]
+        },
+        {
+          "name": "time",
+          "type": "float",
+          "description": "Timeline seconds; defaults to `uTimelineTime` when unwired.",
+          "suggestedSources": [
+            "type:float",
+            "node:time"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "float",
+          "description": "0–1 sector mask — brightest where active pitch-class energy meets the annulus.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:color-lut",
+            "node:final-output"
+          ]
+        },
+        {
+          "name": "color",
+          "type": "vec4",
+          "description": "Pitch-class palette RGB with energy as alpha — wire into Mix or Blend for harmonic tints.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:final-output"
+          ]
+        }
+      ],
+      "parameters": [
+        {
+          "name": "Window",
+          "description": "Seconds of recent note onsets scanned each frame (preview clamps the shader loop to this range)."
+        },
+        {
+          "name": "Decay",
+          "description": "Seconds each note onset keeps its sector bright after the hit (linear fade)."
+        },
+        {
+          "name": "Sectors",
+          "description": "Number of angular wedges (2–24). Twelve = one per pitch class; lower counts merge chromatic neighbors."
+        },
+        {
+          "name": "Bands",
+          "description": "Radial sine band count (0 disables banding)."
+        },
+        {
+          "name": "Tracks",
+          "description": "Dropdown checklist of note tracks from the imported snapshot."
+        }
+      ],
+      "relatedItems": [
+        "node:note-ripple-field",
+        "node:arrangement-notes",
+        "node:radial-rays",
+        "node:uv-coordinates",
+        "type:vec2"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          {
+            "id": "a",
+            "type": "uv-coordinates"
+          },
+          {
+            "id": "b",
+            "type": "pitch-class-compass"
+          },
+          {
+            "id": "c",
+            "type": "mix"
+          },
+          {
+            "id": "d",
+            "type": "final-output"
+          }
+        ],
+        "connections": [
+          {
+            "from": "a",
+            "fromPort": "out",
+            "to": "b",
+            "toPort": "in"
+          },
+          {
+            "from": "b",
+            "fromPort": "color",
+            "to": "c",
+            "toPort": "a"
+          },
+          {
+            "from": "c",
+            "fromPort": "out",
+            "to": "d",
+            "toPort": "in"
+          }
+        ]
+      },
+      "examples": [
+        "Pitch Wheel (Color) → Mix over a dark gradient → Output.",
+        "Scrub the timeline to see wedges pulse on each note onset.",
+        "Set **Sectors** to 6 for broader harmonic groups; filter **Tracks** to keys only."
+      ],
+      "advanced": "Onsets bake at compile time (≤2048, subsampled when dense). Per-pixel onset loop capped at 512 with preview `onsetLoopStart`/`onsetLoopEnd`. Missing snapshot: compile succeeds with zero **Value** and transparent **Color**."
+    },
+    "node:rhythm-stripe-field": {
+      "title": "Rhythm Wavefield",
+      "titleType": "node",
+      "tagline": "Mix-layer stripes whose spacing and bend follow release-weighted note density (requires imported arrangement snapshot)",
+      "description": "Release-weighted **time bins** over **Window** derive note density, mean pitch, and mean velocity — no per-note shader loop. **Scale** sets base stripe frequency; **Density** tightens bands when busy; **Bend** controls wobble separately from spacing. **Release** smooths density changes; **Idle** (Silent) outputs zero when no onsets (default). **Level** scales the mask; **Motion** params decouple scroll from MIDI velocity via **Vel mix**. **Value** is the stripe mask; **Energy** is smoothed density for Mix/automation; **Warp** displaces along the stripe normal. Intended as a layer — Mix over color, not solo to Output. Wire **UV Coords** into **UV**; timeline follows **Time** (defaults to transport). Use **Tracks** to filter note lanes.",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "vec2",
+          "description": "**UV Coords** output **p**: center **0**, aspect-correct X, Y ∈ [−1, 1]. Remapped internally to 0–1 UV.",
+          "suggestedSources": [
+            "type:vec2",
+            "node:uv-coordinates",
+            "node:transform"
+          ]
+        },
+        {
+          "name": "time",
+          "type": "float",
+          "description": "Timeline seconds; defaults to `uTimelineTime` when unwired.",
+          "suggestedSources": [
+            "type:float",
+            "node:time"
+          ]
+        },
+        {
+          "name": "angle",
+          "type": "float",
+          "description": "Stripe direction in radians; defaults to 0 when unwired.",
+          "suggestedSources": [
+            "type:float",
+            "node:constant-float"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "float",
+          "description": "0–1 stripe mask — tighter bands when recent note density is high.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:color-lut",
+            "node:final-output"
+          ]
+        },
+        {
+          "name": "warp",
+          "type": "vec2",
+          "description": "Displacement along the stripe normal from density-driven bend — wire into Distort nodes.",
+          "suggestedTargets": [
+            "node:displace",
+            "node:transform",
+            "node:mix"
+          ]
+        },
+        {
+          "name": "energy",
+          "type": "float",
+          "description": "Release-weighted note density (0–1) — drive Mix weight or automation without using the stripe mask.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:lerp"
+          ]
+        }
+      ],
+      "parameters": [
+        {
+          "name": "Scale",
+          "description": "Base stripe frequency before density gain is applied."
+        },
+        {
+          "name": "Density",
+          "description": "Extra stripe frequency added when the trailing window is dense with onsets."
+        },
+        {
+          "name": "Bend",
+          "description": "Stripe wobble amplitude when density is high — independent of spacing tightness."
+        },
+        {
+          "name": "Window",
+          "description": "Seconds of trailing time bins scanned for density, pitch, and velocity."
+        },
+        {
+          "name": "Release",
+          "description": "Linear decay weight on older bins within the window — higher values reduce strobe on sparse MIDI."
+        },
+        {
+          "name": "Idle",
+          "description": "Silent (0): zero output when no snapshot or no onsets in window. Base (1): static stripes at Scale when density is zero."
+        },
+        {
+          "name": "Tracks",
+          "description": "Dropdown checklist of note tracks from the imported snapshot."
+        }
+      ],
+      "relatedItems": [
+        "node:note-ripple-field",
+        "node:pitch-class-compass",
+        "node:stripes",
+        "node:arrangement-notes",
+        "node:uv-coordinates",
+        "type:vec2"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          {
+            "id": "a",
+            "type": "uv-coordinates"
+          },
+          {
+            "id": "b",
+            "type": "rhythm-stripe-field"
+          },
+          {
+            "id": "c",
+            "type": "mix"
+          },
+          {
+            "id": "d",
+            "type": "final-output"
+          }
+        ],
+        "connections": [
+          {
+            "from": "a",
+            "fromPort": "out",
+            "to": "b",
+            "toPort": "in"
+          },
+          {
+            "from": "b",
+            "fromPort": "out",
+            "to": "c",
+            "toPort": "a"
+          },
+          {
+            "from": "c",
+            "fromPort": "out",
+            "to": "d",
+            "toPort": "in"
+          }
+        ]
+      },
+      "examples": [
+        "Rhythm Wavefield (Value) → Mix (Level ~0.3) over a gradient → Color LUT → Output.",
+        "Wire **Energy** into Mix **t**; **Value** into color for density-driven crossfade.",
+        "Set **Phase** to 0 and **Vel mix** to 0 for a stable pattern while tuning color.",
+        "Filter **Tracks** to drums only so stripes tighten on busy percussion."
+      ],
+      "advanced": "Onset counts bake into fixed-width time bins at compile time (O(bins in window) per pixel, capped). Default **Idle** Silent: zero **Value**, **Warp**, and **Energy** when no snapshot or no onsets in window. Set **Idle** Base for always-on stripes at **Scale**."
+    },
+    "node:velocity-spark-grid": {
+      "title": "Flashgrid",
+      "titleType": "node",
+      "tagline": "Grid cells flash on recent MIDI note attacks with velocity-scaled dots (requires imported arrangement snapshot)",
+      "description": "Maps each note onset in the trailing **Decay** window to a procedural grid cell via pitch and track hash — only the matching cell lights up. **Grid X** / **Grid Y** set resolution; **Size** and **Feather** are fractions of the cell (stable when the grid changes); **Shuffle** perturbs pitch→cell mapping. **Vel size** and **Vel bright** split MIDI velocity into radius vs peak brightness. **Shape** toggles soft dots vs full cell flashes. **Blend** Max keeps the brightest spark; Add stacks overlapping hits. **Curve** and **Attack** shape the fade. **Value** is the spark mask; **Cell** is a hashed id for compositing; **Energy** sums activity; **Lines** is a grid wireframe. Complements **Notes** and **Dots** — abstract rhythm grid, not a sequencer layout. Wire **UV Coords** into **UV**; timeline follows **Time** (defaults to transport). Use **Tracks** to filter note lanes.",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "vec2",
+          "description": "**UV Coords** output **p**: center **0**, aspect-correct X, Y ∈ [−1, 1]. Remapped internally to 0–1 UV.",
+          "suggestedSources": [
+            "type:vec2",
+            "node:uv-coordinates",
+            "node:transform"
+          ]
+        },
+        {
+          "name": "time",
+          "type": "float",
+          "description": "Timeline seconds; defaults to `uTimelineTime` when unwired.",
+          "suggestedSources": [
+            "type:float",
+            "node:time"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "float",
+          "description": "0–1 spark mask at grid cell centers for recent onsets.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:color-lut",
+            "node:final-output"
+          ]
+        },
+        {
+          "name": "cellId",
+          "type": "float",
+          "description": "Hashed cell id of the brightest spark — wire into Mix or color nodes for per-cell variation.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:color-gradient",
+            "node:noise"
+          ]
+        },
+        {
+          "name": "energy",
+          "type": "float",
+          "description": "Sum of active spark contributions in the pixel — useful for driving intensity or warp elsewhere.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:displace",
+            "node:rhythm-stripe-field"
+          ]
+        },
+        {
+          "name": "lines",
+          "type": "float",
+          "description": "Grid wireframe mask (independent of sparks) — mix subtly for structure.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:color-lut"
+          ]
+        }
+      ],
+      "parameters": [
+        {
+          "name": "Grid X",
+          "description": "Horizontal cell count (floor(uv.x × grid))."
+        },
+        {
+          "name": "Grid Y",
+          "description": "Vertical cell count (floor(uv.y × grid))."
+        },
+        {
+          "name": "Decay",
+          "description": "Trailing seconds of note onsets that can light cells, and the fade duration for each spark."
+        },
+        {
+          "name": "Size",
+          "description": "Dot diameter as a fraction of the cell (0–1). **Vel size** scales this by MIDI velocity. Ignored for **Cell** shape."
+        },
+        {
+          "name": "Feather",
+          "description": "Soft edge width as a fraction of the cell. **Dot** — falloff beyond the radius. **Cell** — inset from the tile border."
+        },
+        {
+          "name": "Shuffle",
+          "description": "Perturbs the pitch→cell hash — higher values remap notes to different grid cells; at 0, pitches on the same track share a column."
+        },
+        {
+          "name": "Shape",
+          "description": "**Dot** — soft circle at cell center. **Cell** — flash the full tile."
+        },
+        {
+          "name": "Vel size",
+          "description": "How much MIDI velocity scales dot radius (0 = uniform size)."
+        },
+        {
+          "name": "Vel bright",
+          "description": "How much MIDI velocity scales peak brightness (0 = size only, like the original node)."
+        },
+        {
+          "name": "Min vel",
+          "description": "Ignore onsets below this velocity (0–1)."
+        },
+        {
+          "name": "Blend",
+          "description": "**Max** — brightest spark wins. **Add** — stack overlapping hits (saturated)."
+        },
+        {
+          "name": "Curve",
+          "description": "**Exp** — exponential fade (default). **Linear** — even fade to zero."
+        },
+        {
+          "name": "Attack",
+          "description": "Brief brightness boost at note onset (0 = off)."
+        },
+        {
+          "name": "Tracks",
+          "description": "Dropdown checklist of note tracks from the imported snapshot."
+        }
+      ],
+      "relatedItems": [
+        "node:note-ripple-field",
+        "node:rhythm-stripe-field",
+        "node:dots",
+        "node:arrangement-notes",
+        "node:uv-coordinates",
+        "type:vec2"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          {
+            "id": "a",
+            "type": "uv-coordinates"
+          },
+          {
+            "id": "b",
+            "type": "velocity-spark-grid"
+          },
+          {
+            "id": "c",
+            "type": "mix"
+          },
+          {
+            "id": "d",
+            "type": "final-output"
+          }
+        ],
+        "connections": [
+          {
+            "from": "a",
+            "fromPort": "out",
+            "to": "b",
+            "toPort": "in"
+          },
+          {
+            "from": "b",
+            "fromPort": "out",
+            "to": "c",
+            "toPort": "a"
+          },
+          {
+            "from": "c",
+            "fromPort": "out",
+            "to": "d",
+            "toPort": "in"
+          }
+        ]
+      },
+      "examples": [
+        "Flashgrid (Value) → Mix over a dark field → Output.",
+        "Filter **Tracks** to drums so cells flash on kick and snare hits.",
+        "Wire **Cell** into a color gradient for per-cell hue variation.",
+        "Mix **Lines** at low weight for a subtle grid structure.",
+        "Set **Blend** to Add and **Min vel** ~0.2 for dense hi-hat stacks."
+      ],
+      "advanced": "Onsets bake at compile time; the shader scans at most 256 onsets per pixel in the preview-clamped loop range. Missing snapshot: compile succeeds with zero **Value** and **Cell**."
+    },
+    "node:boundary-shutter-rays": {
+      "title": "Boundary Shutter Rays",
+      "titleType": "node",
+      "tagline": "Radial shutter rays at region start/end times (requires imported arrangement snapshot)",
+      "description": "Each region **start** and **end** in the trailing **Window** triggers radial shutter spokes from **Center**. **Rays** sets spoke count; **Width** shapes each wedge; **Spin** rotates the pattern over time after each boundary; **End pol** adds a phase offset on end events (negative values flip shutter direction). **Kind** filters region type (−1 = all, 0 = note, 1 = audio, 2 = pattern). Complements **Regions** and **Notes** — abstract fullscreen section transitions, not DAW blocks. Wire **UV Coords** into **UV**; timeline follows **Time** (defaults to transport). Use **Tracks** to filter arrangement lanes.",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "vec2",
+          "description": "**UV Coords** output **p**: center **0**, aspect-correct X, Y ∈ [−1, 1]. Remapped internally to 0–1 UV.",
+          "suggestedSources": [
+            "type:vec2",
+            "node:uv-coordinates",
+            "node:transform"
+          ]
+        },
+        {
+          "name": "time",
+          "type": "float",
+          "description": "Timeline seconds; defaults to `uTimelineTime` when unwired.",
+          "suggestedSources": [
+            "type:float",
+            "node:time"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "float",
+          "description": "0–1 radial shutter ray mask — brightest on spokes after a region boundary.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:color-lut",
+            "node:final-output"
+          ]
+        }
+      ],
+      "parameters": [
+        {
+          "name": "Window",
+          "description": "Seconds after each boundary time (start/end) that can emit shutter rays."
+        },
+        {
+          "name": "End pol",
+          "description": "Phase multiplier on region end events (× full turn); negative values flip shutter direction vs starts."
+        },
+        {
+          "name": "Kind",
+          "description": "Region kind filter: −1 all, 0 note, 1 audio, 2 pattern."
+        },
+        {
+          "name": "Tracks",
+          "description": "Dropdown checklist of tracks from the imported snapshot."
+        }
+      ],
+      "relatedItems": [
+        "node:arrangement-lanes",
+        "node:note-ripple-field",
+        "node:radial-rays",
+        "node:uv-coordinates",
+        "type:vec2"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          {
+            "id": "a",
+            "type": "uv-coordinates"
+          },
+          {
+            "id": "b",
+            "type": "boundary-shutter-rays"
+          },
+          {
+            "id": "c",
+            "type": "final-output"
+          }
+        ],
+        "connections": [
+          {
+            "from": "a",
+            "fromPort": "out",
+            "to": "b",
+            "toPort": "in"
+          },
+          {
+            "from": "b",
+            "fromPort": "out",
+            "to": "c",
+            "toPort": "in"
+          }
+        ]
+      },
+      "examples": [
+        "Boundary Shutter Rays → Mix over a dark field → Output.",
+        "Scrub the timeline at section boundaries to see iris rays spin from center.",
+        "Tune **End pol** so chorus exits and verse entries use opposite shutter rotation."
+      ],
+      "advanced": "Boundary events bake at compile time (≤256 start/end pairs). Per-pixel loop capped at 96 events in the trailing window. Missing snapshot: compile succeeds with zero **Value**."
+    },
+    "node:chord-voronoi-bloom": {
+      "title": "Chord Voronoi Bloom",
+      "titleType": "node",
+      "tagline": "Harmonic Voronoi cells from active chord tones in the arrangement snapshot (requires imported arrangement snapshot)",
+      "description": "Active pitch-class energy at the current timeline time becomes up to **Sites** Voronoi seeds on a ring around **Center** (with **Jitter** and optional **Seed**). Velocity-weighted distance picks the nearest cell; **Edge** feathers boundaries between neighbors; **Fill** brightens cell interiors. **Value** is the combined edge/fill mask; **Color** uses the shared pitch-class palette for the winning cell. Harmony changes re-tessellate the frame as notes start and release over **Release** seconds. Complements **Pitch Wheel** and **Notes** — abstract cells, not piano-roll layout. Wire **UV Coords** into **UV**; timeline follows **Time** (defaults to transport). Use **Tracks** to filter note lanes.",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "vec2",
+          "description": "**UV Coords** output **p**: center **0**, aspect-correct X, Y ∈ [−1, 1]. Remapped internally to 0–1 UV.",
+          "suggestedSources": [
+            "type:vec2",
+            "node:uv-coordinates",
+            "node:transform"
+          ]
+        },
+        {
+          "name": "time",
+          "type": "float",
+          "description": "Timeline seconds; defaults to `uTimelineTime` when unwired.",
+          "suggestedSources": [
+            "type:float",
+            "node:time"
+          ]
+        },
+        {
+          "name": "seed",
+          "type": "float",
+          "description": "Offsets site angles and jitter hashes for variant tessellations.",
+          "suggestedSources": [
+            "type:float",
+            "node:noise"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "float",
+          "description": "0–1 edge/fill mask — brightest at Voronoi walls and cell cores for active chord tones.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:color-lut",
+            "node:final-output"
+          ]
+        },
+        {
+          "name": "color",
+          "type": "vec4",
+          "description": "Nearest pitch-class palette RGB with energy as alpha.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:final-output"
+          ]
+        }
+      ],
+      "parameters": [
+        {
+          "name": "Release",
+          "description": "Trailing seconds of pitch-class energy retained when building Voronoi sites."
+        },
+        {
+          "name": "Sites",
+          "description": "Maximum active pitch-class sites per pixel (capped at 24)."
+        },
+        {
+          "name": "Tracks",
+          "description": "Dropdown checklist of note tracks from the imported snapshot."
+        }
+      ],
+      "relatedItems": [
+        "node:pitch-class-compass",
+        "node:note-ripple-field",
+        "node:arrangement-notes",
+        "node:voronoi-noise",
+        "node:uv-coordinates",
+        "type:vec2"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          {
+            "id": "a",
+            "type": "uv-coordinates"
+          },
+          {
+            "id": "b",
+            "type": "chord-voronoi-bloom"
+          },
+          {
+            "id": "c",
+            "type": "mix"
+          },
+          {
+            "id": "d",
+            "type": "final-output"
+          }
+        ],
+        "connections": [
+          {
+            "from": "a",
+            "fromPort": "out",
+            "to": "b",
+            "toPort": "in"
+          },
+          {
+            "from": "b",
+            "fromPort": "color",
+            "to": "c",
+            "toPort": "a"
+          },
+          {
+            "from": "c",
+            "fromPort": "out",
+            "to": "d",
+            "toPort": "in"
+          }
+        ]
+      },
+      "examples": [
+        "Chord Voronoi Bloom (**Color**) → Mix over a dark gradient → Output.",
+        "Scrub the timeline when chords change to see cells re-tessellate.",
+        "Animate **Seed** from a slow noise node for drifting site layouts."
+      ],
+      "advanced": "Sites come from compile-time pitch-class energy bins (≤12 classes, **Sites** param caps the loop at 24). No per-note pixel loop. Missing snapshot: compile succeeds with zero **Value** and **Color**."
+    },
+    "node:duration-comet-trails": {
+      "title": "Duration Comet Trails",
+      "titleType": "node",
+      "tagline": "Curved comet strokes from recent MIDI notes; duration sets trail length (requires imported arrangement snapshot)",
+      "description": "Each note onset in the trailing **Trail** window draws a curved stroke from a pitch-derived position at **Center**. **Length** scales base stroke size; **Dur gain** maps note duration to longer trails for sustained notes vs staccato; **Width** and **Bend** shape the stroke and sine wiggle along the tail. MIDI velocity scales brightness. **Value** is the trail mask; **Head** is a bright glint at the advancing note head. Complements **Notes** and **Note Ripple Field** — abstract strokes, not piano-roll bars. Wire **UV Coords** into **UV**; timeline follows **Time** (defaults to transport). Use **Tracks** to filter note lanes.",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "vec2",
+          "description": "**UV Coords** output **p**: center **0**, aspect-correct X, Y ∈ [−1, 1]. Remapped internally to 0–1 UV.",
+          "suggestedSources": [
+            "type:vec2",
+            "node:uv-coordinates",
+            "node:transform"
+          ]
+        },
+        {
+          "name": "time",
+          "type": "float",
+          "description": "Timeline seconds; defaults to `uTimelineTime` when unwired.",
+          "suggestedSources": [
+            "type:float",
+            "node:time"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "float",
+          "description": "0–1 curved comet trail mask along the stroke behind each active note.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:color-lut",
+            "node:final-output"
+          ]
+        },
+        {
+          "name": "head",
+          "type": "float",
+          "description": "0–1 head glint at the advancing note position — mix over trails for sparkle.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:color-gradient"
+          ]
+        }
+      ],
+      "parameters": [
+        {
+          "name": "Trail",
+          "description": "Trailing seconds of note onsets that can draw comet strokes."
+        },
+        {
+          "name": "Dur gain",
+          "description": "Scales how much note duration lengthens the stroke (sustained notes → longer tails)."
+        },
+        {
+          "name": "Tracks",
+          "description": "Dropdown checklist of note tracks from the imported snapshot."
+        }
+      ],
+      "relatedItems": [
+        "node:note-ripple-field",
+        "node:velocity-spark-grid",
+        "node:arrangement-notes",
+        "node:streak",
+        "node:uv-coordinates",
+        "type:vec2"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          {
+            "id": "a",
+            "type": "uv-coordinates"
+          },
+          {
+            "id": "b",
+            "type": "duration-comet-trails"
+          },
+          {
+            "id": "c",
+            "type": "mix"
+          },
+          {
+            "id": "d",
+            "type": "final-output"
+          }
+        ],
+        "connections": [
+          {
+            "from": "a",
+            "fromPort": "out",
+            "to": "b",
+            "toPort": "in"
+          },
+          {
+            "from": "b",
+            "fromPort": "out",
+            "to": "c",
+            "toPort": "a"
+          },
+          {
+            "from": "b",
+            "fromPort": "head",
+            "to": "c",
+            "toPort": "b"
+          },
+          {
+            "from": "c",
+            "fromPort": "out",
+            "to": "d",
+            "toPort": "in"
+          }
+        ]
+      },
+      "examples": [
+        "Duration Comet Trails (Value) → Mix over a dark gradient → Output.",
+        "Wire **Head** into Mix **B** to add bright glints on top of trails.",
+        "Raise **Dur gain** so held chords leave longer strokes than short hits."
+      ],
+      "advanced": "Onsets bake at compile time (≤2048, subsampled when dense). Per-pixel onset loop capped at 256 with preview `onsetLoopStart`/`onsetLoopEnd`. Missing snapshot: compile succeeds with zero **Value** and **Head**."
+    },
+    "node:track-halo-lattice": {
+      "title": "Track Halo Lattice",
+      "titleType": "node",
+      "tagline": "Per-track golden-angle lattice halos driven by note energy bins (requires imported arrangement snapshot)",
+      "description": "Each visible track owns a shifted procedural lattice layer: golden-angle offset combines track index with mean pitch from recent note energy. **Scale** sets cell density; **Halo** shapes dot size at cell centers; **Decay** is the trailing seconds of per-track energy; **Spread** offsets each layer from **Center**; **Contrast** boosts bright halos. **Value** is the combined lattice mask; **Track** is 0–1 for the dominant-energy track (wire into hue or mix weight). Complements **Regions** and **Notes** — abstract layered rhythm field, not horizontal lanes. Wire **UV Coords** into **UV**; timeline follows **Time** (defaults to transport). Use **Tracks** to filter note lanes.",
+      "inputs": [
+        {
+          "name": "in",
+          "type": "vec2",
+          "description": "**UV Coords** output **p**: center **0**, aspect-correct X, Y ∈ [−1, 1]. Remapped internally to 0–1 UV.",
+          "suggestedSources": [
+            "type:vec2",
+            "node:uv-coordinates",
+            "node:transform"
+          ]
+        },
+        {
+          "name": "time",
+          "type": "float",
+          "description": "Timeline seconds; defaults to `uTimelineTime` when unwired.",
+          "suggestedSources": [
+            "type:float",
+            "node:time"
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "type": "float",
+          "description": "0–1 combined lattice halo mask from all active tracks.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:blend",
+            "node:color-lut",
+            "node:final-output"
+          ]
+        },
+        {
+          "name": "trackMask",
+          "type": "float",
+          "description": "0–1 normalized index of the track with strongest recent energy — for per-track tinting.",
+          "suggestedTargets": [
+            "node:mix",
+            "node:color-gradient",
+            "node:noise"
+          ]
+        }
+      ],
+      "parameters": [
+        {
+          "name": "Scale",
+          "description": "Lattice cells per UV axis (fract distance → halo at cell centers)."
+        },
+        {
+          "name": "Halo",
+          "description": "Radius of the smooth dot at each lattice cell center."
+        },
+        {
+          "name": "Decay",
+          "description": "Trailing seconds of per-track energy bins that can light halos."
+        },
+        {
+          "name": "Spread",
+          "description": "UV offset radius per track from center (golden-angle + pitch rotation)."
+        },
+        {
+          "name": "Contrast",
+          "description": "Multiplier on energy × halo before clamping to 0–1."
+        },
+        {
+          "name": "Tracks",
+          "description": "Dropdown checklist of note tracks from the imported snapshot."
+        }
+      ],
+      "relatedItems": [
+        "node:velocity-spark-grid",
+        "node:rhythm-stripe-field",
+        "node:boundary-shutter-rays",
+        "node:arrangement-notes",
+        "node:uv-coordinates",
+        "type:vec2"
+      ],
+      "setupExampleGraph": {
+        "nodes": [
+          {
+            "id": "a",
+            "type": "uv-coordinates"
+          },
+          {
+            "id": "b",
+            "type": "track-halo-lattice"
+          },
+          {
+            "id": "c",
+            "type": "mix"
+          },
+          {
+            "id": "d",
+            "type": "final-output"
+          }
+        ],
+        "connections": [
+          {
+            "from": "a",
+            "fromPort": "out",
+            "to": "b",
+            "toPort": "in"
+          },
+          {
+            "from": "b",
+            "fromPort": "out",
+            "to": "c",
+            "toPort": "a"
+          },
+          {
+            "from": "c",
+            "fromPort": "out",
+            "to": "d",
+            "toPort": "in"
+          }
+        ]
+      },
+      "examples": [
+        "Track Halo Lattice (Value) → Mix over a dark field → Output.",
+        "Wire **Track** into a color gradient so the dominant lane tints the halos.",
+        "Filter **Tracks** to separate drum and melody layers."
+      ],
+      "advanced": "Per-track energy bins bake at compile time (≤16 tracks). Shader loops tracks only, not individual notes. Missing snapshot: compile succeeds with zero **Value** and **Track**."
     },
     "node:stripes": {
       "title": "Stripes",

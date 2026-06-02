@@ -151,6 +151,7 @@ export class NodeEditorCanvas {
   private onRedo?: () => void;
   /** Fired from mouse handler when user triggers add-node on empty canvas (Add tool or Alt+click in Cursor). */
   onRequestAddNodeAtCanvas?: (screenX: number, screenY: number) => void;
+  private cursorRoot: HTMLElement | null = null;
   private audioManager?: IAudioManager;
   private effectiveValueUpdateRunner!: EffectiveValueUpdateRunner;
 
@@ -414,7 +415,7 @@ export class NodeEditorCanvas {
   }
   
   /**
-   * Handle right-click on canvas: if over a node, show node context menu (Read Guide, Copy node name, Remove).
+   * Handle right-click on canvas: if over a node, show node context menu (Rename, Duplicate, Read Guide, etc.).
    */
   private handleContextMenu(e: MouseEvent): void {
     e.preventDefault();
@@ -749,12 +750,27 @@ export class NodeEditorCanvas {
     return this.activeToolInternal;
   }
 
+  /** Editor wrapper element — cursor applies to canvas and wrapper during wire drag. */
+  setCursorRoot(el: HTMLElement | null): void {
+    this.cursorRoot = el;
+  }
+
+  getCursorRoot(): HTMLElement | null {
+    return this.cursorRoot;
+  }
+
+  getCurrentMouse(): { x: number; y: number } {
+    return this.interactionState.getCurrentMouse();
+  }
+
   public createHandlerContext(): HandlerContext {
     return createHandlerContext(this as unknown as HandlerContextSource);
   }
 
   setCallbacks(callbacks: CanvasCallbacks): void {
-    setCallbacksImpl(this as unknown as SetCallbacksCanvas, callbacks);
+    const target = this as unknown as SetCallbacksCanvas;
+    target.connectionStateManager = this.connectionStateManager;
+    setCallbacksImpl(target, callbacks);
   }
   
   /**

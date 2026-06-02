@@ -103,6 +103,11 @@ export function automationLaneHasEvaluableRegions(lane: AutomationLane): boolean
   return lane.regions.some(isEvaluableRegion);
 }
 
+/** True when evaluable regions drive the parameter (not bypassed). */
+export function isAutomationLaneDriving(lane: AutomationLane): boolean {
+  return !lane.disabled && automationLaneHasEvaluableRegions(lane);
+}
+
 function clamp01(x: number): number {
   return Math.max(0, Math.min(1, x));
 }
@@ -234,7 +239,7 @@ export function evaluateAutomationAtTime(
   const lane = automation.lanes.find(
     (l) => l.nodeId === nodeId && l.paramName === paramName
   );
-  if (!lane) return null;
+  if (!lane || lane.disabled) return null;
 
   const regions = sortEvaluableRegions(lane);
   return evaluateLaneAutomationAtTime(regions, t, paramSpec);

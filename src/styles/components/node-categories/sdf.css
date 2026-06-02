@@ -24,29 +24,33 @@
   --node-param-grid-bg-sdf-raymarcher: var(--color-blue-gray-40);
   --node-param-cell-bg-sdf-raymarcher: var(--color-cyan-gray-70);
   --node-param-cell-bg-end-sdf-raymarcher: var(--color-cyan-gray-50);
-  --node-param-label-color-sdf-raymarcher: var(--color-cyan-gray-20);
+  --node-param-label-color-sdf-raymarcher: var(--color-cyan-gray-120);
 
   --node-knob-value-bg-sdf-raymarcher: var(--color-cyan-gray-30);
-  --node-knob-value-color-sdf-raymarcher: var(--color-cyan-gray-140);
+  --node-knob-value-color-sdf-raymarcher: var(--color-cyan-gray-130);
+  --node-knob-ring-color-sdf-raymarcher: var(--color-cyan-gray-30);
+  --node-knob-arc-active-sdf-raymarcher: var(--node-icon-box-color-sdf-raymarcher);
+  --node-knob-marker-sdf-raymarcher: var(--node-icon-box-bg-sdf-raymarcher);
 
   /* Icon box */
   --node-icon-box-bg-sdf: var(--color-cyan-gray-80);
-  --node-icon-box-color-sdf: var(--color-cyan-110);
+  --node-icon-box-color-sdf: var(--color-cyan-130);
 
   /* Param group header */
-  --param-group-header-color-sdf: var(--color-cyan-gray-110);
+  --param-group-header-color-sdf: var(--color-cyan-gray-120);
 
   /* Param cell */
   --node-param-cell-bg-sdf: var(--color-blue-gray-80);
   --node-param-cell-bg-end-sdf: var(--color-blue-gray-80);
-  --node-param-label-color-sdf: var(--color-cyan-gray-40);
+  --node-param-label-color-sdf: var(--color-cyan-gray-120);
+  --node-param-label-color-connected-sdf: var(--color-cyan-gray-130);
 
   /* Knob */
   --node-knob-value-bg-sdf: var(--color-cyan-gray-40);
   --node-knob-value-color-sdf: var(--color-cyan-gray-120);
-  --node-knob-ring-color-sdf: var(--color-cyan-gray-110);
-  --node-knob-arc-active-sdf: var(--color-cyan-100);
-  --node-knob-marker-sdf: var(--color-cyan-gray-60);
+  --node-knob-ring-color-sdf: var(--color-cyan-gray-50);
+  --node-knob-arc-active-sdf: var(--node-icon-box-color-sdf);
+  --node-knob-marker-sdf: var(--node-icon-box-bg-sdf);
   --knob-ring-bg-width-sdf: 4px;
   --knob-ring-active-width-sdf: 4px;
   --knob-marker-size-sdf: 6px;
@@ -72,6 +76,7 @@
   --node-body-shadow-color-outer: var(--node-body-shadow-color-outer-sdf);
   --node-header-name-color: var(--node-header-print-sdf);
   --param-group-header-color: var(--param-group-header-color-sdf);
+  --param-label-color: var(--node-param-label-color-sdf);
   --knob-ring-color: var(--node-knob-ring-color-sdf);
   --knob-ring-active-color-static: var(--node-knob-arc-active-sdf);
   --knob-marker-color: var(--node-knob-marker-sdf);
@@ -93,6 +98,15 @@
   --knob-center-border-width: var(--knob-center-border-width-sdf);
   --knob-center-border-color: var(--node-knob-center-border-color-sdf);
   --knob-center-filter: var(--knob-center-filter-sdf);
+
+  --embed-slot-bg: var(--color-cyan-gray-60);
+  --bezier-editor-grid-color: var(--color-cyan-gray-90);
+  --bezier-editor-grid-border-color: var(--color-cyan-gray-80);
+  --bezier-editor-control-line-color: var(--color-cyan-gray-100);
+  --vector2d-editor-grid-color: var(--color-cyan-gray-90);
+  --vector2d-editor-axis-color: var(--color-cyan-gray-110);
+  --vector3d-editor-view-bg: var(--color-cyan-gray-50);
+  --range-editor-slider-track-color: var(--color-cyan-gray-90);
 
   /* Node header (outermost) */
   background: radial-gradient(
@@ -131,6 +145,7 @@
   /* Raymarcher subgroup variant (canvas): brighter header text + icon box */
   &.raymarcher {
     --node-header-name-color: var(--node-header-print-sdf-raymarcher);
+    --param-label-color: var(--node-param-label-color-sdf-raymarcher);
 
     .icon-box {
       background: var(--node-icon-box-bg-sdf-raymarcher);
@@ -169,8 +184,12 @@
     border-radius: var(--radius-md);
 
     &.connected {
-      background: var(--color-blue-gray-90);
+      background: var(--color-blue-gray-80);
       border-color: transparent;
+
+      .left-column .top .label {
+        color: var(--node-param-label-color-connected-sdf);
+      }
     }
 
     .left-column .top .label {
@@ -195,6 +214,10 @@
 
   /* Raymarcher subgroup variant (canvas): brighter header/body + param grid */
   &.raymarcher {
+    --node-knob-ring-color-sdf: var(--node-knob-ring-color-sdf-raymarcher);
+    --node-knob-arc-active-sdf: var(--node-knob-arc-active-sdf-raymarcher);
+    --node-knob-marker-sdf: var(--node-knob-marker-sdf-raymarcher);
+
     /* Node header (outermost) */
     background: radial-gradient(
       ellipse var(--node-header-bg-gradient-ellipse-width) var(--node-header-bg-gradient-ellipse-height) at var(--node-header-bg-gradient-ellipse-x) var(--node-header-bg-gradient-ellipse-y),

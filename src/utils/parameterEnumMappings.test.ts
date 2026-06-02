@@ -40,6 +40,21 @@ describe('getParameterEnumMappings', () => {
     expect(m![1]).toBe('Directional');
   });
 
+  it('maps velocity-spark-grid shape, blend, and decay curve labels', () => {
+    expect(getParameterEnumMappings('velocity-spark-grid', 'shape')?.[0]).toBe('Dot');
+    expect(getParameterEnumMappings('velocity-spark-grid', 'shape')?.[1]).toBe('Cell');
+    expect(getParameterEnumMappings('velocity-spark-grid', 'blendMode')?.[1]).toBe('Add');
+    expect(getParameterEnumMappings('velocity-spark-grid', 'decayCurve')?.[0]).toBe('Exp');
+  });
+
+  it('maps note-gravity-warp blend and decay curve labels', () => {
+    expect(getParameterEnumMappings('note-gravity-warp', 'decayCurve')?.[0]).toBe('Exp');
+    expect(getParameterEnumMappings('note-gravity-warp', 'decayCurve')?.[1]).toBe('Linear');
+    expect(getParameterEnumMappings('note-gravity-warp', 'blendMode')?.[0]).toBe('Sum');
+    expect(getParameterEnumMappings('note-gravity-warp', 'blendMode')?.[1]).toBe('Max');
+    expect(getParameterEnumMappings('note-gravity-warp', 'blendMode')?.[2]).toBe('Avg');
+  });
+
   it('maps infinite-zoom infiniteZoomMotion to ping-pong vs snap labels', () => {
     const m = getParameterEnumMappings('infinite-zoom', 'infiniteZoomMotion');
     expect(m).not.toBeNull();

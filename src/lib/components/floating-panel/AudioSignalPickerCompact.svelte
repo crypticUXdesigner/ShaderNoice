@@ -1,38 +1,46 @@
 <script lang="ts">
   /**
-   * AudioSignalPickerCompact - WP audio-signal-picker 02B
-   * Compact popover when port is audio-connected: show config of the connected band or remapper
-   * and a Disconnect button. No option to select another signal.
-   * Used only by AudioSignalPickerPanel (floating-panel).
+   * AudioSignalPickerCompact - focused parameter driver body (remapper or raw band).
+   * Layout parallels MidiEnvelopeCard embedded mode.
    */
-  import { Button, IconSvg, DropdownMenu, MenuItem, EditableLabel } from '../ui';
   import FrequencyRangeEditor from '../audio/FrequencyRangeEditor.svelte';
-  import { RemapRangeEditor } from '../ui';
+  import RemapperCard from '../audio/RemapperCard.svelte';
   import type { CompactSlotProps } from './AudioSignalPicker.types';
   import type { AudioBandEntry, AudioRemapperEntry } from '../../../data-model/audioSetupTypes';
   import { updateAudioBand, updateAudioRemapper } from '../../../data-model';
   import { subscribeParameterValueTick } from '../../stores/parameterValueTickStore';
-  import RemapperConnectionList from '../audio/RemapperConnectionList.svelte';
+  import DriverConnectionTargetTags from './DriverConnectionTargetTags.svelte';
+  import DriverFocusedHeader from './DriverFocusedHeader.svelte';
+  import {
+    formatDriverBandSourceText,
+    resolveDriverConnectionTargetDisplay,
+    resolveDriverTargetDisplay,
+  } from './driverTargetDisplay';
   import { getRemapperParameterConnections } from '../../../utils/getRemapperParameterConnections';
+  import { getVirtualNodeId } from '../../../utils/virtualNodes';
 
   let {
+    parameterTitle,
     graph,
     nodeSpecs,
     audioSetup,
-    onSelect,
+    onSelect: _onSelect,
     onAudioSetupChange,
     connectedSignalId,
-    connectionId,
-    connectionDisabled,
     getAudioManager,
-    onOpenLargeWithBand,
     onRevealInNodeEditor,
+    onOpenLargeWithBand,
+    targetNodeId,
+    targetParameter,
+    triggerElement: _triggerElement,
+    connectedVirtualNodeId: _connectedVirtualNodeId,
+    connectionId: _connectionId,
+    onClose: _onClose,
   }: CompactSlotProps = $props();
 
   let spectrumDataByBand = $state<Map<string, { frequencyData: Uint8Array; fftSize: number; sampleRate: number }>>(new Map());
   let liveValuesByRemapper = $state<Map<string, { incoming: number | null; outgoing: number | null }>>(new Map());
 
-  /** Throttle live updates to ~20 fps to avoid driving Svelte reactivity at 60 fps. */
   const LIVE_UPDATE_INTERVAL_MS = 50;
 
   $effect(() => {
@@ -69,7 +77,7 @@
 
   type Resolved =
     | { kind: 'band'; band: AudioBandEntry }
-    | { kind: 'remapper'; remapper: AudioRemapperEntry }
+    | { kind: 'remapper'; remapper: AudioRemapperEntry; band: AudioBandEntry }
     | { kind: 'not-found' };
 
   const resolved = $derived.by((): Resolved => {
@@ -81,30 +89,13 @@
     if (connectedSignalId.startsWith('remap-')) {
       const remapperId = connectedSignalId.slice(6);
       const remapper = audioSetup.remappers.find((r) => r.id === remapperId);
-      if (remapper) return { kind: 'remapper', remapper };
+      if (remapper) {
+        const band = audioSetup.bands.find((b) => b.id === remapper.bandId);
+        if (band) return { kind: 'remapper', remapper, band };
+      }
     }
     return { kind: 'not-found' };
   });
-
-  function handleDisconnect() {
-    onSelect({ type: 'disconnect', connectionId });
-  }
-
-  const isAudioOff = $derived(connectionDisabled === true);
-  const powerHelp = $derived(
-    isAudioOff
-      ? 'Power — turn on audio for this parameter'
-      : 'Power — turn off audio for this parameter'
-  );
-
-  function handleConnectionPowerClick(e: MouseEvent) {
-    e.stopPropagation();
-    onSelect({
-      type: 'set-connection-disabled',
-      connectionId,
-      disabled: !connectionDisabled,
-    });
-  }
 
   function handleBandChange(bandId: string, updater: (b: AudioBandEntry) => AudioBandEntry) {
     onAudioSetupChange(updateAudioBand(audioSetup, bandId, updater));
@@ -114,278 +105,272 @@
     onAudioSetupChange(updateAudioRemapper(audioSetup, remapperId, updater));
   }
 
-  let sourceFileButtonEl: HTMLDivElement | undefined = $state();
-  let sourceFileOpen = $state(false);
+  const connectionTargets = $derived.by(() => {
+    if (resolved.kind === 'remapper') {
+      return getRemapperParameterConnections(graph, resolved.remapper.id, nodeSpecs)
+        .map((c) => resolveDriverConnectionTargetDisplay(graph, nodeSpecs, c.nodeId, c.paramName))
+        .filter((t): t is NonNullable<typeof t> => t != null);
+    }
+    if (resolved.kind === 'band') {
+      const virtualNodeId = getVirtualNodeId(`band-${resolved.band.id}-raw`);
+      const targets = [];
+      for (const conn of graph.connections) {
+        if (conn.sourceNodeId !== virtualNodeId || !conn.targetParameter) continue;
+        const display = resolveDriverConnectionTargetDisplay(
+          graph,
+          nodeSpecs,
+          conn.targetNodeId,
+          conn.targetParameter
+        );
+        if (display) targets.push(display);
+      }
+      return targets.sort((a, b) => a.paramLabel.localeCompare(b.paramLabel));
+    }
+    return [];
+  });
 
-  type BandMode = 'mean' | 'max' | 'rms';
-  const BAND_MODE_OPTIONS: ReadonlyArray<{ value: BandMode; label: string; desc: string }> = [
-    { value: 'mean', label: 'Mean', desc: 'Smooth response. Transients are softened.' },
-    { value: 'max', label: 'Max', desc: 'Snappy response. Reacts to transients.' },
-    { value: 'rms', label: 'RMS', desc: 'Balanced. Loudness-weighted average.' },
-  ];
-
-  let modeButtonEl: HTMLDivElement | undefined = $state();
-  let modeOpen = $state(false);
+  const targetDisplay = $derived(
+    resolveDriverTargetDisplay(graph, nodeSpecs, targetNodeId, targetParameter)
+  );
 </script>
 
-<div class="compact">
+<div class="audio-driver-compact">
   {#if resolved.kind === 'not-found'}
     <p class="fallback">Signal not found</p>
   {:else if resolved.kind === 'band'}
     {@const band = resolved.band}
     {@const bandId = band.id}
-    {@const files = audioSetup.files}
-    {@const selectedFile = files.find((f) => f.id === band.sourceFileId)}
-    {@const selectedFileName = selectedFile?.name ?? (selectedFile?.filePath ? selectedFile.filePath.split(/[/\\]/).pop() : 'No file')}
-    <div class="section band frame-elevated">
-      <div class="header">
-        <div class="label-wrap">
-          <EditableLabel
-            value={band.name}
-            placeholder="Band name"
-            ariaLabel="Band name"
-            onCommit={(value) => handleBandChange(bandId, (b) => ({ ...b, name: value }))}
-          />
-        </div>
-      </div>
-      <div class="row">
-        <span class="label">Source</span>
-        <div class="source" bind:this={sourceFileButtonEl}>
-          <Button
-            variant="ghost"
-            size="sm"
-            mode="both"
-            disabled={files.length === 0}
-            class="trigger"
-            onclick={() => (sourceFileOpen = !sourceFileOpen)}
-          >
-            <IconSvg name="music" variant="line" />
-            <span class="text">{selectedFileName}</span>
-          </Button>
-          <DropdownMenu
-            open={sourceFileOpen}
-            anchor={sourceFileButtonEl}
-            onClose={() => (sourceFileOpen = false)}
-            class="dropdown"
-          >
-            {#snippet children()}
-              {#each files as file (file.id)}
-                <MenuItem
-                  label={file.name || file.filePath || `File ${file.id}`}
-                  onclick={() => {
-                    handleBandChange(bandId, (b) => ({ ...b, sourceFileId: file.id }));
-                    sourceFileOpen = false;
-                  }}
-                />
-              {/each}
-            {/snippet}
-          </DropdownMenu>
-        </div>
-      </div>
-      <div class="row">
-        <span class="label">Mode</span>
-        <div class="source" bind:this={modeButtonEl}>
-          <Button
-            variant="ghost"
-            size="sm"
-            mode="both"
-            class="trigger"
-            aria-label="Mode"
-            onclick={() => (modeOpen = !modeOpen)}
-          >
-            <span class="text">
-              {BAND_MODE_OPTIONS.find((o) => o.value === (band.bandMode ?? 'mean'))?.label ?? 'Mean'}
+    <div class="audio-driver-card is-embedded">
+      {#if targetDisplay}
+        <DriverFocusedHeader
+          target={targetDisplay}
+          embedded
+          onReveal={onRevealInNodeEditor}
+        >
+          {#snippet trailing()}
+            <span class="focused-source" title={formatDriverBandSourceText(band)}>
+              {formatDriverBandSourceText(band)}
             </span>
-          </Button>
-          <DropdownMenu
-            open={modeOpen}
-            anchor={modeButtonEl}
-            onClose={() => (modeOpen = false)}
-            class="dropdown"
-          >
-            {#snippet children()}
-              {#each BAND_MODE_OPTIONS as option (option.value)}
-                <MenuItem
-                  label={option.label}
-                  desc={option.desc}
-                  selected={(band.bandMode ?? 'mean') === option.value}
-                  onclick={() => {
-                    handleBandChange(bandId, (b) => ({ ...b, bandMode: option.value }));
-                    modeOpen = false;
-                  }}
-                />
-              {/each}
-            {/snippet}
-          </DropdownMenu>
-        </div>
-      </div>
-      <div class="frequency-wrap">
+          {/snippet}
+        </DriverFocusedHeader>
+      {/if}
+      <div class="editor-wrap">
         <FrequencyRangeEditor
           frequencyBands={band.frequencyBands}
           spectrumData={spectrumDataByBand.get(bandId)?.frequencyData}
           sampleRate={spectrumDataByBand.get(bandId)?.sampleRate ?? 44100}
           fftSize={band.fftSize}
           fftSizeValue={band.fftSize}
+          bandMode={band.bandMode ?? 'mean'}
           attackHalfLifeSeconds={band.attackHalfLifeSeconds}
+          onBandModeChange={(mode) => handleBandChange(bandId, (b) => ({ ...b, bandMode: mode }))}
           releaseHalfLifeSeconds={band.releaseHalfLifeSeconds}
           onChange={(bands) => handleBandChange(bandId, (b) => ({ ...b, frequencyBands: bands }))}
           onAttackHalfLifeSecondsChange={(v) =>
             handleBandChange(bandId, (b) => ({ ...b, attackHalfLifeSeconds: v != null ? Math.max(0, v) : undefined }))}
           onReleaseHalfLifeSecondsChange={(v) =>
             handleBandChange(bandId, (b) => ({ ...b, releaseHalfLifeSeconds: v != null ? Math.max(0, v) : undefined }))}
-          onFftSizeChange={(v) => handleBandChange(bandId, (b) => ({ ...b, fftSize: Math.max(256, Math.min(8192, Math.round(v / 256) * 256)) }))}
+          onFftSizeChange={(v) =>
+            handleBandChange(bandId, (b) => ({ ...b, fftSize: Math.max(256, Math.min(8192, Math.round(v / 256) * 256)) }))}
         />
       </div>
-    </div>
-  {:else if resolved.kind === 'remapper'}
-    {@const remapper = resolved.remapper}
-    {@const remapperId = remapper.id}
-    {@const remapperBandName = audioSetup.bands.find((b) => b.id === remapper.bandId)?.name ?? 'Band'}
-    <div class="section remapper frame-elevated card">
-      <div class="header">
-        <div class="label-wrap">
-          <EditableLabel
-            value={remapper.name}
-            prefix={`${remapperBandName}: `}
-            placeholder="Remapper name"
-            ariaLabel="Remapper name"
-            onCommit={(value) => handleRemapperChange(remapperId, (r) => ({ ...r, name: value }))}
-          />
-        </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          mode="icon-only"
-          aria-pressed={isAudioOff}
-          aria-label={powerHelp}
-          title={powerHelp}
-          onclick={handleConnectionPowerClick}
-        >
-          <IconSvg name="power" variant="line" class="power-audio-icon {isAudioOff ? 'is-dimmed' : ''}" />
-        </Button>
-        {#if onOpenLargeWithBand}
-          <Button
-            variant="secondary"
-            size="sm"
-            mode="both"
-            onclick={() => onOpenLargeWithBand(remapper.bandId)}
-            aria-label="Swap"
-            title="Swap"
-          >
-            <IconSvg name="swap" variant="line" />
-            Swap
-          </Button>
-        {/if}
-      </div>
-      <div class="remap-wrap">
-        <RemapRangeEditor
-          inMin={remapper.inMin}
-          inMax={remapper.inMax}
-          outMin={remapper.outMin}
-          outMax={remapper.outMax}
-          liveInValue={liveValuesByRemapper.get(remapperId)?.incoming ?? null}
-          liveOutValue={liveValuesByRemapper.get(remapperId)?.outgoing ?? null}
-          onChange={(payload) => handleRemapperChange(remapperId, (r) => ({ ...r, ...payload }))}
-        />
-      </div>
-      <RemapperConnectionList
-        connections={getRemapperParameterConnections(graph, remapperId, nodeSpecs)}
+
+      <DriverConnectionTargetTags
+        targets={connectionTargets}
+        activeNodeId={targetNodeId}
+        activeParamName={targetParameter}
         onReveal={onRevealInNodeEditor}
       />
     </div>
+  {:else if resolved.kind === 'remapper'}
+    {@const remapper = resolved.remapper}
+    {@const band = resolved.band}
+    {@const remapperId = remapper.id}
+    {@const live = liveValuesByRemapper.get(remapperId)}
+    <div class="audio-driver-card is-embedded">
+      {#if targetDisplay}
+        <DriverFocusedHeader
+          target={targetDisplay}
+          liveValue={live?.outgoing ?? null}
+          embedded
+          onReveal={onRevealInNodeEditor}
+        >
+          {#snippet trailing()}
+            <span class="focused-source" title={formatDriverBandSourceText(band)}>
+              {formatDriverBandSourceText(band)}
+            </span>
+          {/snippet}
+        </DriverFocusedHeader>
+      {/if}
+      <div class="frequency-wrap">
+        <FrequencyRangeEditor
+          frequencyBands={band.frequencyBands}
+          spectrumData={spectrumDataByBand.get(band.id)?.frequencyData}
+          sampleRate={spectrumDataByBand.get(band.id)?.sampleRate ?? 44100}
+          fftSize={band.fftSize}
+          fftSizeValue={band.fftSize}
+          bandMode={band.bandMode ?? 'mean'}
+          attackHalfLifeSeconds={band.attackHalfLifeSeconds}
+          releaseHalfLifeSeconds={band.releaseHalfLifeSeconds}
+          onChange={(bands) => handleBandChange(band.id, (b) => ({ ...b, frequencyBands: bands }))}
+          onBandModeChange={(mode) => handleBandChange(band.id, (b) => ({ ...b, bandMode: mode }))}
+          onAttackHalfLifeSecondsChange={(v) =>
+            handleBandChange(band.id, (b) => ({
+              ...b,
+              attackHalfLifeSeconds: v != null ? Math.max(0, v) : undefined,
+            }))}
+          onReleaseHalfLifeSecondsChange={(v) =>
+            handleBandChange(band.id, (b) => ({
+              ...b,
+              releaseHalfLifeSeconds: v != null ? Math.max(0, v) : undefined,
+            }))}
+          onFftSizeChange={(v) =>
+            handleBandChange(band.id, (b) => ({
+              ...b,
+              fftSize: Math.max(256, Math.min(8192, Math.round(v / 256) * 256)),
+            }))}
+        />
+      </div>
+      <div class="remapper-wrap">
+        <RemapperCard
+          remapper={remapper}
+          bandName={band.name}
+          isConnectedToTarget={true}
+          liveValues={live ?? null}
+          onRemapperChange={(updater) => handleRemapperChange(remapperId, updater)}
+          {connectionTargets}
+          activeTargetNodeId={targetNodeId}
+          activeTargetParamName={targetParameter}
+          onRevealParameter={onRevealInNodeEditor}
+        />
+      </div>
+    </div>
   {/if}
-  <div class="disconnect">
-    <Button variant="warning" size="sm" mode="both" onclick={handleDisconnect} aria-label="Disconnect audio signal">
-      <IconSvg name="circle-x" variant="filled" />
-      Disconnect
-    </Button>
-  </div>
 </div>
 
 <style>
-  .compact {
-    /* layout */
+  .audio-driver-compact {
     display: flex;
     flex-direction: column;
-    min-width: 380px; /* one-off: compact picker min width */
-    max-width: 520px; /* one-off: compact picker max width */
-    max-height: 480px; /* one-off: compact picker max height */
-    padding: 0;
-    overflow-y: auto;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    flex: 1;
+    overflow: hidden;
+  }
 
-    .fallback {
-      margin: 0;
-      font-size: var(--text-md);
-      color: var(--text-muted, var(--color-gray-100));
-    }
+  .fallback {
+    margin: var(--pd-md);
+    font-size: var(--text-sm);
+    color: var(--color-gray-100);
+  }
 
-    .section {
-      display: flex;
-      flex-direction: column;
-      gap: var(--pd-md);
-      padding: var(--pd-md);
+  .audio-driver-card {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    box-sizing: border-box;
+    cursor: default;
 
-      .header {
-        display: flex;
-        align-items: center;
-        gap: var(--pd-md);
+    &.is-embedded {
+      padding-bottom: 0;
+      background: transparent;
+      border: none;
+      border-radius: 0;
+
+      .editor-wrap,
+      .frequency-wrap {
+        padding: var(--pd-sm) var(--pd-md) 0;
         width: 100%;
-        min-height: var(--size-md);
+        min-width: 0;
+        box-sizing: border-box;
+      }
 
-        :global(.power-audio-icon.is-dimmed svg) {
-          color: var(--color-blue-110);
+      .remapper-wrap {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
+        padding: var(--pd-sm) var(--pd-md);
+        border-top: 1px solid var(--color-gray-70);
+
+        :global(.remapper-card.panel-card) {
+          width: 100%;
+          min-width: 0;
+          max-width: 100%;
+          box-sizing: border-box;
+          margin: 0;
         }
       }
 
-      .label-wrap {
+      :global(.focused-source) {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: var(--text-xs);
+        color: var(--color-gray-100);
+      }
+
+      .signal-section {
+        padding: var(--pd-md) var(--pd-md) var(--pd-sm);
+      }
+    }
+
+    .signal-section {
+      border-top: 1px solid var(--color-gray-70);
+      margin-top: var(--pd-md);
+    }
+
+    .signal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--pd-sm);
+      margin-bottom: var(--pd-xs);
+
+      .signal-label {
+        font-size: var(--text-sm);
+        font-weight: var(--font-weight-medium);
+        color: var(--color-gray-110);
+      }
+    }
+
+    .signal-meta {
+      display: flex;
+      flex-direction: column;
+      gap: var(--pd-2xs);
+      min-width: 0;
+      font-size: var(--text-sm);
+      color: var(--color-gray-120);
+    }
+
+    .signal-detail {
+      font-size: var(--text-xs);
+      color: var(--color-gray-100);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .compact-row {
+      display: flex;
+      align-items: center;
+      gap: var(--pd-sm);
+      margin-top: var(--pd-sm);
+
+      .row-label {
+        flex-shrink: 0;
+        font-size: var(--text-xs);
+        color: var(--color-gray-110);
+      }
+
+      .source {
+        position: relative;
         flex: 1;
         min-width: 0;
       }
-
-      .row {
-        display: flex;
-        align-items: center;
-        gap: var(--pd-md);
-
-        .label {
-          flex-shrink: 0;
-          width: 56px; /* one-off: fixed label width for alignment */
-          font-size: var(--text-sm);
-          color: var(--color-gray-110);
-        }
-
-        .source {
-          position: relative;
-          flex: 1;
-          min-width: 0;
-
-          .text {
-            max-width: 260px; /* one-off: truncate long file names */
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-          }
-        }
-      }
-
-      .frequency-wrap {
-        width: 100%;
-
-        :global(.frequency-range-editor) {
-          --spectrum-strip-height: 100px; /* one-off: spectrum strip in compact */
-        }
-      }
-
-      .remap-wrap {
-        width: 100%;
-      }
     }
 
-    .disconnect {
-      flex-shrink: 0;
-      display: flex;
-      justify-content: flex-start;
-      padding: var(--pd-sm);
-    }
   }
 </style>

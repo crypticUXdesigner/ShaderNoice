@@ -45,7 +45,11 @@ export function completeConnectionOnMouseUp(ctx: MouseEventMoveContext, e: Mouse
   const startIsOutput = conn.connectionStartIsOutput;
   if (!startNodeId || !startPort) {
     ctx.setState({ connection: { isConnecting: false, connectionStartNodeId: null, connectionStartPort: null, connectionStartParameter: null, hoveredPort: null } });
-    ctx.deps.canvas.style.cursor = (ctx.deps.getIsSpacePressed?.() ?? ctx.deps.isSpacePressed) ? 'grab' : 'default';
+    if (ctx.deps.handlerContext.refreshCursorFromHover) {
+      ctx.deps.handlerContext.refreshCursorFromHover();
+    } else {
+      ctx.deps.canvas.style.cursor = (ctx.deps.getIsSpacePressed?.() ?? ctx.deps.isSpacePressed) ? 'grab' : 'default';
+    }
     ctx.deps.handlerContext.render();
     return;
   }
@@ -88,7 +92,11 @@ export function completeConnectionOnMouseUp(ctx: MouseEventMoveContext, e: Mouse
       hoveredPort: null
     }
   });
-  ctx.deps.canvas.style.cursor = (ctx.deps.getIsSpacePressed?.() ?? ctx.deps.isSpacePressed) ? 'grab' : 'default';
+  if (ctx.deps.handlerContext.refreshCursorFromHover) {
+    ctx.deps.handlerContext.refreshCursorFromHover();
+  } else {
+    ctx.deps.canvas.style.cursor = (ctx.deps.getIsSpacePressed?.() ?? ctx.deps.isSpacePressed) ? 'grab' : 'default';
+  }
   ctx.deps.handlerContext.render();
 }
 

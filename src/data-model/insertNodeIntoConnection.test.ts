@@ -51,6 +51,28 @@ const patchSpecs: NodeSpecification[] = [
     inputs: [{ name: 'in', type: 'float' }],
     parameters: {},
   },
+  {
+    id: 'vec3-source',
+    outputs: [{ name: 'out', type: 'vec3' }],
+    parameters: {},
+  },
+  {
+    id: 'vec3-through',
+    inputs: [{ name: 'in', type: 'vec3' }],
+    outputs: [{ name: 'out', type: 'vec3' }],
+    parameters: {},
+  },
+  {
+    id: 'any-sink',
+    inputs: [{ name: 'in', type: 'any' }],
+    parameters: {},
+  },
+  {
+    id: 'any-through',
+    inputs: [{ name: 'base', type: 'any' }],
+    outputs: [{ name: 'out', type: 'any' }],
+    parameters: {},
+  },
 ];
 
 describe('insertNodeIntoConnection', () => {
@@ -223,6 +245,71 @@ describe('insertNodeIntoConnection', () => {
       (c) => c.sourceNodeId === 'src' && c.targetNodeId === 'dual'
     );
     assert(fromSrc != null && fromSrc.targetPort === 'a', 'falls back to first compatible input');
+  });
+
+  it('patches typed node into wire ending on any input', () => {
+    const graph: NodeGraph = {
+      id: 'g',
+      name: 't',
+      version: '2.0',
+      nodes: [
+        { id: 'src', type: 'vec3-source', position: { x: 0, y: 0 }, parameters: {} },
+        { id: 'sink', type: 'any-sink', position: { x: 2, y: 0 }, parameters: {} },
+        { id: 'mid', type: 'vec3-through', position: { x: 1, y: 0 }, parameters: {} },
+      ],
+      connections: [
+        {
+          id: 'c-edge',
+          sourceNodeId: 'src',
+          sourcePort: 'out',
+          targetNodeId: 'sink',
+          targetPort: 'in',
+        },
+      ],
+    };
+
+    const result = insertNodeIntoConnection(graph, 'c-edge', 'mid', patchSpecs);
+    assert(result.ok === true, 'vec3 out should match any downstream');
+    if (!result.ok) return;
+    assert(
+      result.graph.connections.some(
+        (c) =>
+          c.sourceNodeId === 'mid' &&
+          c.targetNodeId === 'sink' &&
+          c.targetPort === 'in'
+      ),
+      'mid to any sink'
+    );
+  });
+
+  it('patches any-port node into typed vec3 wire', () => {
+    const graph: NodeGraph = {
+      id: 'g',
+      name: 't',
+      version: '2.0',
+      nodes: [
+        { id: 'src', type: 'vec3-source', position: { x: 0, y: 0 }, parameters: {} },
+        { id: 'sink', type: 'vec3-through', position: { x: 2, y: 0 }, parameters: {} },
+        { id: 'blend', type: 'any-through', position: { x: 1, y: 0 }, parameters: {} },
+      ],
+      connections: [
+        {
+          id: 'c-edge',
+          sourceNodeId: 'src',
+          sourcePort: 'out',
+          targetNodeId: 'sink',
+          targetPort: 'in',
+        },
+      ],
+    };
+
+    const result = insertNodeIntoConnection(graph, 'c-edge', 'blend', patchSpecs);
+    assert(result.ok === true, 'any ports should splice into vec3 wire');
+    if (!result.ok) return;
+    const intoSink = result.graph.connections.find(
+      (c) => c.sourceNodeId === 'blend' && c.targetNodeId === 'sink'
+    );
+    assert(intoSink != null && intoSink.sourcePort === 'out', 'any out to vec3 in');
   });
 
   it('rejects insert node that is an endpoint of the wire', () => {

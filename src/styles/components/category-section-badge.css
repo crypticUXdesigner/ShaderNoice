@@ -1,0 +1,128 @@
+/**
+ * Category-colored section badges — node panel category counts and driver target tags.
+ * Parent sets data-category; optional data-subgroup on .badge-wrapper for sub-group tints.
+ */
+
+[data-category='inputs'] .badge-wrapper .badge,
+[data-category='inputs'] .panel-section .header > .badge {
+  background: var(--node-header-bg-inputs);
+  color: var(--node-header-print-inputs);
+}
+
+[data-category='inputs'] .badge-wrapper[data-subgroup='system-input'] .badge {
+  background: var(--node-header-bg-inputs-system);
+  color: var(--node-header-print-inputs-system);
+}
+
+[data-category='patterns'] .badge-wrapper .badge,
+[data-category='patterns'] .panel-section .header > .badge {
+  background: var(--node-header-bg-patterns);
+  color: var(--node-header-print-patterns);
+}
+
+[data-category='patterns'] .badge-wrapper[data-subgroup='structured'] .badge {
+  background: var(--node-header-bg-patterns-structured);
+  color: var(--node-header-print-patterns-structured);
+}
+
+[data-category='shapes'] .badge-wrapper .badge,
+[data-category='shapes'] .panel-section .header > .badge {
+  background: var(--node-header-bg-shapes);
+  color: var(--node-header-print-shapes);
+}
+
+[data-category='shapes'] .badge-wrapper[data-subgroup='derived'] .badge {
+  background: var(--node-header-bg-shapes-derived);
+  color: var(--node-header-print-shapes-derived);
+}
+
+[data-category='sdf'] .badge-wrapper .badge,
+[data-category='sdf'] .panel-section .header > .badge {
+  background: var(--node-header-bg-sdf);
+  color: var(--node-header-print-sdf);
+}
+
+[data-category='sdf'] .badge-wrapper[data-subgroup='raymarcher'] .badge {
+  background: var(--node-header-bg-sdf-raymarcher);
+  color: var(--node-header-print-sdf-raymarcher);
+}
+
+[data-category='math'] .badge-wrapper .badge,
+[data-category='math'] .panel-section .header > .badge {
+  background: var(--node-header-bg-math);
+  color: var(--node-header-print-math);
+}
+
+[data-category='math'] .badge-wrapper[data-subgroup='functions'] .badge {
+  background: var(--node-header-bg-math-functions);
+  color: var(--node-header-print-math-functions);
+}
+
+[data-category='math'] .badge-wrapper[data-subgroup='advanced'] .badge {
+  background: var(--node-header-bg-math-advanced);
+  color: var(--node-header-print-math-advanced);
+}
+
+[data-category='utilities'] .badge-wrapper .badge,
+[data-category='utilities'] .panel-section .header > .badge {
+  background: var(--node-header-bg-utilities);
+  color: var(--node-header-print-utilities);
+}
+
+[data-category='distort'] .badge-wrapper .badge,
+[data-category='distort'] .panel-section .header > .badge {
+  background: var(--node-header-bg-distort);
+  color: var(--node-header-print-distort);
+}
+
+[data-category='distort'] .badge-wrapper[data-subgroup='warp'] .badge {
+  background: var(--node-header-bg-distort-warp);
+  color: var(--node-header-print-distort-warp);
+}
+
+[data-category='blend'] .badge-wrapper .badge,
+[data-category='blend'] .panel-section .header > .badge {
+  background: var(--node-header-bg-blend);
+  color: var(--node-header-print-blend);
+}
+
+[data-category='mask'] .badge-wrapper .badge,
+[data-category='mask'] .panel-section .header > .badge {
+  background: var(--node-header-bg-mask);
+  color: var(--node-header-print-mask);
+}
+
+[data-category='effects'] .badge-wrapper .badge,
+[data-category='effects'] .panel-section .header > .badge {
+  background: var(--node-header-bg-effects);
+  color: var(--node-header-print-effects);
+}
+
+[data-category='effects'] .badge-wrapper[data-subgroup='stylize'] .badge {
+  background: var(--node-header-bg-effects-stylize);
+  color: var(--node-header-print-effects-stylize);
+}
+
+[data-category='output'] .badge-wrapper .badge,
+[data-category='output'] .panel-section .header > .badge {
+  background: var(--node-header-bg-output);
+  color: var(--node-header-print-output);
+}
+
+[data-category='audio'] .badge-wrapper .badge,
+[data-category='audio'] .panel-section .header > .badge {
+  background: var(--node-header-bg-audio);
+  color: var(--node-header-print-audio);
+}
+
+[data-category='midi'] .badge-wrapper .badge,
+[data-category='midi'] .panel-section .header > .badge {
+  background: var(--node-header-bg-midi);
+  color: var(--node-header-print-midi);
+}
+
+[data-category='default'] .badge-wrapper .badge,
+[data-category='default'] .panel-section .header > .badge {
+  background: var(--node-header-bg-default);
+  color: var(--node-header-print-default);
+}

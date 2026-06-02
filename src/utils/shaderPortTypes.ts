@@ -2,6 +2,7 @@
  * Whether an output port type can feed an input port type (same rules as GLSL promotion in compilation).
  */
 export function canConvertShaderPortTypes(sourceType: string, targetType: string): boolean {
+  if (sourceType === 'any' || targetType === 'any') return true;
   if (sourceType === targetType) return true;
   const promotions: Record<string, Record<string, true>> = {
     float: { vec2: true, vec3: true, vec4: true },

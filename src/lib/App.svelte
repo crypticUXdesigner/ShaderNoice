@@ -38,6 +38,11 @@
     clearArrangementSnapshot,
     clearArrangementSnapshotIfPrimaryMismatch,
     applyArrangementNotesDefaultTrackFilterToGraph,
+    extractNodeParameterConfig,
+    getNodeParameterConfigClipboard,
+    setNodeParameterConfigClipboard,
+    resolvePasteTargetNodeIds,
+    serializeNodeParameterConfig,
   } from '../data-model';
   import { importArrangementForPrimaryTrack } from '../audiotool/arrangement';
   import {
@@ -79,13 +84,14 @@
   import NodeEditorCanvasWrapper from './components/editor/NodeEditorCanvasWrapper.svelte';
   import EditorParameterValueOverlay from './components/editor/EditorParameterValueOverlay.svelte';
   import EditorLabelEditOverlay from './components/editor/EditorLabelEditOverlay.svelte';
-  import { HelpCallout, NodeRightClickMenu, ColorPickerPopover, AudioSignalPicker } from './components';
+  import { HelpCallout, NodeRightClickMenu, ColorPickerPopover, AudioSignalPicker, ParameterDriverPanel } from './components';
   import {
     getStoredPosition,
     setStoredPosition,
     clampPanelCenterToViewport,
     AUDIO_SIGNAL_PICKER_LARGE_CLAMP_BOX,
     AUDIO_SIGNAL_PICKER_COMPACT_CLAMP_BOX,
+    PARAMETER_DRIVER_PANEL_CLAMP_BOX,
     TIMELINE_PANEL_FLOATING_CLAMP_BOX,
   } from './components/floating-panel';
   import { Button, DropdownMenu, ModalDialog } from './components/ui';
@@ -525,6 +531,15 @@
   let signalPickerTriggerElement = $state<HTMLElement | null>(null);
   /** True when the picker was opened from a global entry point (audio button) without a parameter target. */
   let signalPickerBrowseMode = $state(false);
+
+  /** Unified parameter driver panel (port double-click entry). */
+  let driverPanelVisible = $state(false);
+  let driverPanelX = $state(0);
+  let driverPanelY = $state(0);
+  let driverPanelTargetNodeId = $state('');
+  let driverPanelTargetParameter = $state('');
+  let driverPanelOnSelect = $state<((payload: SignalSelectPayload) => void) | null>(null);
+  let driverPanelTriggerElement = $state<HTMLElement | null>(null);
   let arrangementImportBusy = $state(false);
 
   function commitAudioSetup(
@@ -602,59 +617,41 @@
     showSignalPicker(_screenX, _screenY, targetNodeId, targetParameter, onSelect, triggerElement) {
       const center = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
       const inset = 16;
-      const rawLarge = getStoredPosition('audio-signal-picker', {
-        variant: 'large',
+      const raw = getStoredPosition('parameter-driver-panel', {
         fallback: center,
         legacyKey: [
           'shader-composer.audioSignalPickerPositionLarge',
           'shader-composer.audioSignalPickerPosition',
         ],
       });
-      const rawCompact = getStoredPosition('audio-signal-picker', {
-        variant: 'compact',
-        fallback: center,
-        legacyKey: [
-          'shader-composer.audioSignalPickerPositionCompact',
-          'shader-composer.audioSignalPickerPosition',
-        ],
-      });
-      const posLarge = clampPanelCenterToViewport(
-        rawLarge,
-        AUDIO_SIGNAL_PICKER_LARGE_CLAMP_BOX.width,
-        AUDIO_SIGNAL_PICKER_LARGE_CLAMP_BOX.height,
+      const pos = clampPanelCenterToViewport(
+        raw,
+        PARAMETER_DRIVER_PANEL_CLAMP_BOX.width,
+        PARAMETER_DRIVER_PANEL_CLAMP_BOX.height,
         inset
       );
-      const posCompact = clampPanelCenterToViewport(
-        rawCompact,
-        AUDIO_SIGNAL_PICKER_COMPACT_CLAMP_BOX.width,
-        AUDIO_SIGNAL_PICKER_COMPACT_CLAMP_BOX.height,
-        inset
-      );
-      if (posLarge.x !== rawLarge.x || posLarge.y !== rawLarge.y) {
-        setStoredPosition('audio-signal-picker', posLarge.x, posLarge.y, 'large');
+      if (pos.x !== raw.x || pos.y !== raw.y) {
+        setStoredPosition('parameter-driver-panel', pos.x, pos.y);
       }
-      if (posCompact.x !== rawCompact.x || posCompact.y !== rawCompact.y) {
-        setStoredPosition('audio-signal-picker', posCompact.x, posCompact.y, 'compact');
-      }
-      signalPickerXLarge = posLarge.x;
-      signalPickerYLarge = posLarge.y;
-      signalPickerXCompact = posCompact.x;
-      signalPickerYCompact = posCompact.y;
-      signalPickerTargetNodeId = targetNodeId;
-      signalPickerTargetParameter = targetParameter;
-      signalPickerOnSelect = onSelect;
-      signalPickerTriggerElement = triggerElement ?? null;
-      signalPickerBrowseMode = false;
-      signalPickerVisible = true;
+      driverPanelX = pos.x;
+      driverPanelY = pos.y;
+      driverPanelTargetNodeId = targetNodeId;
+      driverPanelTargetParameter = targetParameter;
+      driverPanelOnSelect = onSelect;
+      driverPanelTriggerElement = triggerElement ?? null;
+      driverPanelVisible = true;
     },
     hideSignalPicker() {
+      driverPanelVisible = false;
+      driverPanelOnSelect = null;
+      driverPanelTriggerElement = null;
       signalPickerVisible = false;
       signalPickerOnSelect = null;
       signalPickerTriggerElement = null;
       signalPickerBrowseMode = false;
     },
     isSignalPickerVisible() {
-      return signalPickerVisible;
+      return driverPanelVisible || signalPickerVisible;
     },
   };
 
@@ -813,6 +810,7 @@
     if (parameterValueOverlayVisible) return true;
     if (labelEditOverlayVisible) return true;
     if (signalPickerVisible) return true;
+    if (driverPanelVisible) return true;
     if (overlayBridge.isEnumDropdownVisible()) return true;
     if (timelinePanelOpen) return true;
     return false;
@@ -2011,7 +2009,12 @@
           },
           onConnectionRemoved: () => {},
           onNodeContextMenu: (x, y, nodeId, nodeType) => {
-            nodeRightClickMenuRef?.show(x, y, nodeId, nodeType);
+            const clipboard = getNodeParameterConfigClipboard();
+            nodeRightClickMenuRef?.show(x, y, nodeId, nodeType, {
+              canPasteParameterConfig: Boolean(
+                clipboard && clipboard.nodeType === nodeType
+              ),
+            });
           },
           onParameterChanged: async (nodeId, paramName, value, g) => {
             if (!g) return;
@@ -2149,6 +2152,7 @@
           setup = setPlaylistCurrentIndex(setup, idx >= 0 ? idx : 0);
           const newPrimaryId = getPrimaryFileId(setup);
           setup = retargetBandsToPrimary(setup, prevPrimaryId, newPrimaryId);
+          setup = setLoopCurrentTrack(setup, true);
           commitAudioSetup(setup, { autoPlayWhenReady: true });
         }}
         onAudioFileSelected={async (nodeId, file) => {
@@ -2196,10 +2200,58 @@
 
   <NodeRightClickMenu
     bind:this={nodeRightClickMenuRef}
+    onRename={(nodeId) => {
+      canvasApi?.beginNodeLabelEdit?.(nodeId);
+    }}
+    onDuplicate={(nodeId) => {
+      canvasApi?.duplicateNodes?.([nodeId]);
+    }}
     onReadGuide={(_nodeId, nodeType) => {
       openHelpForNodeType(nodeType);
     }}
     onCopyNodeName={(nodeType) => navigator.clipboard.writeText(nodeType).catch(() => {})}
+    onCopyParameterConfig={(nodeId, nodeType) => {
+      const spec = nodeSpecsMap.get(nodeType);
+      const node = graphStore.graph.nodes.find((n) => n.id === nodeId);
+      if (!spec || !node) return;
+      const snapshot = extractNodeParameterConfig(node, spec.parameters);
+      setNodeParameterConfigClipboard(snapshot);
+      const json = serializeNodeParameterConfig(snapshot);
+      void navigator.clipboard.writeText(json).catch(() => {});
+      const label = spec.displayName ?? nodeType;
+      appToastStore.addToast({
+        variant: 'success',
+        message: `Copied parameter settings for ${label}.`,
+        source: 'node-parameter-config',
+      });
+    }}
+    onPasteParameterConfig={(nodeId, nodeType) => {
+      const clipboard = getNodeParameterConfigClipboard();
+      const spec = nodeSpecsMap.get(nodeType);
+      if (!clipboard || !spec || clipboard.nodeType !== nodeType) {
+        appToastStore.addToast({
+          variant: 'warning',
+          message: "Can't paste: copy settings from a node of the same type first.",
+          source: 'node-parameter-config',
+        });
+        return;
+      }
+      const targetIds = resolvePasteTargetNodeIds(graphStore.graph, nodeId, nodeType);
+      if (targetIds.length === 0) return;
+      graphStore.applyNodeParameterConfigToNodes(targetIds, clipboard, spec.parameters);
+      void runtimeManager?.setGraph(graphStore.graph);
+      canvasApi?.requestRender();
+      const label = spec.displayName ?? nodeType;
+      const count = targetIds.length;
+      appToastStore.addToast({
+        variant: 'success',
+        message:
+          count === 1
+            ? `Pasted parameter settings to ${label}.`
+            : `Pasted parameter settings to ${count} ${label} nodes.`,
+        source: 'node-parameter-config',
+      });
+    }}
     onResetParameters={(nodeId, nodeType) => {
       const spec = nodeSpecsMap.get(nodeType);
       if (!spec) return;
@@ -2315,6 +2367,59 @@
     curveSlot={curveEditorSlotSnippet}
   />
 
+  <ParameterDriverPanel
+    open={driverPanelVisible}
+    x={driverPanelX}
+    y={driverPanelY}
+    onPositionChange={(x, y) => {
+      driverPanelX = x;
+      driverPanelY = y;
+      setStoredPosition('parameter-driver-panel', x, y);
+    }}
+    targetNodeId={driverPanelTargetNodeId}
+    targetParameter={driverPanelTargetParameter}
+    triggerElement={driverPanelTriggerElement}
+    graph={graphStore.graph}
+    audioSetup={graphStore.audioSetup}
+    nodeSpecs={nodeSpecsMap}
+    getAudioManager={() => runtimeManager?.getAudioManager() ?? null}
+    onRevealInNodeEditor={handleRevealParameterInNodeEditor}
+    onGraphUpdate={async (g) => {
+      graphStore.setGraph(g);
+      await runtimeDispatcher?.loadGraph(g);
+    }}
+    getTimelineState={() => runtimeManager?.getTimelineState() ?? null}
+    onSeek={(t) => runtimeManager?.seekGlobalAudio(t)}
+    getWaveformData={waveformService ? async () => waveformService!.getWaveformForCurveEditor() : undefined}
+    onSelect={(payload) => {
+      driverPanelOnSelect?.(payload);
+      // Keep the driver panel open for attach and bypass toggles; disconnect closes the panel.
+      if (payload.type === 'set-connection-disabled' || payload.type === 'audio') {
+        return;
+      }
+      if (driverPanelTriggerElement) {
+        driverPanelTriggerElement.focus();
+      }
+      driverPanelVisible = false;
+      driverPanelOnSelect = null;
+      driverPanelTriggerElement = null;
+    }}
+    onClose={() => {
+      if (driverPanelTriggerElement) {
+        driverPanelTriggerElement.focus();
+      }
+      driverPanelVisible = false;
+      driverPanelOnSelect = null;
+      driverPanelTriggerElement = null;
+    }}
+    onAudioSetupChange={(setup) => {
+      commitAudioSetup(setup);
+    }}
+    arrangementImportBusy={arrangementImportBusy}
+    onImportArrangement={() => void handleImportArrangement()}
+    onClearArrangement={handleClearArrangement}
+  />
+
   <AudioSignalPicker
     open={signalPickerVisible}
     xLarge={signalPickerXLarge}
@@ -2338,9 +2443,6 @@
     audioSetup={graphStore.audioSetup}
     nodeSpecs={nodeSpecsMap}
     browseOnly={signalPickerBrowseMode}
-    arrangementImportBusy={arrangementImportBusy}
-    onImportArrangement={() => void handleImportArrangement()}
-    onClearArrangement={handleClearArrangement}
     getAudioManager={() => runtimeManager?.getAudioManager() ?? null}
     onRevealInNodeEditor={handleRevealParameterInNodeEditor}
     onSelect={(payload) => {

@@ -1,7 +1,9 @@
 import type { NodeInstance } from '../../data-model/types';
 import {
+  EMPTY_ARRANGEMENT_TRACK_FILTER,
   parseTrackFilterList,
   parseTrackFilterListOrdered,
+  readArrangementTrackFilterParams,
 } from '../../audiotool/arrangement/arrangementTrackFilter';
 import {
   MAX_ARRANGEMENT_REGIONS,
@@ -106,10 +108,11 @@ export function packArrangementRegionsForGlsl(
 }
 
 export function readArrangementLanesPackOptions(node: NodeInstance): ArrangementLanesPackOptions {
-  const trackFilterMode = Number(node.parameters.trackFilterMode ?? 0);
-  const trackFilterList =
-    typeof node.parameters.trackFilterList === 'string' ? node.parameters.trackFilterList : '';
-  return { trackFilterMode, trackFilterList };
+  return readArrangementTrackFilterParams(node.parameters);
+}
+
+export function readArrangementPatternPackOptions(node: NodeInstance): ArrangementLanesPackOptions {
+  return readArrangementTrackFilterParams(node.parameters, EMPTY_ARRANGEMENT_TRACK_FILTER);
 }
 
 export function filterRegionsForNode(
