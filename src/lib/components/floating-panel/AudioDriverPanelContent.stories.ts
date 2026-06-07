@@ -30,8 +30,6 @@ const audioSetup: AudioSetup = {
       bandId: 'band-1',
       inMin: 0,
       inMax: 1,
-      outMin: 0,
-      outMax: 1,
     },
   ],
 };

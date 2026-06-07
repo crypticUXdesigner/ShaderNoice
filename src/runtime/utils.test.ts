@@ -97,6 +97,31 @@ describe('hashGraph', () => {
     expect(hashGraph(g1)).toBe(hashGraph(g2));
   });
 
+  it('differs when a connection driverOutMin/Max changes', () => {
+    const base: NodeGraph = {
+      id: 'g1',
+      name: 'T',
+      version: '2.0',
+      nodes: [{ id: 'n1', type: 'test', position: { x: 0, y: 0 }, parameters: {} }],
+      connections: [
+        {
+          id: 'c1',
+          sourceNodeId: 'audio-signal:remap-r1',
+          sourcePort: 'out',
+          targetNodeId: 'n1',
+          targetParameter: 'amount',
+          driverOutMin: 0,
+          driverOutMax: 1,
+        },
+      ],
+    };
+    const changed: NodeGraph = {
+      ...base,
+      connections: [{ ...base.connections[0]!, driverOutMax: 2.46 }],
+    };
+    expect(hashGraph(base)).not.toBe(hashGraph(changed));
+  });
+
   it('large automation: hashGraph stays within a bounded wall time (regression guard)', () => {
     const lanes = Array.from({ length: 60 }, (_, i) => ({
       id: `lane-${i}`,

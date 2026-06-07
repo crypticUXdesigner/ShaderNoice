@@ -24,6 +24,7 @@ import {
   createBaseSignalBinding,
 } from '../data-model/signals';
 import { getInputValue } from './parameterValueCalculatorInput';
+import { isAudioVirtualDriverConnection, resolveParameterInputMode } from './resolveParameterInputMode';
 import { snapParameterValue as snapParameterValueInternal } from './parameterValueCalculatorSnap';
 
 export { snapParameterValue } from './parameterValueCalculatorSnap';
@@ -183,10 +184,12 @@ export function computeEffectiveParameterValue(
     return finalizeDiscrete(configNum);
   }
 
-  const inputMode: ParameterInputMode =
-    node.parameterInputModes?.[paramName] ||
-    paramSpec.inputMode ||
-    'override';
+  const inputMode: ParameterInputMode = resolveParameterInputMode(
+    node,
+    paramName,
+    paramSpec,
+    connection
+  );
 
   const inputValue = getInputValue(connection, graph, nodeSpecs, audioManager);
 
@@ -194,8 +197,15 @@ export function computeEffectiveParameterValue(
     return finalizeDiscrete(configNum);
   }
 
+  const isAudioDriver = isAudioVirtualDriverConnection(connection);
+
   switch (inputMode) {
     case 'override':
+      if (isAudioDriver) {
+        return paramSpec.type === 'int'
+          ? snapParameterValueInternal(inputValue, paramSpec)
+          : inputValue;
+      }
       return finalizeDiscrete(inputValue);
     case 'add':
       return finalizeDiscrete(configNum + inputValue);

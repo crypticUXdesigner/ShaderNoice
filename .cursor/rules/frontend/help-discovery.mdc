@@ -10,4 +10,4 @@ alwaysApply: false
 - **Help UI:** Enabled when **exactly one** node selected; otherwise disabled / alternate messaging.
 - **Context menu:** _Rename_, _Duplicate_, _Read Guide_ (same payload as Help), _Copy node name_ (type id), _Copy/Paste parameter settings_ (same type; multi-select paste), _Reset_, _Remove_ (node + wires); non-blocking.
 
-**Refs:** `docs/node-documentation-content-guide.md`, `docs/user-goals/10-help-and-discovery.md`.
+**Refs:** `docs/node-documentation-content-guide.md` (length limits, layout-exposed Controls, optional **`hook`**), `docs/user-goals/10-help-and-discovery.md`.

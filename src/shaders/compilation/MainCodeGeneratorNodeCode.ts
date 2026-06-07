@@ -7,6 +7,12 @@ import { sanitizeAutomationLaneId } from './MainCodeGeneratorOutput';
 import { isAutomationLaneDriving } from '../../utils/automationEvaluator';
 import { replacePlaceholders, type PlaceholderContext } from './MainCodeGeneratorPlaceholders';
 import { resolveFloatParameterInputVarsFromConnections } from './resolveFloatParameterInputVarsFromConnections';
+import { buildRemapperTargetOutExpression } from '../../utils/driverRemap';
+import { getSignalIdFromVirtualNodeId } from '../../utils/virtualNodes';
+import {
+  isAudioVirtualDriverConnection,
+  resolveParameterInputMode,
+} from '../../utils/resolveParameterInputMode';
 import { arrangementNotesEvalStructName } from '../arrangement/packArrangementNotesForGlsl';
 import {
   COLOR_LUT_GLSL_SAMPLE_PLACEHOLDER,
@@ -47,16 +53,32 @@ function buildGlslExprForDrivenFloatParameter(
   nodeSpec: NodeSpec,
   paramName: string,
   wireExpr: string,
-  uniformNames: Map<string, string>
+  uniformNames: Map<string, string>,
+  graph?: NodeGraph
 ): string {
   const paramSpec = nodeSpec.parameters[paramName];
   if (!paramSpec || paramSpec.type !== 'float') return wireExpr;
 
-  const inputMode =
-    node.parameterInputModes?.[paramName] || paramSpec.inputMode || 'override';
+  const connection = graph?.connections.find(
+    (c) =>
+      !c.disabled &&
+      c.targetNodeId === node.id &&
+      c.targetParameter === paramName
+  );
+  const inputMode = resolveParameterInputMode(node, paramName, paramSpec, connection);
+  const isAudioDriver = connection != null && isAudioVirtualDriverConnection(connection);
 
   if (inputMode === 'override') {
-    return clampFloatExpressionGlsl(wireExpr, paramSpec);
+    if (isAudioDriver && connection) {
+      const signalId = getSignalIdFromVirtualNodeId(connection.sourceNodeId);
+      return buildRemapperTargetOutExpression(
+        wireExpr,
+        connection,
+        signalId,
+        (value) => formatParamLiteralForGlsl(value, { type: 'float' })
+      );
+    }
+    return isAudioDriver ? wireExpr : clampFloatExpressionGlsl(wireExpr, paramSpec);
   }
 
   const uniformName = uniformNames.get(`${node.id}.${paramName}`) || '';
@@ -108,7 +130,8 @@ export function getParameterComponentExpression(
       nodeSpec,
       paramName,
       paramInputVar,
-      uniformNames
+      uniformNames,
+      graph
     );
   }
   const uniformName = uniformNames.get(`${node.id}.${paramName}`);
@@ -316,7 +339,8 @@ export function generateNodeCode(
               nodeSpec,
               paramNames[0],
               parameterInputVars.get(paramNames[0])!,
-              uniformNames
+              uniformNames,
+              graph
             )
           : `${portVar}.x`;
         const e1 = parameterInputVars.has(paramNames[1])
@@ -325,7 +349,8 @@ export function generateNodeCode(
               nodeSpec,
               paramNames[1],
               parameterInputVars.get(paramNames[1])!,
-              uniformNames
+              uniformNames,
+              graph
             )
           : `${portVar}.y`;
         inputVars.set(input.name, `vec2(${e0}, ${e1})`);
@@ -336,7 +361,8 @@ export function generateNodeCode(
               nodeSpec,
               paramNames[0],
               parameterInputVars.get(paramNames[0])!,
-              uniformNames
+              uniformNames,
+              graph
             )
           : `${portVar}.x`;
         const e1 = parameterInputVars.has(paramNames[1])
@@ -345,7 +371,8 @@ export function generateNodeCode(
               nodeSpec,
               paramNames[1],
               parameterInputVars.get(paramNames[1])!,
-              uniformNames
+              uniformNames,
+              graph
             )
           : `${portVar}.y`;
         const e2 = parameterInputVars.has(paramNames[2])
@@ -354,7 +381,8 @@ export function generateNodeCode(
               nodeSpec,
               paramNames[2],
               parameterInputVars.get(paramNames[2])!,
-              uniformNames
+              uniformNames,
+              graph
             )
           : `${portVar}.z`;
         inputVars.set(input.name, `vec3(${e0}, ${e1}, ${e2})`);
@@ -365,7 +393,8 @@ export function generateNodeCode(
               nodeSpec,
               paramNames[0],
               parameterInputVars.get(paramNames[0])!,
-              uniformNames
+              uniformNames,
+              graph
             )
           : `${portVar}.x`;
         const e1 = parameterInputVars.has(paramNames[1])
@@ -374,7 +403,8 @@ export function generateNodeCode(
               nodeSpec,
               paramNames[1],
               parameterInputVars.get(paramNames[1])!,
-              uniformNames
+              uniformNames,
+              graph
             )
           : `${portVar}.y`;
         const e2 = parameterInputVars.has(paramNames[2])
@@ -383,7 +413,8 @@ export function generateNodeCode(
               nodeSpec,
               paramNames[2],
               parameterInputVars.get(paramNames[2])!,
-              uniformNames
+              uniformNames,
+              graph
             )
           : `${portVar}.z`;
         const e3 = parameterInputVars.has(paramNames[3])
@@ -392,7 +423,8 @@ export function generateNodeCode(
               nodeSpec,
               paramNames[3],
               parameterInputVars.get(paramNames[3])!,
-              uniformNames
+              uniformNames,
+              graph
             )
           : `${portVar}.w`;
         inputVars.set(input.name, `vec4(${e0}, ${e1}, ${e2}, ${e3})`);
@@ -433,6 +465,15 @@ export function generateNodeCode(
     }
   }
 
+  // Resolve arrangement-notes struct placeholder before per-instance struct suffixing
+  // (FunctionGenerator.suffixStructTypesForNodeInstance renames the baked eval struct).
+  if (nodeSpec.id === 'arrangement-notes') {
+    nodeCode = nodeCode.replace(
+      /\$arrNotesEvalStruct\b/g,
+      arrangementNotesEvalStructName(node.id)
+    );
+  }
+
   nodeCode = applyNodeSpecificStructNames(nodeCode, structNameMap.get(node.id), ctx.escapeRegex);
 
   if (nodeSpec.id === 'generic-raymarcher') {
@@ -444,13 +485,6 @@ export function generateNodeCode(
     );
     nodeCode = nodeCode.replace(/\$sdf_call/g, replacements.sdfCall);
     nodeCode = nodeCode.replace(/\$displacement_at_p/g, replacements.displacementAtP);
-  }
-
-  if (nodeSpec.id === 'arrangement-notes') {
-    nodeCode = nodeCode.replace(
-      /\$arrNotesEvalStruct\b/g,
-      arrangementNotesEvalStructName(node.id)
-    );
   }
 
   if (nodeSpec.id === 'color-lut') {

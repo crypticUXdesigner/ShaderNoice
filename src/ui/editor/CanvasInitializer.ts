@@ -46,8 +46,11 @@ export function initializeCanvas(
     nodeSpecs: c.nodeSpecs as Map<string, import('../../types/nodeSpec').NodeSpec>,
     nodeMetrics: c.nodeMetrics as Map<string, import('./NodeRenderer').NodeRenderMetrics>,
     screenToCanvas: (sx: number, sy: number) => (c.screenToCanvas as (x: number, y: number) => { x: number; y: number })(sx, sy),
+    getViewState: () => (c.getViewStateInternal as () => { panX: number; panY: number; zoom: number })(),
     ctx: c.ctx as CanvasRenderingContext2D,
-    hitTestPort: (sx: number, sy: number) => (c.hitTestManager as HitTestManager).hitTestPort(sx, sy)
+    hitTestPort: (sx: number, sy: number) => (c.hitTestManager as HitTestManager).hitTestPort(sx, sy),
+    resolveConnectTarget: (source, sx, sy) =>
+      (c.hitTestManager as HitTestManager).resolveConnectTarget(source, sx, sy),
   });
 
   // stateSync must exist before createCanvasLayerSystem (it calls getSelectionState → stateBridge.getSelectionState)

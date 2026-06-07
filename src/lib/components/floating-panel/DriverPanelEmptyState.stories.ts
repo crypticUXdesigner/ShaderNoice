@@ -27,7 +27,7 @@ export const Default: Story = {
 
 export const Spacious: Story = {
   args: {
-    icon: 'wave-sine',
+    icon: 'line-segments',
     driverKind: 'animation',
     title: 'No shared animation presets',
     copy: 'Animation drivers are not shared like audio or MIDI remaps — each float port owns one lane.',

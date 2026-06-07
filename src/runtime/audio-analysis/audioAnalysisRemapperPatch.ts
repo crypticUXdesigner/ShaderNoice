@@ -1,5 +1,5 @@
 import type { AnalyzerConfig } from '../../video-export/OfflineAudioProvider';
-import { remapValue } from '../audio/remapValue';
+import { clampToStoredChannelBounds, remapOutputClampBounds, remapValue } from '../audio/remapValue';
 import type { AudioAnalysisCurveCache } from './AudioAnalysisCurveSampler';
 
 /** Smoothed band values (index 0) per frame — same series the worker feeds into remapperOut. */
@@ -27,8 +27,6 @@ export type RemapperPatchConfig = {
   bandId: string;
   inMin: number;
   inMax: number;
-  outMin: number;
-  outMax: number;
 };
 
 /**
@@ -65,10 +63,13 @@ export function patchBandAndRemapChannelsFromBandSeries(
         const remapCfg = a.bandRemap[remapIdx] ?? a.bandRemap[0];
         if (!remapCfg) continue;
         const { inMin, inMax, outMin, outMax } = remapCfg;
+        const outBounds = remapOutputClampBounds(outMin, outMax);
+        ch.min = outBounds.min;
+        ch.max = outBounds.max;
+        ch.defaultValue = outMin;
         for (let k = 0; k < frameCount; k++) {
           let v = remapValue(series[k]!, inMin, inMax, outMin, outMax);
-          if (ch.min !== undefined) v = Math.max(ch.min, v);
-          if (ch.max !== undefined) v = Math.min(ch.max, v);
+          v = clampToStoredChannelBounds(v, ch.min, ch.max);
           values[k * channelCount + j] = v;
         }
       }
@@ -99,10 +100,12 @@ export function patchRemapperChannelsFromBandCache(
     if (channelIndex < 0) continue;
 
     const chMeta = channels[channelIndex]!;
+    chMeta.min = 0;
+    chMeta.max = 1;
+    chMeta.defaultValue = 0;
     for (let k = 0; k < frameCount; k++) {
-      let v = remapValue(series[k]!, r.inMin, r.inMax, r.outMin, r.outMax);
-      if (chMeta.min !== undefined) v = Math.max(chMeta.min, v);
-      if (chMeta.max !== undefined) v = Math.min(chMeta.max, v);
+      let v = remapValue(series[k]!, r.inMin, r.inMax, 0, 1);
+      v = clampToStoredChannelBounds(v, chMeta.min, chMeta.max);
       values[k * channelCount + channelIndex] = v;
     }
   }

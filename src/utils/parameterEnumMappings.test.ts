@@ -70,6 +70,15 @@ describe('getParameterEnumMappings', () => {
     expect(m![1]).toBe('Vertical');
   });
 
+  it('maps fractal fractalMode to pattern labels', () => {
+    const m = getParameterEnumMappings('fractal', 'fractalMode');
+    expect(m).not.toBeNull();
+    expect(m![0]).toBe('KIFS');
+    expect(m![3]).toBe('Julia');
+    expect(m![5]).toBe('Min distance');
+    expect(m![6]).toBeUndefined();
+  });
+
   it('maps color-lut preset to curated LUT labels', () => {
     const m = getParameterEnumMappings('color-lut', 'preset');
     expect(m).not.toBeNull();

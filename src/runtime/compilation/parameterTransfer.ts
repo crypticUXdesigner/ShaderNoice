@@ -6,6 +6,7 @@
 import type { NodeGraph } from '../../data-model/types';
 import type { PreviewProgramInstance, UniformMetadata } from '../types';
 import { isRuntimeOnlyParameter } from '../../utils/runtimeOnlyParams';
+import { isParameterUniformSuppressedByConnection } from '../../utils/resolveParameterInputMode';
 
 function toVec4(
   v: UniformMetadata['defaultValue']
@@ -50,12 +51,10 @@ export function transferParameters(
     const paramName = key.slice(dot + 1);
     if (!validNodeIds.has(nodeId) || !paramName) continue;
 
-    const isConnected = graph.connections.some(
-      conn => conn.targetNodeId === nodeId && conn.targetParameter === paramName
-    );
-    if (isConnected) {
-      const node = graph.nodes.find(n => n.id === nodeId);
-      if (node?.parameterInputModes?.[paramName] === 'override') continue;
+    const node = graph.nodes.find((n) => n.id === nodeId);
+    if (!node) continue;
+    if (isParameterUniformSuppressedByConnection(graph, node, paramName)) {
+      continue;
     }
 
     const uniformValue = value as number | [number, number, number, number];
@@ -75,10 +74,7 @@ export function transferParametersFromGraph(
     for (const [paramName, value] of Object.entries(node.parameters)) {
       if (isRuntimeOnlyParameter(node.type, paramName)) continue;
 
-      const isConnected = graph.connections.some(
-        conn => conn.targetNodeId === node.id && conn.targetParameter === paramName
-      );
-      if (isConnected && node.parameterInputModes?.[paramName] === 'override') continue;
+      if (isParameterUniformSuppressedByConnection(graph, node, paramName)) continue;
 
       if (typeof value === 'number') {
         shaderInstance.setParameter(node.id, paramName, value);

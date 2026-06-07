@@ -17,7 +17,8 @@
   import { getParameterUIRegistry } from '../../../ui/editor';
   import ParamPortWithAudioState from './parameters/ParamPortWithAudioState.svelte';
   import Knob from './parameters/Knob.svelte';
-  import { Button, ValueInput } from '../ui';
+  import FloatParamWithDriverTarget from './parameters/FloatParamWithDriverTarget.svelte';
+  import { Button } from '../ui';
   import Toggle from './parameters/Toggle.svelte';
   import EnumSelector from './parameters/EnumSelector.svelte';
   import BezierEditor from './parameters/BezierEditor.svelte';
@@ -35,6 +36,11 @@
   import type { AudioSetup } from '../../../data-model/audioSetupTypes';
   import type { IAudioManager } from '../../../runtime/types';
   import { layoutParameterVisible, layoutSectionVisible } from '../../../utils/parameterVisibility';
+  import {
+    resolveDriverTargetOutUiBounds,
+    resolveDriverTargetOutUiStepAndDecimals,
+    type DriverTargetOutUiPatch,
+  } from '../../../utils/driverRemap';
 
   interface Props {
     nodeId: string;
@@ -69,6 +75,12 @@
       paramName: string,
       bypassed: boolean
     ) => void;
+    onDriverTargetOutChange?: (
+      paramName: string,
+      patch: DriverTargetOutUiPatch,
+      options?: GraphUndoRecordingOptions
+    ) => void;
+    onDriverTargetOutCommit?: () => void;
   }
 
   let {
@@ -91,9 +103,12 @@
     onParameterGestureCommit,
     onParameterInputModeChanged,
     onParamDriverBypassToggle,
+    onDriverTargetOutChange,
+    onDriverTargetOutCommit,
   }: Props = $props();
 
   let parameterGestureHadTransient = false;
+  let driverTargetOutGestureHadTransient = false;
 
   function transientParameterChange(
     paramName: string,
@@ -107,6 +122,18 @@
     if (parameterGestureHadTransient) {
       parameterGestureHadTransient = false;
       onParameterGestureCommit?.();
+    }
+  }
+
+  function transientDriverTargetOutChange(paramName: string, patch: DriverTargetOutUiPatch) {
+    driverTargetOutGestureHadTransient = true;
+    onDriverTargetOutChange?.(paramName, patch, { recordUndo: false });
+  }
+
+  function commitDriverTargetOutGestureUndo() {
+    if (driverTargetOutGestureHadTransient) {
+      driverTargetOutGestureHadTransient = false;
+      onDriverTargetOutCommit?.();
     }
   }
 
@@ -144,6 +171,13 @@
    * Guards against Infinity/NaN and clamps to param range.
    */
   function effectiveToConfig(paramName: string, effectiveValue: number): number {
+    const conn = graph.connections.find(
+      (c) => c.targetNodeId === nodeId && c.targetParameter === paramName
+    );
+    if (conn?.disabled === true) {
+      const paramSpec = spec.parameters[paramName];
+      return paramSpec ? snapParameterValue(effectiveValue, paramSpec) : effectiveValue;
+    }
     const connInfo = getParamPortConnectionState(nodeId, paramName, graph, audioSetup);
     const paramSpec = spec.parameters[paramName];
     if (connInfo.state === 'default') {
@@ -529,15 +563,29 @@
                     }
                     disabled={false}
                   >
-                    {#snippet children({ displayValue, useConfigForInput, configValue })}
-                      <ValueInput
+                    {#snippet children({ displayValue, useConfigForInput, configValue, driverTargetOut, driverBypassed })}
+                      <FloatParamWithDriverTarget
                         value={displayValue}
                         min={paramSpec.min ?? 0}
                         max={paramSpec.max ?? 1}
                         step={paramSpec.type === 'int' ? (paramSpec.step ?? 1) : (paramSpec.step ?? 0.01)}
                         decimals={paramSpec.type === 'int' ? 0 : (paramSpec.step && paramSpec.step >= 1 ? 0 : 3)}
+                        paramMin={paramSpec.min}
+                        paramMax={paramSpec.max}
+                        paramType={paramSpec.type}
+                        paramStep={paramSpec.step}
+                        {driverTargetOut}
+                        {driverBypassed}
                         onChange={(v) => transientParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
                         onCommit={commitParameterGestureUndo}
+                        onDriverTargetOutChange={
+                          onDriverTargetOutChange
+                            ? (patch) => transientDriverTargetOutChange(paramName, patch)
+                            : undefined
+                        }
+                        onDriverTargetOutCommit={
+                          onDriverTargetOutCommit ? commitDriverTargetOutGestureUndo : undefined
+                        }
                       />
                     {/snippet}
                   </ParamPortWithAudioState>
@@ -568,7 +616,9 @@
                     }
                     disabled={false}
                   >
-                    {#snippet children({ displayValue, useConfigForInput, configValue })}
+                    {#snippet children({ displayValue, useConfigForInput, configValue, driverTargetOut, driverBypassed })}
+                      {@const targetOutBounds = resolveDriverTargetOutUiBounds(paramSpec.min, paramSpec.max)}
+                      {@const targetOutInput = resolveDriverTargetOutUiStepAndDecimals(paramSpec.type, paramSpec.step)}
                       <Knob
                         value={displayValue}
                         min={paramSpec.min ?? 0}
@@ -578,8 +628,21 @@
                         connected={connInfo.state !== 'default'}
                         knobPolarity={paramSpec.knobPolarity ?? 'one-sided'}
                         knobCenter={paramSpec.knobCenter ?? 0}
+                        driverTargetOut={driverTargetOut ? { outMin: driverTargetOut.outMin, outMax: driverTargetOut.outMax } : null}
+                        outBounds={targetOutBounds}
+                        outStep={targetOutInput.step}
+                        outDecimals={targetOutInput.decimals}
+                        {driverBypassed}
                         onChange={(v) => transientParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
                         onCommit={commitParameterGestureUndo}
+                        onDriverTargetOutChange={
+                          onDriverTargetOutChange
+                            ? (patch) => transientDriverTargetOutChange(paramName, patch)
+                            : undefined
+                        }
+                        onDriverTargetOutCommit={
+                          onDriverTargetOutCommit ? commitDriverTargetOutGestureUndo : undefined
+                        }
                       />
                     {/snippet}
                   </ParamPortWithAudioState>
@@ -610,15 +673,29 @@
                     }
                     disabled={false}
                   >
-                    {#snippet children({ displayValue, useConfigForInput, configValue })}
-                      <ValueInput
+                    {#snippet children({ displayValue, useConfigForInput, configValue, driverTargetOut, driverBypassed })}
+                      <FloatParamWithDriverTarget
                         value={displayValue}
                         min={paramSpec.min ?? 0}
                         max={paramSpec.max ?? 1}
                         step={paramSpec.type === 'int' ? (paramSpec.step ?? 1) : (paramSpec.step ?? 0.01)}
                         decimals={paramSpec.type === 'int' ? 0 : (paramSpec.step && paramSpec.step >= 1 ? 0 : 3)}
+                        paramMin={paramSpec.min}
+                        paramMax={paramSpec.max}
+                        paramType={paramSpec.type}
+                        paramStep={paramSpec.step}
+                        {driverTargetOut}
+                        {driverBypassed}
                         onChange={(v) => transientParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
                         onCommit={commitParameterGestureUndo}
+                        onDriverTargetOutChange={
+                          onDriverTargetOutChange
+                            ? (patch) => transientDriverTargetOutChange(paramName, patch)
+                            : undefined
+                        }
+                        onDriverTargetOutCommit={
+                          onDriverTargetOutCommit ? commitDriverTargetOutGestureUndo : undefined
+                        }
                       />
                     {/snippet}
                   </ParamPortWithAudioState>
@@ -772,15 +849,29 @@
                   }
                   disabled={false}
                 >
-                  {#snippet children({ displayValue, useConfigForInput, configValue })}
-                    <ValueInput
+                  {#snippet children({ displayValue, useConfigForInput, configValue, driverTargetOut, driverBypassed })}
+                    <FloatParamWithDriverTarget
                       value={displayValue}
                       min={paramSpec.min ?? 0}
                       max={paramSpec.max ?? 1}
                       step={paramSpec.type === 'int' ? (paramSpec.step ?? 1) : (paramSpec.step ?? 0.01)}
                       decimals={paramSpec.type === 'int' ? 0 : (paramSpec.step && paramSpec.step >= 1 ? 0 : 3)}
+                      paramMin={paramSpec.min}
+                      paramMax={paramSpec.max}
+                      paramType={paramSpec.type}
+                      paramStep={paramSpec.step}
+                      {driverTargetOut}
+                      {driverBypassed}
                       onChange={(v) => transientParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
-                        onCommit={commitParameterGestureUndo}
+                      onCommit={commitParameterGestureUndo}
+                      onDriverTargetOutChange={
+                        onDriverTargetOutChange
+                          ? (patch) => transientDriverTargetOutChange(paramName, patch)
+                          : undefined
+                      }
+                      onDriverTargetOutCommit={
+                        onDriverTargetOutCommit ? commitDriverTargetOutGestureUndo : undefined
+                      }
                     />
                   {/snippet}
                 </ParamPortWithAudioState>
@@ -811,7 +902,9 @@
                   }
                   disabled={false}
                 >
-                  {#snippet children({ displayValue, useConfigForInput, configValue })}
+                  {#snippet children({ displayValue, useConfigForInput, configValue, driverTargetOut, driverBypassed })}
+                    {@const targetOutBounds = resolveDriverTargetOutUiBounds(paramSpec.min, paramSpec.max)}
+                    {@const targetOutInput = resolveDriverTargetOutUiStepAndDecimals(paramSpec.type, paramSpec.step)}
                     <Knob
                       value={displayValue}
                       min={paramSpec.min ?? 0}
@@ -821,8 +914,21 @@
                       connected={connInfo.state !== 'default'}
                       knobPolarity={paramSpec.knobPolarity ?? 'one-sided'}
                       knobCenter={paramSpec.knobCenter ?? 0}
+                      driverTargetOut={driverTargetOut ? { outMin: driverTargetOut.outMin, outMax: driverTargetOut.outMax } : null}
+                      outBounds={targetOutBounds}
+                      outStep={targetOutInput.step}
+                      outDecimals={targetOutInput.decimals}
+                      {driverBypassed}
                       onChange={(v) => transientParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
                         onCommit={commitParameterGestureUndo}
+                      onDriverTargetOutChange={
+                        onDriverTargetOutChange
+                          ? (patch) => transientDriverTargetOutChange(paramName, patch)
+                          : undefined
+                      }
+                      onDriverTargetOutCommit={
+                        onDriverTargetOutCommit ? commitDriverTargetOutGestureUndo : undefined
+                      }
                     />
                   {/snippet}
                 </ParamPortWithAudioState>
@@ -853,15 +959,29 @@
                   }
                   disabled={false}
                 >
-                  {#snippet children({ displayValue, useConfigForInput, configValue })}
-                    <ValueInput
+                  {#snippet children({ displayValue, useConfigForInput, configValue, driverTargetOut, driverBypassed })}
+                    <FloatParamWithDriverTarget
                       value={displayValue}
                       min={paramSpec.min ?? 0}
                       max={paramSpec.max ?? 1}
                       step={paramSpec.type === 'int' ? (paramSpec.step ?? 1) : (paramSpec.step ?? 0.01)}
                       decimals={paramSpec.type === 'int' ? 0 : (paramSpec.step && paramSpec.step >= 1 ? 0 : 3)}
+                      paramMin={paramSpec.min}
+                      paramMax={paramSpec.max}
+                      paramType={paramSpec.type}
+                      paramStep={paramSpec.step}
+                      {driverTargetOut}
+                      {driverBypassed}
                       onChange={(v) => transientParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
-                        onCommit={commitParameterGestureUndo}
+                      onCommit={commitParameterGestureUndo}
+                      onDriverTargetOutChange={
+                        onDriverTargetOutChange
+                          ? (patch) => transientDriverTargetOutChange(paramName, patch)
+                          : undefined
+                      }
+                      onDriverTargetOutCommit={
+                        onDriverTargetOutCommit ? commitDriverTargetOutGestureUndo : undefined
+                      }
                     />
                   {/snippet}
                 </ParamPortWithAudioState>
@@ -968,15 +1088,29 @@
                   }
                   disabled={false}
                 >
-                  {#snippet children({ displayValue, useConfigForInput, configValue })}
-                    <ValueInput
+                  {#snippet children({ displayValue, useConfigForInput, configValue, driverTargetOut, driverBypassed })}
+                    <FloatParamWithDriverTarget
                       value={displayValue}
                       min={paramSpec.min ?? 0}
                       max={paramSpec.max ?? 1}
                       step={paramSpec.type === 'int' ? (paramSpec.step ?? 1) : (paramSpec.step ?? 0.01)}
                       decimals={paramSpec.type === 'int' ? 0 : (paramSpec.step && paramSpec.step >= 1 ? 0 : 3)}
+                      paramMin={paramSpec.min}
+                      paramMax={paramSpec.max}
+                      paramType={paramSpec.type}
+                      paramStep={paramSpec.step}
+                      {driverTargetOut}
+                      {driverBypassed}
                       onChange={(v) => transientParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
-                        onCommit={commitParameterGestureUndo}
+                      onCommit={commitParameterGestureUndo}
+                      onDriverTargetOutChange={
+                        onDriverTargetOutChange
+                          ? (patch) => transientDriverTargetOutChange(paramName, patch)
+                          : undefined
+                      }
+                      onDriverTargetOutCommit={
+                        onDriverTargetOutCommit ? commitDriverTargetOutGestureUndo : undefined
+                      }
                     />
                   {/snippet}
                 </ParamPortWithAudioState>
@@ -992,7 +1126,7 @@
                 inputMode={getInputMode(paramName)}
                 onParameterInputModeChanged={onParameterInputModeChanged ? (mode) => onParameterInputModeChanged(paramName, mode) : undefined}
                 onPortPointerDown={(e) => onPortPointerDownForConnection?.(e.clientX, e.clientY, e.pointerId)}
-                onPortDoubleClick={(e) => onPortClickForSignalPicker?.(e.clientX, e.clientY, nodeId, paramName, e.currentTarget as HTMLElement)}
+              onPortDoubleClick={(e) => onPortClickForSignalPicker?.(e.clientX, e.clientY, nodeId, paramName, e.currentTarget as HTMLElement)}
                 {node}
                 {graph}
                 {audioSetup}
@@ -1006,7 +1140,9 @@
                 }
                 disabled={false}
               >
-                {#snippet children({ displayValue, useConfigForInput, configValue })}
+                {#snippet children({ displayValue, useConfigForInput, configValue, driverTargetOut, driverBypassed })}
+                  {@const targetOutBounds = resolveDriverTargetOutUiBounds(paramSpec.min, paramSpec.max)}
+                  {@const targetOutInput = resolveDriverTargetOutUiStepAndDecimals(paramSpec.type, paramSpec.step)}
                   <Knob
                     value={displayValue}
                     min={paramSpec.min ?? 0}
@@ -1016,8 +1152,21 @@
                     connected={connInfo.state !== 'default'}
                     knobPolarity={paramSpec.knobPolarity ?? 'one-sided'}
                     knobCenter={paramSpec.knobCenter ?? 0}
+                    driverTargetOut={driverTargetOut ? { outMin: driverTargetOut.outMin, outMax: driverTargetOut.outMax } : null}
+                    outBounds={targetOutBounds}
+                    outStep={targetOutInput.step}
+                    outDecimals={targetOutInput.decimals}
+                    {driverBypassed}
                     onChange={(v) => transientParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
                         onCommit={commitParameterGestureUndo}
+                    onDriverTargetOutChange={
+                      onDriverTargetOutChange
+                        ? (patch) => transientDriverTargetOutChange(paramName, patch)
+                        : undefined
+                    }
+                    onDriverTargetOutCommit={
+                      onDriverTargetOutCommit ? commitDriverTargetOutGestureUndo : undefined
+                    }
                   />
                 {/snippet}
               </ParamPortWithAudioState>
@@ -1047,15 +1196,29 @@
                   }
                   disabled={false}
                 >
-                  {#snippet children({ displayValue, useConfigForInput, configValue })}
-                    <ValueInput
+                  {#snippet children({ displayValue, useConfigForInput, configValue, driverTargetOut, driverBypassed })}
+                    <FloatParamWithDriverTarget
                       value={displayValue}
                       min={paramSpec.min ?? 0}
                       max={paramSpec.max ?? 1}
                       step={paramSpec.type === 'int' ? (paramSpec.step ?? 1) : (paramSpec.step ?? 0.01)}
                       decimals={paramSpec.type === 'int' ? 0 : (paramSpec.step && paramSpec.step >= 1 ? 0 : 3)}
+                      paramMin={paramSpec.min}
+                      paramMax={paramSpec.max}
+                      paramType={paramSpec.type}
+                      paramStep={paramSpec.step}
+                      {driverTargetOut}
+                      {driverBypassed}
                       onChange={(v) => transientParameterChange(paramName, useConfigForInput ? v : effectiveToConfig(paramName, v))}
-                        onCommit={commitParameterGestureUndo}
+                      onCommit={commitParameterGestureUndo}
+                      onDriverTargetOutChange={
+                        onDriverTargetOutChange
+                          ? (patch) => transientDriverTargetOutChange(paramName, patch)
+                          : undefined
+                      }
+                      onDriverTargetOutCommit={
+                        onDriverTargetOutCommit ? commitDriverTargetOutGestureUndo : undefined
+                      }
                     />
                   {/snippet}
                 </ParamPortWithAudioState>

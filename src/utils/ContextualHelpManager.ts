@@ -49,6 +49,8 @@ export interface HelpContent {
   category?: string;
   /** Short tagline (optional). */
   tagline?: string;
+  /** Actionable one-liner; rendered prominently in Guide (e.g. “Connect UV → Noise → Output”). */
+  hook?: string;
   description: string;
   /** Input ports: name, type, and user-facing description for each input */
   inputs?: HelpPort[];

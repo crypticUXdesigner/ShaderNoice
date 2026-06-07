@@ -54,6 +54,7 @@ const OVERRIDES = {
   'quad-warp': ['perspective', 'corner', 'pin', 'warp'],
   'plane-project': ['projection', 'camera', 'uv', '3d'],
   'brick-tiling': ['tile', 'brick', 'repeat', 'offset'],
+  pixelize: ['pixelize', 'pixel', 'mosaic', 'quantize', 'block', 'grid', 'distort', 'uv'],
   'uv-block-glitch': ['glitch', 'blocks', 'digital', 'corrupt'],
   'uv-band-shift': ['shift', 'bands', 'offset', 'slice'],
   'infinite-zoom': ['zoom', 'tunnel', 'scale', 'loop'],

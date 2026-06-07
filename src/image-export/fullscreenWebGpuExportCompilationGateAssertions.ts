@@ -19,12 +19,3 @@ export function assertFullscreenExportWebGpuCompileGate(compilation: Compilation
   expect(compilation.code, `${label}`).toContain('@fragment');
   expect(compilation.metadata.finalOutputNodeId, `${label}: output`).not.toBeNull();
 }
-
-/** Bundled presets that rely on bounded `generic-raymarcher` WebGPU fullscreen path. */
-export const GENERIC_RAYMARCHER_FULLSCREEN_WEBGPU_EXPORT_PRESETS = [
-  'fractal-julia-slab.json',
-  'fractal-mandelbox.json',
-  'fractal-mandelbulb.json',
-  'fractal-menger-sponge.json',
-  'fractal-sierpinski-tetra.json',
-] as const;

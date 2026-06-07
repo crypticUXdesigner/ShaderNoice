@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { remapValue } from '../runtime/audio/remapValue';
 import { OfflineAudioProvider } from './OfflineAudioProvider';
 
 function makeMockAudioBuffer(options: {
@@ -96,7 +97,7 @@ describe('OfflineAudioProvider', () => {
       primaryFileId: 'file-1',
       maxFrames: frameRate * seconds,
       analyzerConfigs: [{ ...analyzerBase, bandModes: ['mean'] }],
-      remapperConfigs: [{ id: 'r1', bandId: 'band-1', inMin: 0, inMax: 1, outMin: 0, outMax: 1 }],
+      remapperConfigs: [{ id: 'r1', bandId: 'band-1', inMin: 0, inMax: 1 }],
     });
 
     const providerMax = new OfflineAudioProvider(buffer, {
@@ -105,7 +106,7 @@ describe('OfflineAudioProvider', () => {
       primaryFileId: 'file-1',
       maxFrames: frameRate * seconds,
       analyzerConfigs: [{ ...analyzerBase, bandModes: ['max'] }],
-      remapperConfigs: [{ id: 'r1', bandId: 'band-1', inMin: 0, inMax: 1, outMin: 0, outMax: 1 }],
+      remapperConfigs: [{ id: 'r1', bandId: 'band-1', inMin: 0, inMax: 1 }],
     });
 
     const frameIndex = 30; // away from warm-up boundary
@@ -132,6 +133,45 @@ describe('OfflineAudioProvider', () => {
     const meanRemapperOut = pick(meanUpdates, 'remap-r1', 'out');
     const maxRemapperOut = pick(maxUpdates, 'remap-r1', 'out');
     expect(Math.abs(meanRemapperOut - maxRemapperOut)).toBeGreaterThan(1e-6);
+  });
+
+  it('remapperOut uniform is gated 0–1 (per-target Out applied at param read)', () => {
+    const sampleRate = 48_000;
+    const frameRate = 60;
+    const seconds = 1;
+    const buffer = makeMockAudioBuffer({
+      sampleRate,
+      numberOfChannels: 1,
+      length: sampleRate * seconds,
+    });
+
+    const analyzerBase = {
+      nodeId: 'band-1',
+      frequencyBands: [{ minHz: 0, maxHz: 20_000 }],
+      smoothingHalfLifeSeconds: [0],
+      spectrumFftSize: 4096,
+      mappingFftSize: 2048,
+      bandRemap: [{ inMin: 0, inMax: 1, outMin: 0, outMax: 1 }],
+    } as const;
+
+    const provider = new OfflineAudioProvider(buffer, {
+      sampleRate,
+      frameRate,
+      primaryFileId: 'file-1',
+      maxFrames: frameRate * seconds,
+      analyzerConfigs: [{ ...analyzerBase, bandModes: ['mean'] }],
+      remapperConfigs: [{ id: 'r1', bandId: 'band-1', inMin: 0, inMax: 1 }],
+    });
+
+    const frameIndex = 30;
+    const updates = provider.getFrameState(frameIndex).uniformUpdates;
+    const bandVal = updates.find((u) => u.nodeId === 'band-1' && u.paramName === 'band');
+    const remapperOut = updates.find((u) => u.nodeId === 'remap-r1' && u.paramName === 'out');
+    expect(bandVal).toBeTruthy();
+    expect(remapperOut).toBeTruthy();
+    expect(remapperOut!.value).toBeCloseTo(remapValue(bandVal!.value, 0, 1, 0, 1), 5);
+    expect(remapperOut!.value).toBeLessThanOrEqual(1);
+    expect(remapperOut!.value).toBeGreaterThanOrEqual(0);
   });
 });
 

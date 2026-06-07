@@ -499,6 +499,113 @@ describe('CompilationManager', () => {
       expect(compiler.compile).toHaveBeenCalledTimes(1);
     });
 
+    it('recompiles when automation changes on a node outside the preview upstream slice', () => {
+      const compiler = createMockCompiler();
+      const renderer = createMockRenderer();
+      const cm = createCompilationManager(compiler, renderer);
+
+      const g1 = minimalGraph();
+      cm.setGraph(g1);
+      cm.onGraphStructureChange(true);
+      vi.runAllTimers();
+      expect(compiler.compile).toHaveBeenCalledTimes(1);
+
+      const g2: NodeGraph = {
+        ...g1,
+        nodes: [...g1.nodes, { id: 'idle1', type: 'float', position: { x: 10, y: 10 }, parameters: { value: 1 } }],
+      };
+      cm.setGraph(g2);
+      cm.onGraphStructureChange(true);
+      vi.runAllTimers();
+      expect(compiler.compile).toHaveBeenCalledTimes(1);
+
+      const g3: NodeGraph = {
+        ...g2,
+        automation: {
+          bpm: 120,
+          durationSeconds: 60,
+          lanes: [
+            {
+              id: 'lane-1',
+              nodeId: 'idle1',
+              paramName: 'value',
+              regions: [
+                {
+                  id: 'r1',
+                  startTime: 0,
+                  duration: 10,
+                  loop: false,
+                  curve: {
+                    keyframes: [
+                      { time: 0, value: 0 },
+                      { time: 1, value: 1 },
+                    ],
+                    interpolation: 'linear',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+      cm.setGraph(g3);
+      cm.onGraphStructureChange(true);
+      vi.runAllTimers();
+
+      expect(compiler.compile).toHaveBeenCalledTimes(2);
+    });
+
+    it('uses full compile (not incremental) when automation curves change', () => {
+      const compiler = createMockCompiler();
+      compiler.compileIncremental = vi.fn(() => minimalCompilationResult());
+      const renderer = createMockRenderer();
+      const cm = createCompilationManager(compiler, renderer);
+
+      const g1 = minimalGraph();
+      cm.setGraph(g1);
+      cm.onGraphStructureChange(true);
+      vi.runAllTimers();
+      expect(compiler.compile).toHaveBeenCalledTimes(1);
+      vi.mocked(compiler.compileIncremental!).mockClear();
+
+      const g2: NodeGraph = {
+        ...g1,
+        automation: {
+          bpm: 120,
+          durationSeconds: 60,
+          lanes: [
+            {
+              id: 'lane-1',
+              nodeId: 'n1',
+              paramName: 'speed',
+              regions: [
+                {
+                  id: 'r1',
+                  startTime: 0,
+                  duration: 10,
+                  loop: false,
+                  curve: {
+                    keyframes: [
+                      { time: 0, value: 0 },
+                      { time: 0.5, value: 1 },
+                      { time: 1, value: 0 },
+                    ],
+                    interpolation: 'linear',
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+      cm.setGraph(g2);
+      cm.onGraphStructureChange(true);
+      vi.runAllTimers();
+
+      expect(compiler.compile).toHaveBeenCalledTimes(2);
+      expect(compiler.compileIncremental).not.toHaveBeenCalled();
+    });
+
     it('skips recompilation when only idle-to-idle connections change', () => {
       const compiler = createMockCompiler();
       const renderer = createMockRenderer();
@@ -692,6 +799,7 @@ describe('CompilationManager', () => {
               type: 'constant-float',
               position: { x: 2, y: 0 },
               parameters: { value: 0.5 },
+              parameterInputModes: { value: 'add' },
             },
           ],
           connections: [

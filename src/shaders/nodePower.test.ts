@@ -265,6 +265,7 @@ describe('eligible node ids — snapshot regression guard', () => {
         "particle-system",
         "path-drive",
         "pitch-class-compass",
+        "pixelize",
         "plane-grid",
         "plane-project",
         "polar-coordinates",

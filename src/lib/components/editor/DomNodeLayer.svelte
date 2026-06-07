@@ -55,6 +55,13 @@
     labelEditRequest?: { nodeId: string; seq: number } | null;
     onNodePowerToggle?: (nodeId: string, bypassed: boolean) => void;
     onParamDriverBypassToggle?: (nodeId: string, paramName: string, bypassed: boolean) => void;
+    onDriverTargetOutChange?: (
+      nodeId: string,
+      paramName: string,
+      patch: import('../../../utils/driverRemap').DriverTargetOutUiPatch,
+      options?: GraphUndoRecordingOptions
+    ) => void;
+    onDriverTargetOutCommit?: () => void;
   }
 
   let {
@@ -83,6 +90,8 @@
     onPatchIntoDoubleClick,
     onNodePowerToggle,
     onParamDriverBypassToggle,
+    onDriverTargetOutChange,
+    onDriverTargetOutCommit,
   }: Props = $props();
 
   const nodeSpecsMap = $derived(new Map(nodeSpecs.map((s) => [s.id, s])));
@@ -262,6 +271,8 @@
           onPatchIntoDoubleClick={onPatchIntoDoubleClick}
           onPowerToggle={onNodePowerToggle}
           onParamDriverBypassToggle={onParamDriverBypassToggle}
+          onDriverTargetOutChange={onDriverTargetOutChange}
+          onDriverTargetOutCommit={onDriverTargetOutCommit}
           labelEditRequestSeq={labelEditRequest?.nodeId === node.id ? labelEditRequest.seq : 0}
         />
       {/if}

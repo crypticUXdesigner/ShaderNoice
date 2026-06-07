@@ -8,6 +8,8 @@
     disabled?: boolean;
     /** When true, allows high < low (inverted range for remap output). */
     allowInverted?: boolean;
+    /** Horizontal track spans container width; vertical is the default remap layout. */
+    orientation?: 'vertical' | 'horizontal';
     class?: string;
     onChange?: (payload: { low: number; high: number }) => void;
     onCommit?: (payload: { low: number; high: number }) => void;
@@ -21,10 +23,13 @@
     step = 0.01,
     disabled = false,
     allowInverted = false,
+    orientation = 'vertical',
     class: className = '',
     onChange,
     onCommit
   }: Props = $props();
+
+  const isHorizontal = $derived(orientation === 'horizontal');
 
   let draggingHandle = $state<'low' | 'high' | null>(null);
   let dragLow = $state(0);
@@ -52,15 +57,28 @@
   const range = $derived(max - min || 1);
   const lowNorm = $derived((low - min) / range);
   const highNorm = $derived((high - min) / range);
-  /* Vertical: bottom = low (0), top = high (1). CSS top: 0 = top of track. So low at bottom = 1 - lowNorm */
-  const lowPct = $derived(`${(1 - lowNorm) * 100}%`);
-  const highPct = $derived(`${(1 - highNorm) * 100}%`);
-  const fillTop = $derived(`${(1 - Math.max(lowNorm, highNorm)) * 100}%`);
-  const fillHeight = $derived(`${Math.abs(highNorm - lowNorm) * 100}%`);
+  /* Vertical: bottom = low, top = high. Horizontal: left = low, right = high. */
+  const lowPct = $derived(
+    isHorizontal ? `${lowNorm * 100}%` : `${(1 - lowNorm) * 100}%`
+  );
+  const highPct = $derived(
+    isHorizontal ? `${highNorm * 100}%` : `${(1 - highNorm) * 100}%`
+  );
+  const fillStyle = $derived.by(() => {
+    const span = Math.abs(highNorm - lowNorm) * 100;
+    if (isHorizontal) {
+      return `left: ${Math.min(lowNorm, highNorm) * 100}%; width: ${span}%`;
+    }
+    return `top: ${(1 - Math.max(lowNorm, highNorm)) * 100}%; height: ${span}%`;
+  });
 
   let trackEl: HTMLDivElement | undefined = $state();
 
-  function valueFromY(clientY: number, rect: DOMRect): number {
+  function valueFromPointer(clientX: number, clientY: number, rect: DOMRect): number {
+    if (isHorizontal) {
+      const t = (clientX - rect.left) / rect.width;
+      return min + t * range;
+    }
     const t = (clientY - rect.top) / rect.height;
     return min + (1 - t) * range;
   }
@@ -79,7 +97,7 @@
     if (!trackEl) return;
     dragMoved = true;
     const rect = trackEl.getBoundingClientRect();
-    const rawValue = valueFromY(e.clientY, rect);
+    const rawValue = valueFromPointer(e.clientX, e.clientY, rect);
     const snapped = snapValue(rawValue);
 
     if (draggingHandle === 'low') {
@@ -106,16 +124,17 @@
 <div
   class="vertical-range-slider {className}"
   role="group"
-  aria-label="Vertical range slider ({low} – {high})"
+  aria-label="{isHorizontal ? 'Horizontal' : 'Vertical'} range slider ({low} – {high})"
   aria-disabled={disabled}
   data-disabled={disabled || undefined}
+  data-orientation={orientation}
 >
   <div class="track" bind:this={trackEl}>
-    <div class="fill" style="top: {fillTop}; height: {fillHeight}"></div>
+    <div class="fill" style={fillStyle}></div>
     <button
       type="button"
       class="handle handle-low"
-      style="top: {lowPct}"
+      style={isHorizontal ? `left: ${lowPct}` : `top: ${lowPct}`}
       aria-label="Low value"
       {disabled}
       onpointerdown={(e) => {
@@ -130,7 +149,7 @@
     <button
       type="button"
       class="handle handle-high"
-      style="top: {highPct}"
+      style={isHorizontal ? `left: ${highPct}` : `top: ${highPct}`}
       aria-label="High value"
       {disabled}
       onpointerdown={(e) => {
@@ -225,6 +244,55 @@
     &:focus-visible::before {
       box-shadow: 0 0 0 2px var(--color-blue-90);
     }
+    }
+  }
+
+  &[data-orientation='horizontal'] {
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+    height: auto;
+    min-height: 0;
+
+    .track {
+      flex: 1;
+      width: 100%;
+      min-width: 0;
+      min-height: 0;
+      height: var(--remap-range-slider-track-height, var(--range-editor-handle-size));
+    }
+
+    .fill {
+      top: 0;
+      bottom: 0;
+      height: auto;
+    }
+
+    .handle {
+      top: 0;
+      bottom: 0;
+      left: auto;
+      right: auto;
+      width: var(--range-editor-handle-size);
+      height: auto;
+      margin-top: 0;
+      margin-left: calc(var(--range-editor-handle-size) / -2);
+      cursor: ew-resize;
+
+      &::before {
+        top: 0;
+        bottom: 0;
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        width: var(--range-editor-edge-thickness);
+        height: auto;
+      }
+
+      &:hover::before {
+        width: var(--range-editor-edge-hover-thickness);
+        height: auto;
+      }
     }
   }
   }

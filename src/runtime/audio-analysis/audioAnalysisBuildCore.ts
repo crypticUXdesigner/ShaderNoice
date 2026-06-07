@@ -6,7 +6,7 @@
 
 import type { AnalyzerConfig } from '../../video-export/OfflineAudioProvider';
 import { extractFrequencyBands01Into } from '../audio/extractFrequencyBands01';
-import { remapValue } from '../audio/remapValue';
+import { clampToStoredChannelBounds, remapOutputClampBounds, remapValue } from '../audio/remapValue';
 import type { AudioAnalysisCurveCache } from './AudioAnalysisCurveSampler';
 
 const TWO_PI = 2 * Math.PI;
@@ -34,7 +34,8 @@ export type BuildAnalysisParams = {
   frameRateForDuration: number;
   maxFrames: number;
   analyzerConfigs: AnalyzerConfig[];
-  remapperConfigs: Array<{ id: string; bandId: string; inMin: number; inMax: number; outMin: number; outMax: number }>;
+  /** Gate-only remapper config; remapperOut channels store gated 0–1 (Out applied per connection at read). */
+  remapperConfigs: Array<{ id: string; bandId: string; inMin: number; inMax: number }>;
   /** When set, invoked every N frames with progress 0..1. Return false to cancel. */
   onProgress?: (progress01: number) => boolean | void;
 };
@@ -156,7 +157,7 @@ function prevRetentionFromTau(dt: number, tau: number): number {
 
 export function buildAnalysisChannels(
   analyzers: AnalyzerConfig[],
-  remappers: Array<{ id: string; bandId: string; inMin: number; inMax: number; outMin: number; outMax: number }>
+  remappers: Array<{ id: string; bandId: string; inMin: number; inMax: number }>
 ): AnalysisChannelMeta[] {
   const channels: AnalysisChannelMeta[] = [];
   for (const a of analyzers) {
@@ -174,14 +175,18 @@ export function buildAnalysisChannels(
     }
     const remapCount = Math.max(a.bandRemap.length, 1);
     for (let i = 0; i < remapCount; i++) {
+      const remapCfg = a.bandRemap[i] ?? a.bandRemap[0];
+      const outMin = remapCfg?.outMin ?? 0;
+      const outMax = remapCfg?.outMax ?? 1;
+      const outBounds = remapOutputClampBounds(outMin, outMax);
       channels.push({
         nodeId: a.nodeId,
         paramName: remapCount === 1 ? 'remap' : `remap${i}`,
         kind: 'remap',
         index: i,
-        min: 0,
-        max: 1,
-        defaultValue: 0,
+        min: outBounds.min,
+        max: outBounds.max,
+        defaultValue: outMin,
       });
     }
   }
@@ -426,11 +431,10 @@ export function buildFullAnalysisCache(params: BuildAnalysisParams): AudioAnalys
         const r = remapperConfigs.find((rr) => rr.id === rid);
         if (r) {
           const bandRaw = smoothedBandsById.get(r.bandId)?.[0] ?? 0;
-          v = remapValue(bandRaw, r.inMin, r.inMax, r.outMin, r.outMax);
+          v = remapValue(bandRaw, r.inMin, r.inMax, 0, 1);
         }
       }
-      if (ch.min !== undefined) v = Math.max(ch.min, v);
-      if (ch.max !== undefined) v = Math.min(ch.max, v);
+      v = clampToStoredChannelBounds(v, ch.min, ch.max);
       values[base + j] = v;
     }
   }

@@ -1,0 +1,98 @@
+{
+  "format": "shadernoice-node-graph",
+  "formatVersion": "2.0",
+  "graph": {
+    "id": "graph-preset-pixelize",
+    "name": "Pixelize",
+    "version": "2.0",
+    "nodes": [
+      {
+        "id": "node-1780696277191-ik9lc5qv4",
+        "type": "uv-coordinates",
+        "position": {
+          "x": -1200,
+          "y": 0
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1780696277191-px1",
+        "type": "pixelize",
+        "position": {
+          "x": -600,
+          "y": 0
+        },
+        "parameters": {
+          "pixelizeAmount": 1,
+          "pixelizeCellsX": 40,
+          "pixelizeCellsY": 40,
+          "pixelizeSpace": 0,
+          "pixelizeSnap": 0
+        }
+      },
+      {
+        "id": "node-1780696277191-vmxfzfb7b",
+        "type": "noise",
+        "position": {
+          "x": 0,
+          "y": 0
+        },
+        "parameters": {
+          "noiseOctaves": 10,
+          "noiseTimeSpeed": 0.3,
+          "noiseLacunarity": 1.2,
+          "noiseGain": 0.8099999999999999,
+          "noiseScale": 1.6900000000000002
+        }
+      },
+      {
+        "id": "node-1780696277191-8uz9bowvo",
+        "type": "final-output",
+        "position": {
+          "x": 600,
+          "y": 0
+        },
+        "parameters": {}
+      }
+    ],
+    "connections": [
+      {
+        "id": "conn-1780696277191-uv-px",
+        "sourceNodeId": "node-1780696277191-ik9lc5qv4",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780696277191-px1",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1780696277191-px-noise",
+        "sourceNodeId": "node-1780696277191-px1",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780696277191-vmxfzfb7b",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1780696277191-noise-out",
+        "sourceNodeId": "node-1780696277191-vmxfzfb7b",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780696277191-8uz9bowvo",
+        "targetPort": "in"
+      }
+    ],
+    "viewState": {
+      "zoom": 0.16483771303850236,
+      "panX": 476.61340837096594,
+      "panY": 333.67405369394567,
+      "selectedNodeIds": []
+    },
+    "automation": {
+      "bpm": 120,
+      "durationSeconds": 30,
+      "lanes": []
+    }
+  },
+  "audioSetup": {
+    "files": [],
+    "bands": [],
+    "remappers": []
+  }
+}

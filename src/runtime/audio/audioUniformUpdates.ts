@@ -7,6 +7,7 @@ import type { AudioSetup } from '../../data-model/audioSetupTypes';
 import type { AudioPlaybackController } from './AudioPlaybackController';
 import type { FrequencyAnalyzer } from './FrequencyAnalyzer';
 import type { UniformUpdate as OfflineUniformUpdate } from '../../video-export/OfflineAudioProvider';
+import { applyDriverGate } from '../../utils/driverRemap';
 import { remapValue } from './remapValue';
 
 export interface AudioUniformUpdate {
@@ -147,13 +148,7 @@ export function collectAudioUniformUpdates(
         if (band && curveFileIds.has(band.sourceFileId)) continue;
         const analyzerState = frequencyAnalyzer.getAnalyzerNodeState(remapper.bandId);
         const bandValue = analyzerState?.smoothedBandValues?.[0];
-        const remapped = remapValue(
-          bandValue,
-          remapper.inMin,
-          remapper.inMax,
-          remapper.outMin,
-          remapper.outMax
-        );
+        const remapped = applyDriverGate(bandValue, remapper.inMin, remapper.inMax);
         const key = `remap-${remapper.id}.out`;
         const prev = previousUniformValues.get(key);
         if (forcePushAll || prev === undefined || Math.abs(remapped - prev) > threshold) {
@@ -200,13 +195,7 @@ export function collectAudioUniformUpdates(
     for (const remapper of audioSetup.remappers) {
       const analyzerState = frequencyAnalyzer.getAnalyzerNodeState(remapper.bandId);
       const bandValue = analyzerState?.smoothedBandValues?.[0];
-      const remapped = remapValue(
-        bandValue,
-        remapper.inMin,
-        remapper.inMax,
-        remapper.outMin,
-        remapper.outMax
-      );
+      const remapped = applyDriverGate(bandValue, remapper.inMin, remapper.inMax);
       const key = `remap-${remapper.id}.out`;
       const prev = previousUniformValues.get(key);
       if (forcePushAll || prev === undefined || Math.abs(remapped - prev) > threshold) {

@@ -54,6 +54,15 @@ function valuesEqual(oldVal: unknown, newVal: unknown): boolean {
   return false;
 }
 
+function connectionIdentityKey(c: Connection): string {
+  return `${c.sourceNodeId}:${c.sourcePort}->${c.targetNodeId}:${c.targetPort ?? ''}:${c.targetParameter ?? ''}:${c.disabled ? '1' : '0'}`;
+}
+
+/** Compile-affecting fields beyond wire identity (per-target Out is baked into GLSL/WGSL). */
+function connectionCompileFieldsEqual(a: Connection, b: Connection): boolean {
+  return a.driverOutMin === b.driverOutMin && a.driverOutMax === b.driverOutMax;
+}
+
 /**
  * Compare connection arrays efficiently
  * Returns true if connections are structurally identical
@@ -63,18 +72,18 @@ export function connectionsEqual(
   newConnections: Connection[]
 ): boolean {
   if (oldConnections.length !== newConnections.length) return false;
-  
-  // Create sets for fast lookup
-  const oldConnSet = new Set(
-    oldConnections.map(c => 
-      `${c.sourceNodeId}:${c.sourcePort}->${c.targetNodeId}:${c.targetPort}:${c.targetParameter || ''}`
-    )
-  );
-  
-  for (const newConn of newConnections) {
-    const key = `${newConn.sourceNodeId}:${newConn.sourcePort}->${newConn.targetNodeId}:${newConn.targetPort}:${newConn.targetParameter || ''}`;
-    if (!oldConnSet.has(key)) return false;
+
+  const oldByKey = new Map<string, Connection>();
+  for (const c of oldConnections) {
+    oldByKey.set(connectionIdentityKey(c), c);
   }
-  
+
+  for (const newConn of newConnections) {
+    const key = connectionIdentityKey(newConn);
+    const oldConn = oldByKey.get(key);
+    if (!oldConn) return false;
+    if (!connectionCompileFieldsEqual(oldConn, newConn)) return false;
+  }
+
   return true;
 }

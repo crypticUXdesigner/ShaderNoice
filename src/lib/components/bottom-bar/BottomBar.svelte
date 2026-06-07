@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * BottomBar
-   * Composes BottomBarPlaybackControls, BottomBarScrubber, BottomBarToolSelector; timeline panel opens in App.
+   * Composes BottomBarPlaybackControls, BottomBarScrubber, BottomBarToolSelector.
    */
   import { graphStore } from '../../stores';
   import type { ToolType } from '../../stores';
@@ -9,6 +9,7 @@
   import type { WaveformData } from '../../../runtime';
   import type { AuthenticatedClient } from '@audiotool/nexus';
   import type { PlaylistTrackPickMeta } from '../../../data-model/audioSetupTypes';
+  import type { ParameterDriverKind } from '../../../utils/parameterDriverKindMeta';
   import BottomBarPlaybackControls from './BottomBarPlaybackControls.svelte';
   import BottomBarScrubber from './BottomBarScrubber.svelte';
   import BottomBarToolSelector from './BottomBarToolSelector.svelte';
@@ -30,15 +31,9 @@
     onLoopToggle?: () => void;
     onTimeChange?: (time: number) => void;
     onToolChange?: (tool: ToolType) => void;
-    /** Called when the timeline floating panel is about to open (restore position, etc.). */
-    onTimelinePanelOpen?: () => void;
-    /**
-     * True when the global audio bands & remappers panel is open (browse-mode
-     * picker). Drives the audio toggle's active state in the scrubber.
-     */
-    isAudioPanelOpen?: boolean;
-    /** Toggle the global audio bands & remappers panel. */
-    onAudioPanelToggle?: () => void;
+    /** Active driver library tab when the global browse panel is open. */
+    activeDriverBrowseKind?: ParameterDriverKind | null;
+    onDriverBrowseKindSelect?: (kind: ParameterDriverKind) => void;
     audioSetup?: AudioSetup;
     /** Primary track key from App (ensures waveform scrubber updates on track change when rendered via snippet). */
     primaryTrackKey?: string | null;
@@ -53,8 +48,6 @@
     audiotoolUserName?: string | null;
     /** Called when RPC indicates OAuth bearer is invalid (expired/revoked). */
     onAudiotoolSessionInvalidated?: () => void;
-    /** Bound to the floating timeline panel visibility (owned by App). */
-    timelinePanelOpen?: boolean;
   }
 
   let {
@@ -65,9 +58,8 @@
     onLoopToggle,
     onTimeChange,
     onToolChange,
-    onTimelinePanelOpen,
-    isAudioPanelOpen = false,
-    onAudioPanelToggle,
+    activeDriverBrowseKind = null,
+    onDriverBrowseKindSelect,
     audioSetup = { files: [], bands: [], remappers: [] },
     primaryTrackKey = null,
     getTrackKey,
@@ -77,7 +69,6 @@
     audiotoolRpcClient = null,
     audiotoolUserName = null,
     onAudiotoolSessionInvalidated,
-    timelinePanelOpen = $bindable(false),
   }: Props = $props();
 
   let bottomBarEl: HTMLDivElement;
@@ -119,14 +110,6 @@
   function handleToolClick(tool: ToolType) {
     graphStore.setActiveTool(tool);
     onToolChange?.(tool);
-  }
-
-  function handleToggleTimelinePanel() {
-    const next = !timelinePanelOpen;
-    if (next) {
-      onTimelinePanelOpen?.();
-    }
-    timelinePanelOpen = next;
   }
 
   // Keyboard shortcuts
@@ -181,15 +164,6 @@
   export function setSpacebarPressed(isPressed: boolean): void {
     isSpacebarPressed = isPressed;
   }
-  export function setTimelinePanelOpen(open: boolean): void {
-    if (open && !timelinePanelOpen) {
-      onTimelinePanelOpen?.();
-    }
-    timelinePanelOpen = open;
-  }
-  export function isTimelinePanelVisible(): boolean {
-    return timelinePanelOpen;
-  }
   export function getElement(): HTMLElement | null {
     return bottomBarEl ?? null;
   }
@@ -216,7 +190,7 @@
       />
     </div>
 
-    <!-- Center: Scrubber (timeline is a floating panel in App) -->
+    <!-- Center: Scrubber + driver library tabs -->
     <div class="section center timeline-center">
       <BottomBarScrubber
         trackKey={scrubberTrackKey}
@@ -224,10 +198,8 @@
         getState={getState}
         getWaveformForPrimary={getWaveformForPrimary}
         onTimeChange={onTimeChange}
-        isTimelinePanelOpen={timelinePanelOpen}
-        onToggleTimelinePanel={handleToggleTimelinePanel}
-        isAudioPanelOpen={isAudioPanelOpen}
-        onToggleAudioPanel={onAudioPanelToggle}
+        {activeDriverBrowseKind}
+        {onDriverBrowseKindSelect}
       />
     </div>
 
@@ -305,6 +277,7 @@
         }
 
         :global(.playback-scrubber .panel-toggles),
+        :global(.playback-scrubber .driver-kind-launcher),
         :global(.playback-scrubber .timeline-preview) {
           pointer-events: auto;
         }

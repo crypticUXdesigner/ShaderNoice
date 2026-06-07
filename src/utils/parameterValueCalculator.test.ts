@@ -233,8 +233,104 @@ describe('computeEffectiveParameterValue with signal model', () => {
       audioManager,
     );
 
-    // config = 1, input = 0.4, multiply → 0.4
+    // Audio virtual wires always override: remapped 0.4 is assigned directly (ignores multiply).
     expect(value).toBeCloseTo(0.4);
+  });
+
+  it('audio virtual wire ignores multiply mode (uses override)', () => {
+    const target: NodeInstance = {
+      id: 'dst',
+      type: 'noise',
+      position: { x: 0, y: 0 },
+      parameters: { gain: 2 },
+      parameterInputModes: { gain: 'multiply' },
+    };
+    const virtualNodeId = getVirtualNodeId('remap-test');
+    const graph: NodeGraph = {
+      id: 'g1',
+      name: 'Test',
+      version: '2.0',
+      nodes: [target],
+      connections: [
+        {
+          id: 'c1',
+          sourceNodeId: virtualNodeId,
+          sourcePort: 'out',
+          targetNodeId: 'dst',
+          targetParameter: 'gain',
+          driverOutMin: -1,
+          driverOutMax: -1,
+        },
+      ],
+    };
+    const gainSpec = makeParamSpec({ default: 2, min: -2, max: 2, inputMode: 'multiply' });
+    const nodeSpecs = new Map<string, NodeSpec>([
+      ['noise', makeNodeSpec('noise', { gain: gainSpec })],
+    ]);
+    const audioManager: IAudioManager = {
+      getVirtualNodeLiveValue(id: string): number | null {
+        return id === virtualNodeId ? 1 : null;
+      },
+    } as unknown as IAudioManager;
+
+    const value = computeEffectiveParameterValue(
+      target,
+      'gain',
+      gainSpec,
+      graph,
+      nodeSpecs,
+      audioManager
+    );
+
+    // multiply would yield 2 * 1 = 2; override assigns connection-scaled -1 directly.
+    expect(value).toBeCloseTo(-1);
+  });
+
+  it('audio virtual wire is not clamped to parameter spec min/max', () => {
+    const target: NodeInstance = {
+      id: 'dst',
+      type: 'noise',
+      position: { x: 0, y: 0 },
+      parameters: { gain: 0 },
+    };
+    const virtualNodeId = getVirtualNodeId('remap-test');
+    const graph: NodeGraph = {
+      id: 'g1',
+      name: 'Test',
+      version: '2.0',
+      nodes: [target],
+      connections: [
+        {
+          id: 'c1',
+          sourceNodeId: virtualNodeId,
+          sourcePort: 'out',
+          targetNodeId: 'dst',
+          targetParameter: 'gain',
+          driverOutMin: -0.5,
+          driverOutMax: 1,
+        },
+      ],
+    };
+    const gainSpec = makeParamSpec({ default: 0, min: 0, max: 1 });
+    const nodeSpecs = new Map<string, NodeSpec>([
+      ['noise', makeNodeSpec('noise', { gain: gainSpec })],
+    ]);
+    const audioManager: IAudioManager = {
+      getVirtualNodeLiveValue(id: string): number | null {
+        return id === virtualNodeId ? 0 : null;
+      },
+    } as unknown as IAudioManager;
+
+    const value = computeEffectiveParameterValue(
+      target,
+      'gain',
+      gainSpec,
+      graph,
+      nodeSpecs,
+      audioManager
+    );
+
+    expect(value).toBeCloseTo(-0.5);
   });
 
   it('snaps int parameters to discrete values when automation yields a float', () => {
@@ -273,6 +369,90 @@ describe('computeEffectiveParameterValue with signal model', () => {
     );
 
     expect(value).toBe(4);
+  });
+
+  it('two targets on one remapper get different effective values from connection Out', () => {
+    const virtualNodeId = getVirtualNodeId('remap-shared');
+    const gatedLive = 0.5;
+    const strengthSpec = makeParamSpec({ default: 0, min: 0, max: 1.6 });
+    const opacitySpec = makeParamSpec({ default: 0, min: 0, max: 100 });
+
+    const strengthNode: NodeInstance = {
+      id: 'n-strength',
+      type: 'noise',
+      position: { x: 0, y: 0 },
+      parameters: { strength: 0 },
+    };
+    const opacityNode: NodeInstance = {
+      id: 'n-opacity',
+      type: 'noise',
+      position: { x: 0, y: 0 },
+      parameters: { opacity: 0 },
+    };
+
+    const graph: NodeGraph = {
+      id: 'g1',
+      name: 'Test',
+      version: '2.0',
+      nodes: [strengthNode, opacityNode],
+      connections: [
+        {
+          id: 'c-strength',
+          sourceNodeId: virtualNodeId,
+          sourcePort: 'out',
+          targetNodeId: 'n-strength',
+          targetParameter: 'strength',
+          driverOutMin: 0,
+          driverOutMax: 1.6,
+        },
+        {
+          id: 'c-opacity',
+          sourceNodeId: virtualNodeId,
+          sourcePort: 'out',
+          targetNodeId: 'n-opacity',
+          targetParameter: 'opacity',
+          driverOutMin: 0,
+          driverOutMax: 100,
+        },
+      ],
+    };
+
+    const nodeSpecs = new Map<string, NodeSpec>([
+      [
+        'noise',
+        makeNodeSpec('noise', {
+          strength: strengthSpec,
+          opacity: opacitySpec,
+        }),
+      ],
+    ]);
+
+    const audioManager: IAudioManager = {
+      getVirtualNodeLiveValue(id: string): number | null {
+        return id === virtualNodeId ? gatedLive : null;
+      },
+    } as unknown as IAudioManager;
+
+    const strength = computeEffectiveParameterValue(
+      strengthNode,
+      'strength',
+      strengthSpec,
+      graph,
+      nodeSpecs,
+      audioManager
+    );
+    const opacity = computeEffectiveParameterValue(
+      opacityNode,
+      'opacity',
+      opacitySpec,
+      graph,
+      nodeSpecs,
+      audioManager
+    );
+
+    expect(strength).toBeCloseTo(0.8);
+    expect(opacity).toBeCloseTo(50);
+    expect(strength).not.toBeCloseTo(opacity!);
   });
 });
 

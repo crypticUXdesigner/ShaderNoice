@@ -5,6 +5,7 @@ import type { AudioSetup } from '../../data-model/audioSetupTypes';
 import { getPrimaryFileId } from '../../data-model/audioSetupTypes';
 import { getVirtualNodeId } from '../../utils/virtualNodes';
 import { isRuntimeOnlyParameter } from '../../utils/runtimeOnlyParams';
+import { isParameterUniformSuppressedByConnection } from '../../utils/resolveParameterInputMode';
 
 /**
  * Generates uniform names and metadata
@@ -90,12 +91,9 @@ export class UniformGenerator {
         if (isRuntimeOnlyParameter(nodeSpec.id, paramName)) {
           continue;
         }
-        const isConnected = graph.connections.some(
-          conn => conn.targetNodeId === node.id && conn.targetParameter === paramName
-        );
+        const isConnected = isParameterUniformSuppressedByConnection(graph, node, paramName, paramSpec);
         if (isConnected) {
-          const inputMode = node.parameterInputModes?.[paramName] ?? paramSpec.inputMode ?? 'override';
-          if (inputMode === 'override') continue;
+          continue;
         }
         const uniformName = this.sanitizeUniformName(node.id, paramName);
         uniformNames.set(`${node.id}.${paramName}`, uniformName);
@@ -171,7 +169,7 @@ export class UniformGenerator {
         }
       }
     }
-    // Remapper output uniforms - only when used in shader.
+    // Remapper output uniforms — gated 0–1 (inMin/inMax at upload); per-target Out baked in param expressions.
     if (audioSetup?.remappers) {
       for (const remapper of audioSetup.remappers) {
         const uniformName = uniformNames.get(`remap-${remapper.id}.out`);

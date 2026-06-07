@@ -100,7 +100,7 @@ export const vortexNodeSpec: NodeSpec = {
         type: 'grid',
         parameters: ['vortexCenterX', 'vortexCenterY', 'vortexStrength', 'vortexRadius', 'vortexFalloff', 'vortexRadialPull', 'vortexTimeSpeed'],
         parameterUI: { vortexCenterX: 'coords', vortexCenterY: 'coords' },
-        layout: { columns: 3, coordsSpan: 2, parameterSpan: { vortexRadialPull: 2 } }
+        layout: { columns: 3, coordsSpan: 2, parameterSpan: { vortexRadius: 2, vortexRadialPull: 2 } }
       }
     ]
   },

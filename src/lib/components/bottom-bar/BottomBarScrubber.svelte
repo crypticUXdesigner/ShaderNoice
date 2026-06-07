@@ -6,6 +6,11 @@
   import { Button, ButtonGroup, IconSvg } from '../ui';
   import type { WaveformData } from '../../../runtime';
   import { pollOnAnimationFrame } from '../../utils/pollOnAnimationFrame';
+  import {
+    PARAMETER_DRIVER_KIND_OPTIONS,
+    parameterDriverKindIconVariant,
+    type ParameterDriverKind,
+  } from '../../../utils/parameterDriverKindMeta';
 
   interface PlaybackState {
     isPlaying: boolean;
@@ -21,12 +26,9 @@
     getState?: () => PlaybackState | null;
     getWaveformForPrimary?: (trackKey?: string) => Promise<WaveformData>;
     onTimeChange?: (time: number) => void;
-    isTimelinePanelOpen: boolean;
-    onToggleTimelinePanel?: () => void;
-    /** True when the global audio bands & remappers panel is open. */
-    isAudioPanelOpen?: boolean;
-    /** Toggle the global audio bands & remappers panel. */
-    onToggleAudioPanel?: () => void;
+    /** Active driver library tab when the global browse panel is open. */
+    activeDriverBrowseKind?: ParameterDriverKind | null;
+    onDriverBrowseKindSelect?: (kind: ParameterDriverKind) => void;
   }
 
   let {
@@ -35,10 +37,8 @@
     getState,
     getWaveformForPrimary,
     onTimeChange,
-    isTimelinePanelOpen,
-    onToggleTimelinePanel,
-    isAudioPanelOpen = false,
-    onToggleAudioPanel,
+    activeDriverBrowseKind = null,
+    onDriverBrowseKindSelect,
   }: Props = $props();
 
   let stripWrapperEl: HTMLDivElement;
@@ -373,14 +373,6 @@
     seekFromStripEvent(e);
   }
 
-  function handleToggleTimelinePanel() {
-    onToggleTimelinePanel?.();
-  }
-
-  function handleToggleAudioPanel() {
-    onToggleAudioPanel?.();
-  }
-
   function handleStripKeydown(e: KeyboardEvent) {
     // Space is global play/pause (BottomBar listens on window keyup). When the strip stays
     // focused after a click, we must not treat Space as "activate" — that used to seek to
@@ -400,31 +392,22 @@
 
 <div class="playback-scrubber">
   <div class="timeline-preview-block">
-    <ButtonGroup class="panel-toggles" ariaLabel="Open panel">
-      <Button
-        class={`audio-toggle ${isAudioPanelOpen ? 'is-active' : ''}`}
-        variant="ghost"
-        size="sm"
-        mode="icon-only"
-        aria-pressed={isAudioPanelOpen}
-        title={isAudioPanelOpen ? 'Close audio bands & remappers' : 'Open audio bands & remappers'}
-        aria-label={isAudioPanelOpen ? 'Close audio bands and remappers' : 'Open audio bands and remappers'}
-        onclick={handleToggleAudioPanel}
-      >
-        <IconSvg name="waveform" variant="line" />
-      </Button>
-      <Button
-        class={`timeline-toggle ${isTimelinePanelOpen ? 'is-active' : ''}`}
-        variant="ghost"
-        size="sm"
-        mode="icon-only"
-        aria-pressed={isTimelinePanelOpen}
-        title={isTimelinePanelOpen ? 'Close timeline' : 'Open timeline'}
-        aria-label={isTimelinePanelOpen ? 'Close timeline' : 'Open timeline'}
-        onclick={handleToggleTimelinePanel}
-      >
-        <IconSvg name="line-segments" variant="line" />
-      </Button>
+    <ButtonGroup class="driver-kind-launcher" ariaLabel="Parameter driver libraries">
+      {#each PARAMETER_DRIVER_KIND_OPTIONS as kind (kind.id)}
+        {@const selected = activeDriverBrowseKind === kind.id}
+        <Button
+          variant="ghost"
+          size="sm"
+          mode="icon-only"
+          class={selected ? 'is-active' : ''}
+          aria-pressed={selected}
+          title={`${selected ? 'Close' : 'Open'} ${kind.label} driver library`}
+          aria-label={`${selected ? 'Close' : 'Open'} ${kind.label} driver library`}
+          onclick={() => onDriverBrowseKindSelect?.(kind.id)}
+        >
+          <IconSvg name={kind.icon} variant={parameterDriverKindIconVariant(kind.id)} />
+        </Button>
+      {/each}
     </ButtonGroup>
     <div class="timeline-preview control-strip" title="Scrub time">
       <div
@@ -469,7 +452,6 @@
     justify-content: flex-end;
     gap: var(--pd-sm);
   }
-
 
   .time-display {
     font-family: var(--font-mono);

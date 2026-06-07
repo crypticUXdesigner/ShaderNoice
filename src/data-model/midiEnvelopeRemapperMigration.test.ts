@@ -70,9 +70,10 @@ describe('migrateMidiEnvelopePresetToRemappers', () => {
     expect(migrated.midiEnvelopeRemappers![0]).toMatchObject({
       id: remapperId,
       envelopePresetId: presetId,
-      outMin: 0.1,
-      outMax: 0.9,
+      inMin: 0,
+      inMax: 1,
     });
+    expect(migrated.midiEnvelopeBindings![0]).toMatchObject({ outMin: 0.1, outMax: 0.9 });
     expect(migrated.midiEnvelopePresets![0]!.envelope).not.toHaveProperty('outMin');
     expect(migrated.midiEnvelopePresets![0]!.envelope).not.toHaveProperty('outMax');
     expect(migrated.midiEnvelopeBindings![0]!.remapperId).toBe(remapperId);

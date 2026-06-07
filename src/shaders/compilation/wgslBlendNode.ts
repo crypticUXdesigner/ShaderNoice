@@ -77,6 +77,7 @@ export interface EmitWgslBlendNodeArgs {
   lookupSourceOutputType: BlendSourceTypeLookup;
   alphaMode: 0 | 1;
   requireHelper: (key: string, body: string) => void;
+  appendFragmentPrelude: (line: string) => void;
   setNodeOut: (nodeId: string, port: string, expr: WgslExpr) => void;
   paramMode: string;
   paramOpacity: string;
@@ -88,14 +89,32 @@ export interface EmitWgslBlendNodeArgs {
   asF32: (expr: WgslExpr) => WgslExpr | null;
 }
 
+/** Stable WGSL identifier suffix from graph node id (matches WgslMvpCompiler `sanitizeWgslIdentifier`). */
+export function sanitizeBlendBindingId(nodeId: string): string {
+  const s = nodeId.replace(/[^a-zA-Z0-9_]/g, '_');
+  if (s.length === 0) return '_id';
+  return /^[0-9]/.test(s) ? `_${s}` : s;
+}
+
+function bindBlendInput(
+  role: 'base' | 'src',
+  nodeId: string,
+  expr: WgslExpr,
+  appendFragmentPrelude: (line: string) => void
+): string {
+  const binding = `blend_${role}_${sanitizeBlendBindingId(nodeId)}`;
+  appendFragmentPrelude(`let ${binding}: ${expr.type} = ${expr.code};`);
+  return binding;
+}
+
 function blendPerComponent(
-  base: WgslExpr,
-  blend: WgslExpr,
+  baseBinding: string,
+  blendBinding: string,
   components: string[],
   mode: string
 ): string {
   const parts = components.map(
-    (c) => `applyBlendMode((${base.code})${c}, (${blend.code})${c}, ${mode})`
+    (c) => `applyBlendMode(${baseBinding}${c}, ${blendBinding}${c}, ${mode})`
   );
   return parts.join(', ');
 }
@@ -107,7 +126,7 @@ export function emitWgslBlendNode(args: EmitWgslBlendNodeArgs): void {
   const resolved = inferBlendPortType(node, args.graph, args.lookupSourceOutputType);
   args.requireHelper('blend', WGSL_BLEND_MODE_HELPERS);
 
-  const { paramMode: mode, paramOpacity: opacity } = args;
+  const { paramMode: mode, paramOpacity: opacity, appendFragmentPrelude } = args;
 
   if (resolved === 'float') {
     const base = args.resolveInputF32(args.nodeId, 'base');
@@ -115,10 +134,12 @@ export function emitWgslBlendNode(args: EmitWgslBlendNodeArgs): void {
     if (!base || !blend) return;
     const b0 = args.asF32(base) ?? base;
     const b1 = args.asF32(blend) ?? blend;
-    const blended = `applyBlendMode(${b0.code}, ${b1.code}, ${mode})`;
+    const baseBinding = bindBlendInput('base', args.nodeId, b0, appendFragmentPrelude);
+    const blendBinding = bindBlendInput('src', args.nodeId, b1, appendFragmentPrelude);
+    const blended = `applyBlendMode(${baseBinding}, ${blendBinding}, ${mode})`;
     args.setNodeOut(args.nodeId, 'out', {
       type: 'f32',
-      code: `mix(${b0.code}, ${blended}, ${opacity})`
+      code: `mix(${baseBinding}, ${blended}, ${opacity})`
     });
     return;
   }
@@ -129,10 +150,12 @@ export function emitWgslBlendNode(args: EmitWgslBlendNodeArgs): void {
     if (!base || !blend) return;
     const b0 = args.coerceToType(base, 'vec2<f32>') ?? base;
     const b1 = args.coerceToType(blend, 'vec2<f32>') ?? blend;
-    const blended = `vec2<f32>(${blendPerComponent(b0, b1, ['.x', '.y'], mode)})`;
+    const baseBinding = bindBlendInput('base', args.nodeId, b0, appendFragmentPrelude);
+    const blendBinding = bindBlendInput('src', args.nodeId, b1, appendFragmentPrelude);
+    const blended = `vec2<f32>(${blendPerComponent(baseBinding, blendBinding, ['.x', '.y'], mode)})`;
     args.setNodeOut(args.nodeId, 'out', {
       type: 'vec2<f32>',
-      code: `mix(${b0.code}, ${blended}, ${opacity})`
+      code: `mix(${baseBinding}, ${blended}, ${opacity})`
     });
     return;
   }
@@ -143,10 +166,12 @@ export function emitWgslBlendNode(args: EmitWgslBlendNodeArgs): void {
     if (!base || !blend) return;
     const b0 = args.coerceToType(base, 'vec3<f32>') ?? base;
     const b1 = args.coerceToType(blend, 'vec3<f32>') ?? blend;
-    const blended = `vec3<f32>(${blendPerComponent(b0, b1, ['.x', '.y', '.z'], mode)})`;
+    const baseBinding = bindBlendInput('base', args.nodeId, b0, appendFragmentPrelude);
+    const blendBinding = bindBlendInput('src', args.nodeId, b1, appendFragmentPrelude);
+    const blended = `vec3<f32>(${blendPerComponent(baseBinding, blendBinding, ['.x', '.y', '.z'], mode)})`;
     args.setNodeOut(args.nodeId, 'out', {
       type: 'vec3<f32>',
-      code: `mix(${b0.code}, ${blended}, ${opacity})`
+      code: `mix(${baseBinding}, ${blended}, ${opacity})`
     });
     return;
   }
@@ -156,18 +181,20 @@ export function emitWgslBlendNode(args: EmitWgslBlendNodeArgs): void {
   if (!baseV || !blendV) return;
   const b = args.coerceToType(baseV, 'vec4<f32>') ?? baseV;
   const s = args.coerceToType(blendV, 'vec4<f32>') ?? blendV;
+  const baseBinding = bindBlendInput('base', args.nodeId, b, appendFragmentPrelude);
+  const blendBinding = bindBlendInput('src', args.nodeId, s, appendFragmentPrelude);
 
   if (args.alphaMode === 1) {
-    const blended = `vec4<f32>(${blendPerComponent(b, s, ['.x', '.y', '.z', '.w'], mode)})`;
+    const blended = `vec4<f32>(${blendPerComponent(baseBinding, blendBinding, ['.x', '.y', '.z', '.w'], mode)})`;
     args.setNodeOut(args.nodeId, 'out', {
       type: 'vec4<f32>',
-      code: `mix(${b.code}, ${blended}, ${opacity})`
+      code: `mix(${baseBinding}, ${blended}, ${opacity})`
     });
     return;
   }
 
-  const blendedRgb = `vec3<f32>(applyBlendMode(${b.code}.x, ${s.code}.x, ${mode}), applyBlendMode(${b.code}.y, ${s.code}.y, ${mode}), applyBlendMode(${b.code}.z, ${s.code}.z, ${mode}))`;
-  const rgb = `mix(${b.code}.xyz, ${blendedRgb}, ${opacity})`;
-  const a = `mix(${b.code}.w, ${s.code}.w, ${opacity})`;
+  const blendedRgb = `vec3<f32>(${blendPerComponent(baseBinding, blendBinding, ['.x', '.y', '.z'], mode)})`;
+  const rgb = `mix(${baseBinding}.xyz, ${blendedRgb}, ${opacity})`;
+  const a = `mix(${baseBinding}.w, ${blendBinding}.w, ${opacity})`;
   args.setNodeOut(args.nodeId, 'out', { type: 'vec4<f32>', code: `vec4<f32>(${rgb}, ${a})` });
 }

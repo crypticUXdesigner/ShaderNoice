@@ -43,6 +43,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Audit node documentation
+        run: npm run audit:node-docs:strict
+
       - name: Build
         run: npm run build
 

@@ -24,6 +24,13 @@ export interface HandlerContext {
   screenToCanvas(screenX: number, screenY: number): { x: number; y: number };
   canvasToScreen(canvasX: number, canvasY: number): { x: number; y: number };
   
+  // Connection drag target resolution (strict hit + magnetic snap)
+  resolveConnectTarget?(
+    source: import('../editor/canvas/connectTargetResolver').ConnectSource,
+    screenX: number,
+    screenY: number
+  ): import('../editor/canvas/connectTargetResolver').PortHit | null;
+  
   // Rendering
   requestRender(): void;
   render(): void;

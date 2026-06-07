@@ -78,21 +78,16 @@
   import NodeEditorLayout from './components/editor/NodeEditorLayout.svelte';
   import BottomBar from './components/bottom-bar/BottomBar.svelte';
   import { NodePanelContent, DocsPanelContent } from './components/side-panel';
-  import TimelinePanel from './components/timeline/TimelinePanel.svelte';
-  import TimelineCurveEditor from './components/timeline/TimelineCurveEditor.svelte';
-  import TimelinePanelFloatingShell from './components/timeline/TimelinePanelFloatingShell.svelte';
   import NodeEditorCanvasWrapper from './components/editor/NodeEditorCanvasWrapper.svelte';
   import EditorParameterValueOverlay from './components/editor/EditorParameterValueOverlay.svelte';
   import EditorLabelEditOverlay from './components/editor/EditorLabelEditOverlay.svelte';
-  import { HelpCallout, NodeRightClickMenu, ColorPickerPopover, AudioSignalPicker, ParameterDriverPanel } from './components';
+  import { HelpCallout, NodeRightClickMenu, ColorPickerPopover, ParameterDriverPanel } from './components';
+  import type { ParameterDriverKind } from '../utils/parameterDriverKindMeta';
   import {
     getStoredPosition,
     setStoredPosition,
     clampPanelCenterToViewport,
-    AUDIO_SIGNAL_PICKER_LARGE_CLAMP_BOX,
-    AUDIO_SIGNAL_PICKER_COMPACT_CLAMP_BOX,
     PARAMETER_DRIVER_PANEL_CLAMP_BOX,
-    TIMELINE_PANEL_FLOATING_CLAMP_BOX,
   } from './components/floating-panel';
   import { Button, DropdownMenu, ModalDialog } from './components/ui';
   import type { DropdownMenuItem } from './components/ui';
@@ -128,6 +123,10 @@
   } from '../utils/audiotoolConnectionModel';
   import { resolveAudiotoolSignInChromeAction } from '../utils/audiotoolChromeSignIn';
   import { isAudiotoolOAuthConfigured, initAudiotoolBrowserAuth } from '../utils/audiotoolBrowserAuth';
+  import {
+    clearSplashOAuthHandoffPending,
+    isSplashOAuthHandoffPending,
+  } from './components/ui/display/appSplashSysWarnScript';
   import { setAudiotoolPlaylistLoadSessionAvailable } from '../utils/audiotoolPlaylistLoadHint';
   import { importProjectTextAsNewLocalProjects } from './storage/projectImport';
   import { buildProjectsBundle, downloadProjectsBundleAsJsonFile } from './storage/projectBundle';
@@ -137,6 +136,10 @@
   const initialSplashVisible = splashFeatureEnabled || useAudiotoolGate;
 
   let splashOverlayVisible = $state(initialSplashVisible);
+  /** OAuth return splash (part 3) — blocks dismiss until the beat finishes. */
+  let splashOAuthReturnPending = $state(
+    typeof sessionStorage !== 'undefined' && isSplashOAuthHandoffPending(),
+  );
   /** Initial load finished; intro splash may still be visible until the user dismisses it. */
   let splashReadyForDismiss = $state(false);
   /** Reduced Audiotool OAuth chrome + splash (see `reduceAudiotoolConnection`). */
@@ -425,8 +428,6 @@
   /** API exposed by BottomBar via bind:this (exported functions). */
   interface BottomBarRef {
     setSpacebarPressed: (isPressed: boolean) => void;
-    setTimelinePanelOpen: (open: boolean) => void;
-    isTimelinePanelVisible: () => boolean;
     getElement: () => HTMLElement | null;
   }
   let bottomBarRef: BottomBarRef | undefined;
@@ -440,14 +441,6 @@
   }
   let nodeRightClickMenuRef: NodeRightClickMenuRef | undefined;
 
-  let curveEditorLaneId = $state<string | null>(null);
-  let curveEditorRegionId = $state<string | null>(null);
-  let curveEditorParamLabel = $state<string>('');
-  /** Live region bounds while dragging/resizing on the timeline (curve editor waveform). */
-  let curveEditorRegionTimePreview = $state<{ startTime: number; endTime: number } | null>(null);
-  let timelinePanelOpen = $state(false);
-  let timelinePanelX = $state(0);
-  let timelinePanelY = $state(0);
   let presets = $state<Array<{ name: string; displayName: string }>>([]);
   let selectedPreset = $state<string | null>(null);
   let isPanelVisible = $state(true);
@@ -520,20 +513,10 @@
   let labelEditOverlayOnCommit = $state<((label: string | undefined) => void) | null>(null);
   let labelEditOverlayOnCancel = $state<(() => void) | null>(null);
 
-  let signalPickerVisible = $state(false);
-  let signalPickerXLarge = $state(0);
-  let signalPickerYLarge = $state(0);
-  let signalPickerXCompact = $state(0);
-  let signalPickerYCompact = $state(0);
-  let signalPickerTargetNodeId = $state('');
-  let signalPickerTargetParameter = $state('');
-  let signalPickerOnSelect = $state<((payload: SignalSelectPayload) => void) | null>(null);
-  let signalPickerTriggerElement = $state<HTMLElement | null>(null);
-  /** True when the picker was opened from a global entry point (audio button) without a parameter target. */
-  let signalPickerBrowseMode = $state(false);
-
-  /** Unified parameter driver panel (port double-click entry). */
+  /** Unified parameter driver panel (port double-click + bottom-bar library tabs). */
   let driverPanelVisible = $state(false);
+  let driverPanelBrowseMode = $state(false);
+  let driverPanelBrowseKind = $state<ParameterDriverKind>('audio');
   let driverPanelX = $state(0);
   let driverPanelY = $state(0);
   let driverPanelTargetNodeId = $state('');
@@ -541,6 +524,10 @@
   let driverPanelOnSelect = $state<((payload: SignalSelectPayload) => void) | null>(null);
   let driverPanelTriggerElement = $state<HTMLElement | null>(null);
   let arrangementImportBusy = $state(false);
+
+  const activeDriverBrowseKind = $derived(
+    driverPanelVisible && driverPanelBrowseMode ? driverPanelBrowseKind : null
+  );
 
   function commitAudioSetup(
     setup: AudioSetup,
@@ -615,24 +602,8 @@
       return canvasEnumDropdownRef?.isVisible?.() ?? false;
     },
     showSignalPicker(_screenX, _screenY, targetNodeId, targetParameter, onSelect, triggerElement) {
-      const center = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-      const inset = 16;
-      const raw = getStoredPosition('parameter-driver-panel', {
-        fallback: center,
-        legacyKey: [
-          'shader-composer.audioSignalPickerPositionLarge',
-          'shader-composer.audioSignalPickerPosition',
-        ],
-      });
-      const pos = clampPanelCenterToViewport(
-        raw,
-        PARAMETER_DRIVER_PANEL_CLAMP_BOX.width,
-        PARAMETER_DRIVER_PANEL_CLAMP_BOX.height,
-        inset
-      );
-      if (pos.x !== raw.x || pos.y !== raw.y) {
-        setStoredPosition('parameter-driver-panel', pos.x, pos.y);
-      }
+      driverPanelBrowseMode = false;
+      const pos = restoreDriverPanelPosition();
       driverPanelX = pos.x;
       driverPanelY = pos.y;
       driverPanelTargetNodeId = targetNodeId;
@@ -643,58 +614,63 @@
     },
     hideSignalPicker() {
       driverPanelVisible = false;
+      driverPanelBrowseMode = false;
       driverPanelOnSelect = null;
       driverPanelTriggerElement = null;
-      signalPickerVisible = false;
-      signalPickerOnSelect = null;
-      signalPickerTriggerElement = null;
-      signalPickerBrowseMode = false;
     },
     isSignalPickerVisible() {
-      return driverPanelVisible || signalPickerVisible;
+      return driverPanelVisible;
     },
   };
 
-  /**
-   * Toggle the audio bands & remappers panel (large picker in browse mode).
-   * Reuses the existing AudioSignalPicker shell; no parameter target — Connect
-   * actions are hidden, but bands/remappers can still be created, edited, and deleted.
-   */
-  function toggleAudioPanel() {
-    if (signalPickerVisible && signalPickerBrowseMode) {
-      signalPickerVisible = false;
-      signalPickerOnSelect = null;
-      signalPickerTriggerElement = null;
-      signalPickerBrowseMode = false;
-      return;
-    }
+  function restoreDriverPanelPosition(): { x: number; y: number } {
     const center = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
     const inset = 16;
-    const rawLarge = getStoredPosition('audio-signal-picker', {
-      variant: 'large',
+    const raw = getStoredPosition('parameter-driver-panel', {
       fallback: center,
       legacyKey: [
         'shader-composer.audioSignalPickerPositionLarge',
         'shader-composer.audioSignalPickerPosition',
       ],
     });
-    const posLarge = clampPanelCenterToViewport(
-      rawLarge,
-      AUDIO_SIGNAL_PICKER_LARGE_CLAMP_BOX.width,
-      AUDIO_SIGNAL_PICKER_LARGE_CLAMP_BOX.height,
+    const pos = clampPanelCenterToViewport(
+      raw,
+      PARAMETER_DRIVER_PANEL_CLAMP_BOX.width,
+      PARAMETER_DRIVER_PANEL_CLAMP_BOX.height,
       inset
     );
-    if (posLarge.x !== rawLarge.x || posLarge.y !== rawLarge.y) {
-      setStoredPosition('audio-signal-picker', posLarge.x, posLarge.y, 'large');
+    if (pos.x !== raw.x || pos.y !== raw.y) {
+      setStoredPosition('parameter-driver-panel', pos.x, pos.y);
     }
-    signalPickerXLarge = posLarge.x;
-    signalPickerYLarge = posLarge.y;
-    signalPickerTargetNodeId = '';
-    signalPickerTargetParameter = '';
-    signalPickerOnSelect = null;
-    signalPickerTriggerElement = null;
-    signalPickerBrowseMode = true;
-    signalPickerVisible = true;
+    return pos;
+  }
+
+  function toggleGlobalDriverPanel(kind: ParameterDriverKind) {
+    if (driverPanelVisible && driverPanelBrowseMode && driverPanelBrowseKind === kind) {
+      driverPanelVisible = false;
+      driverPanelBrowseMode = false;
+      return;
+    }
+    const pos = restoreDriverPanelPosition();
+    driverPanelX = pos.x;
+    driverPanelY = pos.y;
+    driverPanelBrowseMode = true;
+    driverPanelBrowseKind = kind;
+    driverPanelTargetNodeId = '';
+    driverPanelTargetParameter = '';
+    driverPanelOnSelect = null;
+    driverPanelTriggerElement = null;
+    driverPanelVisible = true;
+  }
+
+  function closeDriverPanel() {
+    if (driverPanelTriggerElement) {
+      driverPanelTriggerElement.focus();
+    }
+    driverPanelVisible = false;
+    driverPanelBrowseMode = false;
+    driverPanelOnSelect = null;
+    driverPanelTriggerElement = null;
   }
 
   function handleClearArrangement(): void {
@@ -776,43 +752,16 @@
     }
   }
 
-  function refreshTimelineFloatingPosition(): void {
-    const inset = 16;
-    const w = typeof window !== 'undefined' ? window.innerWidth : 1000;
-    const h = typeof window !== 'undefined' ? window.innerHeight : 700;
-    const approxBodyH = Math.min(h * 0.3, 360);
-    const bottomClearance = 100;
-    const fallback = { x: w / 2, y: h - bottomClearance - approxBodyH / 2 };
-    const raw = getStoredPosition('timeline-panel', {
-      fallback,
-      legacyKey: 'shader-composer.timelinePanelPosition',
-    });
-    const clamped = clampPanelCenterToViewport(
-      raw,
-      TIMELINE_PANEL_FLOATING_CLAMP_BOX.width,
-      TIMELINE_PANEL_FLOATING_CLAMP_BOX.height,
-      inset
-    );
-    if (clamped.x !== raw.x || clamped.y !== raw.y) {
-      setStoredPosition('timeline-panel', clamped.x, clamped.y);
-    }
-    timelinePanelX = clamped.x;
-    timelinePanelY = clamped.y;
-  }
-
   function isCanvasBlockingDialogVisible(): boolean {
     if (layoutBlockingCanvasShortcuts) return true;
     if (splashOverlayVisible) return true;
     if (leaveSaveBlockedOpen) return true;
     if (helpVisible) return true;
-    if (curveEditorLaneId != null) return true;
     if (canvasColorPickerVisible) return true;
     if (parameterValueOverlayVisible) return true;
     if (labelEditOverlayVisible) return true;
-    if (signalPickerVisible) return true;
     if (driverPanelVisible) return true;
     if (overlayBridge.isEnumDropdownVisible()) return true;
-    if (timelinePanelOpen) return true;
     return false;
   }
 
@@ -914,7 +863,15 @@
     if (splashFeatureEnabled && !useAudiotoolGate) {
       splashReadyForDismiss = true;
     }
-    if (useAudiotoolGate) {
+    if (useAudiotoolGate && !splashOAuthReturnPending) {
+      splashOverlayVisible = false;
+    }
+  }
+
+  function handleOAuthReturnBeatComplete(): void {
+    splashOAuthReturnPending = false;
+    clearSplashOAuthHandoffPending();
+    if (runtimeManager !== null) {
       splashOverlayVisible = false;
     }
   }
@@ -1711,6 +1668,10 @@
           const auth = await initAudiotoolBrowserAuth();
           if (cancelled) return;
           if (auth.status === 'unauthenticated') {
+            if (splashOAuthReturnPending) {
+              splashOAuthReturnPending = false;
+              clearSplashOAuthHandoffPending();
+            }
             const login = (): void => {
               auth.login();
             };
@@ -1803,65 +1764,6 @@
 
 <svelte:window />
 
-{#snippet timelinePanelSnippet()}
-  <TimelinePanel
-    getGraph={() => graphStore.graph}
-    onGraphUpdate={async (g) => {
-      graphStore.setGraph(g);
-      await runtimeDispatcher?.loadGraph(g);
-    }}
-    getTimelineState={() => runtimeManager?.getTimelineState() ?? null}
-    onSeek={(t) => runtimeManager?.seekGlobalAudio(t)}
-    waveformService={waveformService}
-    onRevealInNodeEditor={handleRevealParameterInNodeEditor}
-    onOpenCurveEditor={(laneId, regionId, labels) => {
-      curveEditorRegionTimePreview = null;
-      curveEditorLaneId = laneId;
-      curveEditorRegionId = regionId;
-      curveEditorParamLabel = labels.paramLabel;
-    }}
-    onClose={() => {
-      timelinePanelOpen = false;
-    }}
-    nodeSpecs={nodeSpecs}
-    openCurveEditorRegion={
-      curveEditorLaneId && curveEditorRegionId
-        ? { laneId: curveEditorLaneId, regionId: curveEditorRegionId }
-        : null
-    }
-    onOpenCurveEditorRegionTimePreview={(preview) => {
-      curveEditorRegionTimePreview = preview;
-    }}
-  />
-{/snippet}
-
-{#snippet curveEditorSlotSnippet()}
-  {#if curveEditorLaneId && curveEditorRegionId}
-    <TimelineCurveEditor
-      getGraph={() => graphStore.graph}
-      onGraphUpdate={async (g) => {
-        graphStore.setGraph(g);
-        await runtimeDispatcher?.loadGraph(g);
-      }}
-      onSeek={(t) => runtimeManager?.seekGlobalAudio(t)}
-      onClose={() => {
-        curveEditorRegionTimePreview = null;
-        curveEditorLaneId = null;
-        curveEditorRegionId = null;
-        curveEditorParamLabel = '';
-      }}
-      laneId={curveEditorLaneId}
-      regionId={curveEditorRegionId}
-      paramLabel={curveEditorParamLabel}
-      onRevealInNodeEditor={handleRevealParameterInNodeEditor}
-      nodeSpecs={nodeSpecs}
-      regionTimeRangePreview={curveEditorRegionTimePreview}
-      getWaveformData={waveformService ? async () => waveformService!.getWaveformForCurveEditor() : undefined}
-      getCurrentTransportTime={() => runtimeManager?.getTimelineState()?.currentTime ?? 0}
-    />
-  {/if}
-{/snippet}
-
 <div class="app-root" style="position: fixed; inset: 0; overflow: hidden; background: var(--layout-bg, #1a1a1a);">
   {#if splashOverlayVisible}
     <AppSplashScreen
@@ -1873,6 +1775,9 @@
         ? handleContinueWithoutAudiotool
         : undefined}
       audiotoolBootstrapping={atConn.editorBootstrapInFlight}
+      oauthReturnBeat={useAudiotoolGate && splashOAuthReturnPending && atConn.session != null}
+      oauthReturnPending={useAudiotoolGate && splashOAuthReturnPending}
+      onOAuthReturnBeatComplete={handleOAuthReturnBeatComplete}
       ready={splashReadyForDismiss}
       onDismiss={() => {
         splashOverlayVisible = false;
@@ -2084,10 +1989,8 @@
           graphStore.setActiveTool(tool);
           canvasApi?.setActiveTool(tool);
         }}
-        onTimelinePanelOpen={refreshTimelineFloatingPosition}
-        bind:timelinePanelOpen={timelinePanelOpen}
-        isAudioPanelOpen={signalPickerVisible && signalPickerBrowseMode}
-        onAudioPanelToggle={toggleAudioPanel}
+        activeDriverBrowseKind={activeDriverBrowseKind}
+        onDriverBrowseKindSelect={toggleGlobalDriverPanel}
         audioSetup={graphStore.audioSetup}
         getTrackKey={() => getPrimaryFileId(graphStore.audioSetup)}
         getPrimaryAudioFileNodeId={() => getPrimaryFileId(graphStore.audioSetup) ?? 'primary'}
@@ -2278,6 +2181,7 @@
     helpMode={helpMode}
     helpNodeType={helpNodeType}
     nodeSpecs={nodeSpecsMap}
+    onOpenNodeHelp={openHelpForNodeType}
     onClose={() => {
       helpVisible = false;
       helpNodeType = undefined;
@@ -2350,23 +2254,6 @@
 
   <DropdownMenu bind:this={canvasEnumDropdownRef} class="canvas-enum-dropdown" />
 
-  <TimelinePanelFloatingShell
-    open={timelinePanelOpen}
-    x={timelinePanelX}
-    y={timelinePanelY}
-    onPositionChange={(x, y) => {
-      timelinePanelX = x;
-      timelinePanelY = y;
-      setStoredPosition('timeline-panel', x, y);
-    }}
-    onClose={() => {
-      timelinePanelOpen = false;
-    }}
-    curveSlotActive={curveEditorLaneId != null && curveEditorRegionId != null}
-    timelineSlot={timelinePanelSnippet}
-    curveSlot={curveEditorSlotSnippet}
-  />
-
   <ParameterDriverPanel
     open={driverPanelVisible}
     x={driverPanelX}
@@ -2376,6 +2263,12 @@
       driverPanelY = y;
       setStoredPosition('parameter-driver-panel', x, y);
     }}
+    browseMode={driverPanelBrowseMode}
+    initialKind={driverPanelBrowseKind}
+    onBrowseKindChange={(kind) => {
+      driverPanelBrowseKind = kind;
+    }}
+    waveformService={waveformService}
     targetNodeId={driverPanelTargetNodeId}
     targetParameter={driverPanelTargetParameter}
     triggerElement={driverPanelTriggerElement}
@@ -2389,87 +2282,22 @@
       await runtimeDispatcher?.loadGraph(g);
     }}
     getTimelineState={() => runtimeManager?.getTimelineState() ?? null}
-    onSeek={(t) => runtimeManager?.seekGlobalAudio(t)}
+    onSeek={(t) => runtimeDispatcher?.seekGlobalAudio(t)}
     getWaveformData={waveformService ? async () => waveformService!.getWaveformForCurveEditor() : undefined}
     onSelect={(payload) => {
       driverPanelOnSelect?.(payload);
-      // Keep the driver panel open for attach and bypass toggles; disconnect closes the panel.
       if (payload.type === 'set-connection-disabled' || payload.type === 'audio') {
         return;
       }
-      if (driverPanelTriggerElement) {
-        driverPanelTriggerElement.focus();
-      }
-      driverPanelVisible = false;
-      driverPanelOnSelect = null;
-      driverPanelTriggerElement = null;
+      closeDriverPanel();
     }}
-    onClose={() => {
-      if (driverPanelTriggerElement) {
-        driverPanelTriggerElement.focus();
-      }
-      driverPanelVisible = false;
-      driverPanelOnSelect = null;
-      driverPanelTriggerElement = null;
-    }}
+    onClose={closeDriverPanel}
     onAudioSetupChange={(setup) => {
       commitAudioSetup(setup);
     }}
     arrangementImportBusy={arrangementImportBusy}
     onImportArrangement={() => void handleImportArrangement()}
     onClearArrangement={handleClearArrangement}
-  />
-
-  <AudioSignalPicker
-    open={signalPickerVisible}
-    xLarge={signalPickerXLarge}
-    yLarge={signalPickerYLarge}
-    xCompact={signalPickerXCompact}
-    yCompact={signalPickerYCompact}
-    onPositionChangeLarge={(x, y) => {
-      signalPickerXLarge = x;
-      signalPickerYLarge = y;
-      setStoredPosition('audio-signal-picker', x, y, 'large');
-    }}
-    onPositionChangeCompact={(x, y) => {
-      signalPickerXCompact = x;
-      signalPickerYCompact = y;
-      setStoredPosition('audio-signal-picker', x, y, 'compact');
-    }}
-    targetNodeId={signalPickerTargetNodeId}
-    targetParameter={signalPickerTargetParameter}
-    triggerElement={signalPickerTriggerElement}
-    graph={graphStore.graph}
-    audioSetup={graphStore.audioSetup}
-    nodeSpecs={nodeSpecsMap}
-    browseOnly={signalPickerBrowseMode}
-    getAudioManager={() => runtimeManager?.getAudioManager() ?? null}
-    onRevealInNodeEditor={handleRevealParameterInNodeEditor}
-    onSelect={(payload) => {
-      signalPickerOnSelect?.(payload);
-      if (payload.type === 'set-connection-disabled') {
-        return;
-      }
-      if (signalPickerTriggerElement) {
-        signalPickerTriggerElement.focus();
-      }
-      signalPickerVisible = false;
-      signalPickerOnSelect = null;
-      signalPickerTriggerElement = null;
-      signalPickerBrowseMode = false;
-    }}
-    onClose={() => {
-      if (signalPickerTriggerElement) {
-        signalPickerTriggerElement.focus();
-      }
-      signalPickerVisible = false;
-      signalPickerOnSelect = null;
-      signalPickerTriggerElement = null;
-      signalPickerBrowseMode = false;
-    }}
-    onAudioSetupChange={(setup) => {
-      commitAudioSetup(setup);
-    }}
   />
 </div>
 

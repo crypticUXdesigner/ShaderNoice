@@ -89,6 +89,13 @@ export interface Connection {
    * compilation and effective-value evaluation, so downstream behaves as if no wire exists.
    */
   disabled?: boolean;
+
+  /**
+   * Optional driver remap output range for audio virtual remap → parameter wires only.
+   * Gate (`inMin`/`inMax`) lives on the remapper in audioSetup; Out is per target.
+   */
+  driverOutMin?: number;
+  driverOutMax?: number;
 }
 
 /**

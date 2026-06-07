@@ -19,6 +19,8 @@ import {
   ConnectionPreviewAnimator,
   CONNECTION_PREVIEW_DASH_PATTERN,
 } from '../ConnectionPreviewAnimator';
+import { getConnectionDragPreviewThresholdCanvas } from './portHitRadius';
+import type { ConnectSource, PortHit } from './connectTargetResolver';
 
 export interface ConnectionState {
   isConnecting: boolean;
@@ -44,6 +46,7 @@ export interface ConnectionStateManagerDependencies {
   nodeSpecs: Map<string, NodeSpec>;
   nodeMetrics: Map<string, NodeRenderMetrics>;
   screenToCanvas: (screenX: number, screenY: number) => { x: number; y: number };
+  getViewState: () => { panX: number; panY: number; zoom: number };
   ctx: CanvasRenderingContext2D;
   hitTestPort: (screenX: number, screenY: number) => {
     nodeId: string;
@@ -52,6 +55,11 @@ export interface ConnectionStateManagerDependencies {
     parameter?: string;
     snapPosition?: { x: number; y: number };
   } | null;
+  resolveConnectTarget?: (
+    source: ConnectSource,
+    screenX: number,
+    screenY: number
+  ) => PortHit | null;
   requestRender?: () => void;
   onConnectingChange?: (isConnecting: boolean) => void;
 }
@@ -167,23 +175,29 @@ export class ConnectionStateManager {
    * This handles connection hover logic during connection drag
    */
   updateHoveredPort(mouseX: number, mouseY: number): void {
-    if (!this.state.isConnecting) {
+    if (!this.state.isConnecting || !this.state.connectionStartNodeId) {
       this.state.hoveredPort = null;
       return;
     }
 
-    // Check if hovering over a valid input port (only if dragging from output)
-    if (this.state.connectionStartIsOutput) {
-      const portHit = this.dependencies.hitTestPort(mouseX, mouseY);
-      // Only highlight input ports (not outputs) and not the same node
-      if (portHit && !portHit.isOutput && portHit.nodeId !== this.state.connectionStartNodeId) {
-        this.state.hoveredPort = portHit;
-      } else {
-        this.state.hoveredPort = null;
-      }
-    } else {
+    const source = this.getConnectSource();
+    if (!source) {
       this.state.hoveredPort = null;
+      return;
     }
+
+    this.state.hoveredPort =
+      this.dependencies.resolveConnectTarget?.(source, mouseX, mouseY) ?? null;
+  }
+
+  private getConnectSource(): ConnectSource | null {
+    if (!this.state.connectionStartNodeId) return null;
+    return {
+      nodeId: this.state.connectionStartNodeId,
+      port: this.state.connectionStartPort ?? '',
+      isOutput: this.state.connectionStartIsOutput,
+      parameter: this.state.connectionStartParameter,
+    };
   }
 
   /**
@@ -278,9 +292,13 @@ export class ConnectionStateManager {
     
     let isSnapped = false;
     
-    // Use hoveredPort if available (set by PortConnectHandler) - this is more reliable than hit testing again
-    // Fallback to hitTestPort if hoveredPort is not set (for old code path)
-    const portHit = this.state.hoveredPort || this.dependencies.hitTestPort(this.state.connectionMouseX, this.state.connectionMouseY);
+    // Use hoveredPort when set by PortConnectHandler; otherwise resolve (strict + magnetic).
+    const source = this.getConnectSource();
+    const portHit =
+      this.state.hoveredPort ??
+      (source
+        ? this.dependencies.resolveConnectTarget?.(source, this.state.connectionMouseX, this.state.connectionMouseY) ?? null
+        : this.dependencies.hitTestPort(this.state.connectionMouseX, this.state.connectionMouseY));
     if (portHit && portHit.nodeId !== this.state.connectionStartNodeId) {
       // Check if this is a valid target port
       const isValidTarget = this.state.connectionStartIsOutput 
@@ -322,7 +340,7 @@ export class ConnectionStateManager {
     const sourceY = sourcePortPos.y;
     
     // Don't show preview until user has dragged beyond threshold (avoids flash on click/double-click)
-    const dragThreshold = 8;
+    const dragThreshold = getConnectionDragPreviewThresholdCanvas(this.dependencies.getViewState().zoom);
     const distFromStart = Math.hypot(canvasPos.x - sourceX, canvasPos.y - sourceY);
     if (distFromStart < dragThreshold) return;
 

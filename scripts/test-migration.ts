@@ -332,7 +332,7 @@ function testPresetLoading() {
   console.log('\n=== Test 5: Preset Loading ===');
   
   const presetsDir = join(__dirname, '../src/presets');
-  const presetFiles = ['sphere.json', 'blur-softening.json'];
+  const presetFiles = ['watercolor-waves.json'];
   
   let presetErrors = 0;
   

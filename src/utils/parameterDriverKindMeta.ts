@@ -17,7 +17,7 @@ export type ParameterDriverKindMeta = {
 export const PARAMETER_DRIVER_KIND_OPTIONS: readonly ParameterDriverKindMeta[] = [
   { id: 'audio', label: 'Audio', icon: 'waveform', iconVariant: 'line' },
   { id: 'midi', label: 'MIDI', icon: 'music-note-simple', iconVariant: 'filled' },
-  { id: 'animation', label: 'Animation', icon: 'wave-sine', iconVariant: 'line' },
+  { id: 'animation', label: 'Animation', icon: 'line-segments', iconVariant: 'line' },
 ] as const;
 
 export function parameterDriverKindIconVariant(

@@ -63,7 +63,8 @@ describe('connectMidiEnvelopeBindingToParam', () => {
     expect(second!.remapperId).toBe(source.remapperId);
     const presetId = findMidiEnvelopeRemapper(next, source.remapperId)!.envelopePresetId;
     expect(findMidiEnvelopePreset(next, presetId)?.trackIds).toEqual(['t1']);
-    expect(findMidiEnvelopeRemapper(next, source.remapperId)?.outMax).toBe(2);
+    expect(findMidiEnvelopeRemapper(next, source.remapperId)).toBeDefined();
+    expect(second!.outMax).toBe(2);
     expect(next.midiEnvelopePresets).toHaveLength(1);
   });
 

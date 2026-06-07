@@ -13,6 +13,7 @@
   import DriverPanelEmptyState from './DriverPanelEmptyState.svelte';
 
   import TimelineCurveEditor from '../timeline/TimelineCurveEditor.svelte';
+  import TimelinePanel from '../timeline/TimelinePanel.svelte';
 
   import type { AnimationDriverPanelProps } from './AudioSignalPicker.types';
 
@@ -65,8 +66,16 @@
     onReturnToFocusedEdit,
     compactAdvancedOpen = $bindable(false),
     hideCurveToolbar = false,
+    browseMode = false,
+    waveformService = null,
+    hasConnectTarget = true,
 
   }: AnimationDriverPanelProps = $props();
+
+  let curveEditorLaneId = $state<string | null>(null);
+  let curveEditorRegionId = $state<string | null>(null);
+  let curveEditorParamLabel = $state('');
+  let curveEditorRegionTimePreview = $state<{ startTime: number; endTime: number } | null>(null);
 
 
 
@@ -110,7 +119,7 @@
 
   function handleAddAnimationDriver() {
 
-    if (!targetNode || paramSpec?.type !== 'float') return;
+    if (!hasConnectTarget || !targetNode || paramSpec?.type !== 'float') return;
 
     const transportDuration = getTimelineState?.()?.duration ?? null;
 
@@ -138,8 +147,6 @@
 
     onGraphUpdate(updated);
 
-    onReturnToFocusedEdit?.();
-
   }
 
 
@@ -158,6 +165,11 @@
 
   $effect(() => {
 
+    if (browseMode) {
+      registerDeleteHandler?.(null);
+      return () => registerDeleteHandler?.(null);
+    }
+
     registerDeleteHandler?.(lane ? handleRemoveAnimationDriver : null);
 
     return () => registerDeleteHandler?.(null);
@@ -168,9 +180,63 @@
 
 
 
-<div class="animation-driver-panel" class:is-focused-layout={isFocusedLayout}>
+<div class="animation-driver-panel" class:is-focused-layout={isFocusedLayout} class:is-browse-layout={browseMode}>
 
-  {#if hasEvaluableDriver && lane && primaryRegion}
+  {#if browseMode}
+    <div
+      class="timeline-browse-shell"
+      class:has-curve={curveEditorLaneId != null && curveEditorRegionId != null}
+    >
+      <div class="timeline-band">
+        <TimelinePanel
+          getGraph={() => graph}
+          {onGraphUpdate}
+          getTimelineState={() => getTimelineState?.() ?? null}
+          {onSeek}
+          {waveformService}
+          {onRevealInNodeEditor}
+          nodeSpecs={nodeSpecsList}
+          openCurveEditorRegion={
+            curveEditorLaneId && curveEditorRegionId
+              ? { laneId: curveEditorLaneId, regionId: curveEditorRegionId }
+              : null
+          }
+          onOpenCurveEditor={(laneId, regionId, labels) => {
+            curveEditorRegionTimePreview = null;
+            curveEditorLaneId = laneId;
+            curveEditorRegionId = regionId;
+            curveEditorParamLabel = labels.paramLabel;
+          }}
+          onOpenCurveEditorRegionTimePreview={(preview) => {
+            curveEditorRegionTimePreview = preview;
+          }}
+        />
+      </div>
+      {#if curveEditorLaneId && curveEditorRegionId}
+        <div class="curve-band">
+          <TimelineCurveEditor
+            getGraph={() => graph}
+            {onGraphUpdate}
+            {onSeek}
+            onClose={() => {
+              curveEditorRegionTimePreview = null;
+              curveEditorLaneId = null;
+              curveEditorRegionId = null;
+              curveEditorParamLabel = '';
+            }}
+            laneId={curveEditorLaneId}
+            regionId={curveEditorRegionId}
+            paramLabel={curveEditorParamLabel}
+            {onRevealInNodeEditor}
+            nodeSpecs={nodeSpecsList}
+            regionTimeRangePreview={curveEditorRegionTimePreview}
+            {getWaveformData}
+            getCurrentTransportTime={() => getTimelineState?.()?.currentTime ?? 0}
+          />
+        </div>
+      {/if}
+    </div>
+  {:else if hasEvaluableDriver && lane && primaryRegion}
 
     {#if isFocusedLayout}
 
@@ -224,7 +290,6 @@
         driverKind="animation"
         title="No shared animation presets"
         copy="This parameter already has its own transport curve. Animation drivers are not shared like audio or MIDI remaps — each float port owns one lane. Use the tabs above to browse audio or MIDI track sets, or return to edit this curve."
-        secondaryHint="Optional: open the timeline panel for multi-lane overview."
         spacious
       >
         {#snippet primaryAction()}
@@ -307,15 +372,16 @@
       iconVariant={animationKindIcon.iconVariant ?? 'line'}
       driverKind="animation"
       title="No animation driver"
-      copy="Add a transport curve for this parameter. A full-length region is created at the current value. There is no shared preset library — the curve belongs to this port only."
-      secondaryHint="Optional: open the timeline panel for multi-lane overview."
+      copy="Add a transport curve from a float parameter port. A full-length region is created at the current value. There is no shared preset library — each port owns one lane."
       spacious
     >
       {#snippet primaryAction()}
-        <Button variant="primary" size="md" mode="both" onclick={handleAddAnimationDriver}>
-          <IconSvg name="plus" variant="line" />
-          Add animation driver
-        </Button>
+        {#if hasConnectTarget}
+          <Button variant="primary" size="md" mode="both" onclick={handleAddAnimationDriver}>
+            <IconSvg name="plus" variant="line" />
+            Add animation driver
+          </Button>
+        {/if}
       {/snippet}
     </DriverPanelEmptyState>
 
@@ -349,6 +415,48 @@
 
     }
 
+    &.is-browse-layout {
+      overflow: hidden;
+    }
+
+  }
+
+  .timeline-browse-shell {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .timeline-browse-shell .timeline-band {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .timeline-browse-shell.has-curve .timeline-band {
+    flex: 1 1 auto;
+    min-height: 180px;
+  }
+
+  .timeline-browse-shell .curve-band {
+    flex-shrink: 0;
+    height: var(--timeline-curve-editor-slot-height);
+    max-height: var(--timeline-curve-editor-slot-height);
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .timeline-browse-shell .curve-band :global(.curve-editor) {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
   }
 
 

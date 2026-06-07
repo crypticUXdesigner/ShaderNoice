@@ -1,11 +1,17 @@
 <script lang="ts">
   import type { Action } from 'svelte/action';
   import { Button, ButtonGroup, IconSvg, Message, ModalDialog, SearchInput } from '../ui';
-  import type { IconName } from '../../../utils/iconsUiRegistry';
   import { formatLastModifiedHuman } from '../../../utils/humanTime';
   import { resolveProjectAvatar, type ProjectAvatarFields } from '../../storage/projectAvatar';
   import type { ProjectMeta } from '../../storage/projectRepository';
   import type { HubSelection } from '../../storage/projectSessionTypes';
+  import {
+    PRESET_TIERS,
+    bucketPresetsByTier,
+    resolvePresetChipCategory,
+    resolvePresetDisplayName,
+    resolvePresetIcon,
+  } from '../../../utils/presetCatalog';
   import PresetListItem from './PresetListItem.svelte';
   import ProjectListItem from './ProjectListItem.svelte';
 
@@ -75,72 +81,8 @@
     };
   };
 
-  type PresetCategoryId = 'demos' | 'idle';
-
-  const presetCategoryByName: Partial<Record<string, PresetCategoryId>> = {
-    sphere: 'demos',
-    'living-speaker': 'demos',
-    'hysteria-ben-erb-floydpjasper': 'demos',
-    'drive-home-lights': 'idle',
-    'glass-shell': 'idle',
-    'warped-drops': 'idle',
-    'swirly-whirly': 'idle',
-    'inflated-icosahedron': 'idle',
-    'bloom-sphere': 'idle',
-    'bokeh-point': 'idle',
-    'hex-prism-sdf': 'idle',
-    'vector-field-noise': 'demos',
-  };
-
-  const presetIconByName: Partial<Record<string, IconName>> = {
-    'living-speaker': 'waveform',
-    'hysteria-ben-erb-floydpjasper': 'waveform',
-    'drive-home-lights': 'photo',
-    'glass-shell': 'sparkles',
-    'warped-drops': 'wave-sine',
-    'swirly-whirly': 'curly-loop',
-    'inflated-icosahedron': 'grid-pattern',
-    'bloom-sphere': 'flame',
-    'bokeh-point': 'photo',
-    'hex-prism-sdf': 'matrix',
-    sphere: 'sparkles',
-    'vector-field-noise': 'matrix',
-  };
-
-  interface PresetCategory {
-    id: PresetCategoryId;
-    label: string;
-  }
-
-  const categories: PresetCategory[] = [
-    { id: 'demos', label: 'Demos' },
-    { id: 'idle', label: 'Idle animations' },
-  ];
-
   /** ~30 calendar days — recency gate for “Recent” on Start tab */
   const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
-
-  function resolveCategory(p: PresetRow): PresetCategoryId {
-    return presetCategoryByName[p.name] ?? 'idle';
-  }
-
-  type ChipCategorySlug = 'audio' | 'effects' | 'sdf';
-
-  function resolveChipCategory(p: PresetRow): ChipCategorySlug {
-    const c = resolveCategory(p);
-    if (c === 'demos') return 'audio';
-    return 'effects';
-  }
-
-  function resolveIcon(p: PresetRow): IconName {
-    return presetIconByName[p.name] ?? 'preset';
-  }
-
-  function resolvePresetDisplayName(p: PresetRow): string {
-    if (p.name === 'vector-field-noise') return 'Spinning Disc';
-    if (p.name === 'hysteria-ben-erb-floydpjasper') return 'HYSTERIA (Ben Erb floydpjasper)';
-    return p.displayName;
-  }
 
   function normalize(s: string): string {
     return s.toLowerCase().trim();
@@ -203,27 +145,17 @@
 
   const filteredPresetsByCategory = $derived.by(() => {
     const q = normalize(searchQuery);
-    const buckets: Record<PresetCategoryId, PresetRow[]> = { demos: [], idle: [] };
-    if (q === '') {
-      for (const p of hubPresets) buckets[resolveCategory(p)].push(p);
-    } else {
-      for (const p of hubPresets) {
-        const display = resolvePresetDisplayName(p);
-        if (!normalize(display).includes(q) && !normalize(p.name).includes(q)) continue;
-        buckets[resolveCategory(p)].push(p);
-      }
-    }
-    for (const key of Object.keys(buckets) as PresetCategoryId[]) {
-      buckets[key].sort((a, b) =>
-        resolvePresetDisplayName(a).localeCompare(resolvePresetDisplayName(b))
-      );
-    }
-    return buckets;
+    const matches = hubPresets.filter((p) => {
+      if (q === '') return true;
+      const display = resolvePresetDisplayName(p);
+      return normalize(display).includes(q) || normalize(p.name).includes(q);
+    });
+    return bucketPresetsByTier(matches);
   });
 
   const totalFilteredPresets = $derived.by(() => {
     const b = filteredPresetsByCategory;
-    return b.demos.length + b.idle.length;
+    return PRESET_TIERS.reduce((sum, tier) => sum + b[tier.id].length, 0);
   });
 
   const startTabHasResults = $derived(
@@ -432,16 +364,16 @@
 
           {#if totalFilteredPresets > 0}
             <section class="section" aria-labelledby="pp-bundled">
-              {#each categories as c (c.id)}
+              {#each PRESET_TIERS as c (c.id)}
                 {@const items = filteredPresetsByCategory[c.id]}
                 {#if items.length > 0}
                   <div class="headline-text">{c.label}</div>
                   <ul class="list" aria-label={c.label}>
                     {#each items as pr (pr.name)}
-                      {@const chipCategory = resolveChipCategory(pr)}
+                      {@const chipCategory = resolvePresetChipCategory(pr.name)}
                       <PresetListItem
                         displayName={resolvePresetDisplayName(pr)}
-                        icon={resolveIcon(pr)}
+                        icon={resolvePresetIcon(pr.name)}
                         chipCategory={chipCategory}
                         busy={busyCombined}
                         onFork={() => onHubPick({ kind: 'forkBundledPreset', presetName: pr.name })}

@@ -1,4 +1,5 @@
 import type { UniformUpdate } from '../../video-export/OfflineAudioProvider';
+import { clampToStoredChannelBounds } from '../audio/remapValue';
 
 export type AudioAnalysisCurveCache = {
   startTimeSeconds: number;
@@ -48,11 +49,9 @@ export class AudioAnalysisCurveSampler {
     for (let j = 0; j < channelCount; j++) {
       const ch = cache.channels[j]!;
       let v = this.sampledValues[j] ?? (ch.defaultValue ?? 0);
-      if (ch.min !== undefined) v = Math.max(ch.min, v);
-      if (ch.max !== undefined) v = Math.min(ch.max, v);
+      v = clampToStoredChannelBounds(v, ch.min, ch.max);
       updates[j] = { nodeId: ch.nodeId, paramName: ch.paramName, value: v };
     }
     return updates;
   }
 }
-

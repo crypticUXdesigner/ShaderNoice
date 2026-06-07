@@ -14,6 +14,7 @@ import type {
 import { isMidiEnvelopeBindingBound } from './midiEnvelopeTypes';
 import {
   DEFAULT_MIDI_ENVELOPE_DEFINITION,
+  DEFAULT_MIDI_ENVELOPE_REMAPPER_INPUT,
   DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT,
 } from './midiEnvelopeTypes';
 import { defaultRemapperIdForPreset } from './midiEnvelopeRemapperMigration';
@@ -148,17 +149,21 @@ export function resolveMidiEnvelopeBinding(
   graph: NodeGraph,
   binding: MidiEnvelopeBinding
 ): ResolvedMidiEnvelopeBinding | undefined {
-  const remapper = findMidiEnvelopeRemapper(graph, binding.remapperId);
+  const current =
+    graph.midiEnvelopeBindings?.find((b) => b.id === binding.id) ?? binding;
+  const remapper = findMidiEnvelopeRemapper(graph, current.remapperId);
   if (!remapper) return undefined;
   const preset = findMidiEnvelopePreset(graph, remapper.envelopePresetId);
   if (!preset) return undefined;
   return {
-    ...binding,
+    ...current,
     trackIds: preset.trackIds,
     envelope: {
       ...copyEnvelopeDefinition(preset.envelope),
-      outMin: remapper.outMin,
-      outMax: remapper.outMax,
+      inMin: remapper.inMin,
+      inMax: remapper.inMax,
+      outMin: current.outMin,
+      outMax: current.outMax,
     },
   };
 }
@@ -184,16 +189,15 @@ export function hasMidiEnvelopeBindingForParam(
 
 function ensureDefaultRemapperForPreset(
   graph: NodeGraph,
-  presetId: string,
-  range: { outMin: number; outMax: number } = DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT
+  presetId: string
 ): NodeGraph {
   const remapperId = defaultRemapperIdForPreset(presetId);
   if (findMidiEnvelopeRemapper(graph, remapperId)) return graph;
   const remapper: MidiEnvelopeRemapper = {
     id: remapperId,
     envelopePresetId: presetId,
-    outMin: range.outMin,
-    outMax: range.outMax,
+    inMin: DEFAULT_MIDI_ENVELOPE_REMAPPER_INPUT.inMin,
+    inMax: DEFAULT_MIDI_ENVELOPE_REMAPPER_INPUT.inMax,
   };
   const remappers = graph.midiEnvelopeRemappers ?? [];
   return { ...graph, midiEnvelopeRemappers: [...remappers, remapper] };
@@ -211,7 +215,7 @@ export function addMidiEnvelopePreset(
   } = {}
 ): NodeGraph {
   const presetId = options.id ?? generateUUID();
-  const { presetEnvelope, outMin, outMax } = splitCreateEnvelope(
+  const { presetEnvelope } = splitCreateEnvelope(
     options.envelope
       ? {
           ...options.envelope,
@@ -231,7 +235,7 @@ export function addMidiEnvelopePreset(
     ...graph,
     midiEnvelopePresets: [...presets, preset],
   };
-  return ensureDefaultRemapperForPreset(withPreset, presetId, { outMin, outMax });
+  return ensureDefaultRemapperForPreset(withPreset, presetId);
 }
 
 export function bindMidiEnvelopeRemapperToParam(
@@ -239,7 +243,12 @@ export function bindMidiEnvelopeRemapperToParam(
   remapperId: string,
   nodeId: string,
   paramName: string,
-  options: { bindingId?: string; replaceExisting?: boolean } = {}
+  options: {
+    bindingId?: string;
+    replaceExisting?: boolean;
+    outMin?: number;
+    outMax?: number;
+  } = {}
 ): NodeGraph {
   if (!findMidiEnvelopeRemapper(graph, remapperId)) return graph;
 
@@ -254,12 +263,16 @@ export function bindMidiEnvelopeRemapperToParam(
     }
   }
 
+  const outMin = options.outMin ?? DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT.outMin;
+  const outMax = options.outMax ?? DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT.outMax;
   const bindings = next.midiEnvelopeBindings ?? [];
   const binding: MidiEnvelopeBinding = {
     id: options.bindingId ?? generateUUID(),
     remapperId,
     nodeId,
     paramName,
+    outMin,
+    outMax,
   };
   return {
     ...next,
@@ -310,7 +323,7 @@ export function addMidiEnvelopeBinding(
     defaultRemapperIdForPreset(presetId),
     nodeId,
     paramName,
-    { bindingId: options.id }
+    { bindingId: options.id, outMin, outMax }
   );
 }
 
@@ -320,8 +333,8 @@ export function addMidiEnvelopeRemapper(
   options: {
     id?: string;
     name?: string;
-    outMin?: number;
-    outMax?: number;
+    inMin?: number;
+    inMax?: number;
   } = {}
 ): NodeGraph {
   if (!findMidiEnvelopePreset(graph, envelopePresetId)) return graph;
@@ -329,8 +342,8 @@ export function addMidiEnvelopeRemapper(
     id: options.id ?? generateUUID(),
     envelopePresetId,
     ...(options.name !== undefined ? { name: options.name } : {}),
-    outMin: options.outMin ?? DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT.outMin,
-    outMax: options.outMax ?? DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT.outMax,
+    inMin: options.inMin ?? DEFAULT_MIDI_ENVELOPE_REMAPPER_INPUT.inMin,
+    inMax: options.inMax ?? DEFAULT_MIDI_ENVELOPE_REMAPPER_INPUT.inMax,
   };
   const remappers = graph.midiEnvelopeRemappers ?? [];
   return { ...graph, midiEnvelopeRemappers: [...remappers, remapper] };
@@ -377,7 +390,7 @@ export function duplicateMidiEnvelopeRemapper(
 export function updateMidiEnvelopeRemapper(
   graph: NodeGraph,
   remapperId: string,
-  patch: Partial<Pick<MidiEnvelopeRemapper, 'name' | 'outMin' | 'outMax'>>
+  patch: Partial<Pick<MidiEnvelopeRemapper, 'name' | 'inMin' | 'inMax'>>
 ): NodeGraph {
   const remappers = graph.midiEnvelopeRemappers;
   if (!remappers?.length) return graph;
@@ -388,25 +401,48 @@ export function updateMidiEnvelopeRemapper(
     return {
       ...r,
       ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.inMin !== undefined ? { inMin: patch.inMin } : {}),
+      ...(patch.inMax !== undefined ? { inMax: patch.inMax } : {}),
+    };
+  });
+  return changed ? { ...graph, midiEnvelopeRemappers: next } : graph;
+}
+
+export function updateMidiEnvelopeBindingOut(
+  graph: NodeGraph,
+  bindingId: string,
+  patch: Partial<Pick<MidiEnvelopeBinding, 'outMin' | 'outMax'>>
+): NodeGraph {
+  const bindings = graph.midiEnvelopeBindings;
+  if (!bindings?.length) return graph;
+  let changed = false;
+  const next = bindings.map((b) => {
+    if (b.id !== bindingId) return b;
+    changed = true;
+    return {
+      ...b,
       ...(patch.outMin !== undefined ? { outMin: patch.outMin } : {}),
       ...(patch.outMax !== undefined ? { outMax: patch.outMax } : {}),
     };
   });
-  return changed ? { ...graph, midiEnvelopeRemappers: next } : graph;
+  return changed ? { ...graph, midiEnvelopeBindings: next } : graph;
 }
 
 export function defaultOutputRangeForPreset(
   graph: NodeGraph,
   presetId: string
 ): { outMin: number; outMax: number } {
-  const remapper = findMidiEnvelopeRemapper(graph, defaultRemapperIdForPreset(presetId));
-  return remapper ?? DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT;
+  const binding = findBoundBindingsForPreset(graph, presetId)[0];
+  if (binding) {
+    return { outMin: binding.outMin, outMax: binding.outMax };
+  }
+  return { ...DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT };
 }
 
 export function updateMidiEnvelopePreset(
   graph: NodeGraph,
   presetId: string,
-  patch: Partial<Pick<MidiEnvelopePreset, 'label' | 'trackIds' | 'envelope'>>
+  patch: Partial<Pick<MidiEnvelopePreset, 'label' | 'trackIds' | 'envelope' | 'retriggerPolicy'>>
 ): NodeGraph {
   const presets = graph.midiEnvelopePresets;
   if (!presets?.length) return graph;
@@ -421,6 +457,9 @@ export function updateMidiEnvelopePreset(
       ...(patch.envelope !== undefined
         ? { envelope: copyEnvelopeDefinition(patch.envelope) }
         : {}),
+      ...(patch.retriggerPolicy !== undefined
+        ? { retriggerPolicy: patch.retriggerPolicy }
+        : {}),
     };
   });
   return changed ? { ...graph, midiEnvelopePresets: next } : graph;
@@ -429,7 +468,7 @@ export function updateMidiEnvelopePreset(
 export function updateMidiEnvelopeBinding(
   graph: NodeGraph,
   bindingId: string,
-  patch: Partial<Pick<MidiEnvelopeBinding, 'nodeId' | 'paramName' | 'disabled'>>
+  patch: Partial<Pick<MidiEnvelopeBinding, 'nodeId' | 'paramName' | 'disabled' | 'outMin' | 'outMax'>>
 ): NodeGraph {
   const bindings = graph.midiEnvelopeBindings;
   if (!bindings?.length) return graph;
@@ -441,6 +480,8 @@ export function updateMidiEnvelopeBinding(
       ...b,
       ...(patch.nodeId !== undefined ? { nodeId: patch.nodeId } : {}),
       ...(patch.paramName !== undefined ? { paramName: patch.paramName } : {}),
+      ...(patch.outMin !== undefined ? { outMin: patch.outMin } : {}),
+      ...(patch.outMax !== undefined ? { outMax: patch.outMax } : {}),
       ...(patch.disabled !== undefined
         ? { disabled: patch.disabled ? true : undefined }
         : {}),
@@ -510,7 +551,12 @@ export function connectMidiEnvelopeRemapperToParam(
   remapperId: string,
   nodeId: string,
   paramName: string,
-  options: { bindingId?: string; replaceExisting?: boolean } = {}
+  options: {
+    bindingId?: string;
+    replaceExisting?: boolean;
+    outMin?: number;
+    outMax?: number;
+  } = {}
 ): NodeGraph {
   return bindMidiEnvelopeRemapperToParam(graph, remapperId, nodeId, paramName, options);
 }
@@ -526,7 +572,10 @@ export function connectMidiEnvelopeBindingToParam(
 ): NodeGraph {
   const source = graph.midiEnvelopeBindings?.find((b) => b.id === sourceBindingId);
   if (!source) return graph;
-  return connectMidiEnvelopeRemapperToParam(graph, source.remapperId, nodeId, paramName);
+  return connectMidiEnvelopeRemapperToParam(graph, source.remapperId, nodeId, paramName, {
+    outMin: source.outMin,
+    outMax: source.outMax,
+  });
 }
 
 export function connectMidiEnvelopePresetToParam(

@@ -1,57 +1,73 @@
 <script lang="ts">
   /**
-   * MIDI remap card — out range + Connect; parallels RemapperCard.
+   * MIDI remap card — shared driver remap UI + Connect; parallels RemapperCard.
    */
-  import { Button, IconSvg, EditableLabel, ValueInput } from '../ui';
-  import DriverConnectionTargetTags from './DriverConnectionTargetTags.svelte';
-  import type { DriverConnectionTargetDisplay } from './driverTargetDisplay';
+  import { Button, IconSvg, EditableLabel } from '../ui';
+  import DriverRemapSection, {
+    type DriverRemapSections,
+  } from './DriverRemapSection.svelte';
   import type { MidiEnvelopeRemapper } from '../../../data-model/midiEnvelopeTypes';
-
-  /** Hit level is 0–1; mapped value uses parameter units. */
-  const OUTPUT_VALUE_MIN = -9999;
-  const OUTPUT_VALUE_MAX = 9999;
-  const OUTPUT_VALUE_STEP = 0.01;
 
   interface Props {
     remapper: MidiEnvelopeRemapper;
     envelopePresetName?: string;
-    isConnectedToTarget?: boolean;
     onConnect?: () => void;
     onDisconnect?: () => void;
     onDelete?: () => void;
     onDuplicate?: () => void;
-    onRemapperChange?: (patch: Partial<Pick<MidiEnvelopeRemapper, 'name' | 'outMin' | 'outMax'>>) => void;
-    connectionTargets?: DriverConnectionTargetDisplay[];
-    activeTargetNodeId?: string;
-    activeTargetParamName?: string;
-    onRevealParameter?: (nodeId: string, paramName: string) => void;
+    onRemapperChange?: (
+      patch: Partial<Pick<MidiEnvelopeRemapper, 'name' | 'inMin' | 'inMax'>>
+    ) => void;
+    targetOutMin?: number;
+    targetOutMax?: number;
+    onTargetOutChange?: (patch: { outMin?: number; outMax?: number }) => void;
+    paramMin?: number;
+    paramMax?: number;
+    paramStep?: number;
+    paramType?: 'float' | 'int';
+    liveInValue?: number | null;
+    liveOutValue?: number | null;
     /** Focused compact driver: borderless, fits parent width. */
     embedded?: boolean;
+    remapSections?: DriverRemapSections;
   }
 
   let {
     remapper,
     envelopePresetName = 'Track set',
-    isConnectedToTarget = false,
     onConnect,
     onDisconnect,
     onDelete,
     onDuplicate,
     onRemapperChange,
-    connectionTargets = [],
-    activeTargetNodeId,
-    activeTargetParamName,
-    onRevealParameter,
+    targetOutMin = 0,
+    targetOutMax = 1,
+    onTargetOutChange,
+    paramMin,
+    paramMax,
+    paramStep,
+    paramType,
+    liveInValue,
+    liveOutValue,
     embedded = false,
+    remapSections,
   }: Props = $props();
 
   const displayName = $derived(remapper.name?.trim() || 'Remap');
+
+  const effectiveSections = $derived(
+    remapSections ?? (embedded ? 'gateOnly' : 'both')
+  );
+
+  function handleMatchParameter() {
+    if (paramMin == null || paramMax == null) return;
+    onTargetOutChange?.({ outMin: paramMin, outMax: paramMax });
+  }
 </script>
 
 <div
   class="midi-remapper-card panel-card"
   class:is-embedded={embedded}
-  class:connected={isConnectedToTarget}
   role="group"
   aria-label={`Remap: ${displayName}`}
 >
@@ -130,42 +146,40 @@
     </div>
   </div>
   <div class="editor-wrap">
-    <div class="range-controls" role="group" aria-label="Remap range">
-      <div class="control">
-        <ValueInput
-          value={remapper.outMin}
-          min={OUTPUT_VALUE_MIN}
-          max={OUTPUT_VALUE_MAX}
-          step={OUTPUT_VALUE_STEP}
-          decimals={3}
-          size="sm"
-          onChange={(v) => onRemapperChange?.({ outMin: v })}
-          onCommit={(v) => onRemapperChange?.({ outMin: v })}
-        />
-        <span class="label">Out min</span>
-      </div>
-      <div class="control">
-        <ValueInput
-          value={remapper.outMax}
-          min={OUTPUT_VALUE_MIN}
-          max={OUTPUT_VALUE_MAX}
-          step={OUTPUT_VALUE_STEP}
-          decimals={3}
-          size="sm"
-          onChange={(v) => onRemapperChange?.({ outMax: v })}
-          onCommit={(v) => onRemapperChange?.({ outMax: v })}
-        />
-        <span class="label">Out max</span>
-      </div>
-    </div>
+    <DriverRemapSection
+      inMin={remapper.inMin}
+      inMax={remapper.inMax}
+      outMin={targetOutMin}
+      outMax={targetOutMax}
+      {liveInValue}
+      {liveOutValue}
+      {paramMin}
+      {paramMax}
+      {paramStep}
+      {paramType}
+      controlsLayout={embedded ? 'driver-focused' : 'default'}
+      sections={effectiveSections}
+      matchParameterRange={
+        effectiveSections !== 'gateOnly' && paramMin != null && paramMax != null
+          ? handleMatchParameter
+          : undefined
+      }
+      onChange={(payload) => {
+        if (payload.inMin !== undefined || payload.inMax !== undefined) {
+          onRemapperChange?.({
+            ...(payload.inMin !== undefined ? { inMin: payload.inMin } : {}),
+            ...(payload.inMax !== undefined ? { inMax: payload.inMax } : {}),
+          });
+        }
+        if (payload.outMin !== undefined || payload.outMax !== undefined) {
+          onTargetOutChange?.({
+            ...(payload.outMin !== undefined ? { outMin: payload.outMin } : {}),
+            ...(payload.outMax !== undefined ? { outMax: payload.outMax } : {}),
+          });
+        }
+      }}
+    />
   </div>
-  <DriverConnectionTargetTags
-    targets={connectionTargets}
-    activeNodeId={activeTargetNodeId}
-    activeParamName={activeTargetParamName}
-    onReveal={onRevealParameter}
-    sectionLabel="Targets"
-  />
 </div>
 
 <style>
@@ -182,11 +196,6 @@
     &:hover,
     &:active {
       border-color: var(--panel-card-border);
-    }
-
-    &.connected {
-      outline: 1px solid var(--color-blue-90);
-      outline-offset: -1px;
     }
 
     &.is-embedded {
@@ -227,37 +236,6 @@
       gap: var(--pd-sm);
       width: 100%;
       padding: 0 var(--pd-sm) var(--pd-xs);
-    }
-
-    .range-controls {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      column-gap: var(--pd-sm);
-      width: 100%;
-    }
-
-    .control {
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: var(--pd-2xs);
-      min-width: 0;
-
-      :global(.value-input-wrapper) {
-        width: 100%;
-      }
-
-      :global(.value-input) {
-        width: 100%;
-        box-sizing: border-box;
-        justify-content: center;
-      }
-
-      .label {
-        font-size: var(--text-xs);
-        color: var(--color-gray-100);
-        text-align: center;
-      }
     }
   }
 </style>

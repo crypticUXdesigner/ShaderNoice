@@ -5,7 +5,11 @@
   import { untrack } from 'svelte';
   import { Button, IconSvg, DropdownMenu, MenuInput, MenuItem, MenuNoResults, Tag, EditableLabel } from '../ui';
   import AdsrEnvelopeEditor from '../ui/input/AdsrEnvelopeEditor.svelte';
-  import type { MidiEnvelopePreset } from '../../../data-model/midiEnvelopeTypes';
+  import type {
+    MidiEnvelopePreset,
+    MidiEnvelopeRetriggerPolicy,
+  } from '../../../data-model/midiEnvelopeTypes';
+  import { resolveMidiEnvelopeRetriggerPolicy } from '../../../data-model/midiEnvelopeTypes';
   import type { ArrangementTrackFilterRow } from '../../../audiotool/arrangement/arrangementTrackFilter';
 
   interface Props {
@@ -17,7 +21,9 @@
     connectedTracks: ArrangementTrackFilterRow[];
     availableTracks: ArrangementTrackFilterRow[];
     onSelect?: (e: MouseEvent) => void;
-    onPresetChange?: (patch: Partial<Pick<MidiEnvelopePreset, 'label' | 'trackIds' | 'envelope'>>) => void;
+    onPresetChange?: (
+      patch: Partial<Pick<MidiEnvelopePreset, 'label' | 'trackIds' | 'envelope' | 'retriggerPolicy'>>
+    ) => void;
     onAddTrack?: (trackId: string) => void;
     onRemoveTrack?: (trackId: string) => void;
     /** Flat layout for the focused driver dialog (no inset panel-card chrome). */
@@ -44,7 +50,31 @@
     hideTracksSection = false,
   }: Props = $props();
 
+  const RETRIGGER_POLICY_OPTIONS: {
+    value: MidiEnvelopeRetriggerPolicy;
+    label: string;
+    helper: string;
+  }[] = [
+    {
+      value: 'lastNoteWins',
+      label: 'Restart',
+      helper: 'Restart attack on every note.',
+    },
+    {
+      value: 'holdIfHigher',
+      label: 'Hold level',
+      helper: 'Highest envelope level wins.',
+    },
+    {
+      value: 'legato',
+      label: 'Legato',
+      helper: 'Skip attack while a note is still sounding.',
+    },
+  ];
+
   let addTrackOpen = $state(false);
+  let retriggerPolicyOpen = $state(false);
+  let retriggerPolicyAnchorEl = $state<HTMLDivElement | null>(null);
   let addTrackAnchorEl = $state<HTMLDivElement | null>(null);
   let addTrackSearch = $state('');
   let addTrackSelectedIndex = $state(-1);
@@ -151,6 +181,18 @@
   ) {
     onPresetChange?.({ envelope: updater(preset.envelope) });
   }
+
+  const resolvedRetriggerPolicy = $derived(
+    resolveMidiEnvelopeRetriggerPolicy(preset.retriggerPolicy)
+  );
+
+  const retriggerPolicyLabel = $derived(
+    RETRIGGER_POLICY_OPTIONS.find((o) => o.value === resolvedRetriggerPolicy)?.label ?? 'Restart'
+  );
+
+  const retriggerPolicyHelper = $derived(
+    RETRIGGER_POLICY_OPTIONS.find((o) => o.value === resolvedRetriggerPolicy)?.helper ?? ''
+  );
 </script>
 
 <div
@@ -292,7 +334,52 @@
           onChange={(adsr) => patchEnvelope((env) => ({ ...env, adsr: { ...adsr } }))}
           onVelocityToPeakChange={(velocityToPeak) =>
             patchEnvelope((env) => ({ ...env, velocityToPeak }))}
-        />
+        >
+          {#snippet controlsTrail()}
+            <div class="overlap-mode-row">
+              <div class="overlap-mode-left">
+                <span class="overlap-mode-label" id="overlap-mode-label-{preset.id}">Mode</span>
+                <div class="overlap-mode-control" bind:this={retriggerPolicyAnchorEl}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    mode="both"
+                    aria-labelledby="overlap-mode-label-{preset.id}"
+                    aria-haspopup="listbox"
+                    aria-expanded={retriggerPolicyOpen}
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      retriggerPolicyOpen = !retriggerPolicyOpen;
+                    }}
+                  >
+                    {retriggerPolicyLabel}
+                  </Button>
+                  <DropdownMenu
+                    open={retriggerPolicyOpen}
+                    anchor={retriggerPolicyAnchorEl}
+                    align="start"
+                    onClose={() => (retriggerPolicyOpen = false)}
+                  >
+                    {#snippet children()}
+                      {#each RETRIGGER_POLICY_OPTIONS as option (option.value)}
+                        <MenuItem
+                          label={option.label}
+                          desc={option.helper}
+                          selected={resolvedRetriggerPolicy === option.value}
+                          onclick={() => {
+                            onPresetChange?.({ retriggerPolicy: option.value });
+                            retriggerPolicyOpen = false;
+                          }}
+                        />
+                      {/each}
+                    {/snippet}
+                  </DropdownMenu>
+                </div>
+              </div>
+              <p class="overlap-mode-helper">{retriggerPolicyHelper}</p>
+            </div>
+          {/snippet}
+        </AdsrEnvelopeEditor>
       </div>
     </div>
   </div>
@@ -390,6 +477,36 @@
       padding: var(--pd-md) var(--pd-sm) 0;
       border-top: 1px solid var(--color-gray-70);
       margin-top: var(--pd-md);
+    }
+
+    .overlap-mode-row {
+      display: flex;
+      align-items: center;
+      gap: var(--pd-md);
+      width: 100%;
+      min-width: 0;
+    }
+
+    .overlap-mode-left {
+      display: flex;
+      align-items: center;
+      gap: var(--pd-sm);
+      flex-shrink: 0;
+    }
+
+    .overlap-mode-label {
+      font-size: var(--text-sm);
+      font-weight: var(--font-weight-medium);
+      color: var(--color-gray-110);
+    }
+
+    .overlap-mode-helper {
+      flex: 1;
+      min-width: 0;
+      margin: 0;
+      font-size: var(--text-xs);
+      color: var(--color-gray-100);
+      line-height: 1.35;
     }
 
     .editor-wrap {

@@ -11,27 +11,7 @@ import type { PreviewDependencyMask, UniformMetadata } from '../../runtime/types
 import { isVirtualNodeId } from '../../utils/virtualNodes';
 import { RADIAL_PULSE_SPAWN_SLOT_COUNT, radialPulseSpawnTimelineParam } from '../nodes/radial-pulse';
 import { isAudioNode } from './NodeShaderCompilerHelpers';
-
-function computeUpstreamReachableNodeIds(graph: NodeGraph, outputNodeId: string): Set<string> {
-  const upstreamByTarget = new Map<string, string[]>();
-  for (const c of graph.connections) {
-    const list = upstreamByTarget.get(c.targetNodeId);
-    if (list) list.push(c.sourceNodeId);
-    else upstreamByTarget.set(c.targetNodeId, [c.sourceNodeId]);
-  }
-
-  const reachable = new Set<string>();
-  const stack: string[] = [outputNodeId];
-  while (stack.length > 0) {
-    const id = stack.pop() as string;
-    if (reachable.has(id)) continue;
-    reachable.add(id);
-    const ups = upstreamByTarget.get(id);
-    if (!ups) continue;
-    for (const srcId of ups) stack.push(srcId);
-  }
-  return reachable;
-}
+import { computeUpstreamReachableNodeIds } from './computeUpstreamReachableNodeIds';
 
 /**
  * True when a radial-pulse on the preview path has Drive wired to a virtual audio signal.

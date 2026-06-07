@@ -13,3 +13,12 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = {
   args: { lowValue: 0.2, highValue: 0.8, onChange: () => {} },
 };
+
+export const Horizontal: Story = {
+  args: {
+    lowValue: 0.2,
+    highValue: 0.8,
+    orientation: 'horizontal',
+    onChange: () => {},
+  },
+};

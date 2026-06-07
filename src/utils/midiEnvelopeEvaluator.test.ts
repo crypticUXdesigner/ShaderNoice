@@ -6,6 +6,7 @@ import {
   evaluateMidiEnvelopeAtTime,
   evaluateMidiEnvelopeLevelAtTime,
   evaluateMidiEnvelopeLevelForPresetAtTime,
+  evaluateMidiEnvelopePresetLevelAtTime,
   findActiveNoteForBinding,
   getMidiEnvelopeValueForParam,
   remapMidiEnvelopeBindingOutput,
@@ -65,6 +66,8 @@ const binding: ResolvedMidiEnvelopeBinding = {
   trackIds: ['track-1'],
   envelope: {
     adsr: instantAdsr,
+    inMin: 0,
+    inMax: 1,
     outMin: 0,
     outMax: 10,
     velocityToPeak: true,
@@ -155,6 +158,14 @@ describe('midiEnvelopeEvaluator', () => {
     expect(evaluateMidiEnvelopeLevelAtTime(snapshot, emptyTracksBinding, 0.5)).toBe(0);
   });
 
+  it('inMin gate suppresses output below half envelope', () => {
+    const gatedEnvelope = { ...binding.envelope, inMin: 0.5, inMax: 1 };
+    const atQuarter = remapMidiEnvelopeBindingOutput({ shape: 0.25, peak: 1 }, gatedEnvelope);
+    const atThreeQuarter = remapMidiEnvelopeBindingOutput({ shape: 0.75, peak: 1 }, gatedEnvelope);
+    expect(atQuarter).toBe(0);
+    expect(atThreeQuarter).toBeCloseTo(5, 5);
+  });
+
   it('remapMidiEnvelopeOutput clamps like audio remappers', () => {
     expect(remapMidiEnvelopeOutput(0.5, 0, 4)).toBe(2);
     expect(remapMidiEnvelopeOutput(-1, 0, 4)).toBe(0);
@@ -171,17 +182,10 @@ describe('midiEnvelopeEvaluator', () => {
     );
     expect(level).toBeCloseTo(1, 5);
 
-    const narrow = remapMidiEnvelopeBindingOutput(
-      { shape: level, peak: 0.5 },
-      envelope,
-      0,
-      10
-    );
+    const narrow = remapMidiEnvelopeBindingOutput({ shape: level, peak: 0.5 }, envelope);
     const wide = remapMidiEnvelopeBindingOutput(
       { shape: level, peak: 0.5 },
-      envelope,
-      0,
-      20
+      { ...envelope, outMax: 20 }
     );
     expect(narrow).toBeCloseTo(5, 5);
     expect(wide).toBeCloseTo(10, 5);
@@ -212,11 +216,11 @@ describe('midiEnvelopeEvaluator', () => {
     const presetId = graph.midiEnvelopePresets![0]!.id;
     graph = addMidiEnvelopeRemapper(graph, presetId, {
       id: 'remapper-wide',
-      outMin: 0,
-      outMax: 20,
     });
     graph = bindMidiEnvelopeRemapperToParam(graph, 'remapper-wide', 'n1', 'b', {
       bindingId: 'bind-b',
+      outMin: 0,
+      outMax: 20,
     });
 
     const resolvedA = resolveMidiEnvelopeBinding(graph, graph.midiEnvelopeBindings![0]!)!;
@@ -278,6 +282,93 @@ describe('midiEnvelopeEvaluator', () => {
     expect(linearMid).toBeCloseTo(0.5, 5);
     expect(logMid).not.toBeCloseTo(linearMid, 3);
     expect(logMid).toBeLessThan(linearMid);
+  });
+
+  describe('retriggerPolicy', () => {
+    const overlapAdsr = {
+      attackSeconds: 0.2,
+      decaySeconds: 0,
+      sustainLevel: 1,
+      releaseSeconds: 2,
+    };
+    const overlapEnvelope = { adsr: overlapAdsr, velocityToPeak: true };
+    const overlapNotes = [note('a', 0, 4), note('b', 1, 4)];
+
+    it('lastNoteWins retriggers attack on newer note (baseline)', () => {
+      const level = evaluateMidiEnvelopePresetLevelAtTime(
+        overlapNotes,
+        overlapEnvelope,
+        1.05,
+        'lastNoteWins'
+      ).shape;
+      expect(level).toBeCloseTo(0.25, 2);
+    });
+
+    it('holdIfHigher keeps prior release level when new attack is lower', () => {
+      const lastWins = evaluateMidiEnvelopePresetLevelAtTime(
+        overlapNotes,
+        overlapEnvelope,
+        1.05,
+        'lastNoteWins'
+      ).shape;
+      const hold = evaluateMidiEnvelopePresetLevelAtTime(
+        overlapNotes,
+        overlapEnvelope,
+        1.05,
+        'holdIfHigher'
+      ).shape;
+      expect(hold).toBeGreaterThan(lastWins);
+      expect(hold).toBeCloseTo(1, 2);
+    });
+
+    it('legato skips attack dip when prior is past attack', () => {
+      const lastWins = evaluateMidiEnvelopePresetLevelAtTime(
+        overlapNotes,
+        overlapEnvelope,
+        1.05,
+        'lastNoteWins'
+      ).shape;
+      const legato = evaluateMidiEnvelopePresetLevelAtTime(
+        overlapNotes,
+        overlapEnvelope,
+        1.05,
+        'legato'
+      ).shape;
+      expect(legato).toBeGreaterThan(lastWins);
+      expect(legato).toBeCloseTo(1, 2);
+    });
+
+    it('legato falls back to lastNoteWins when prior is still in attack', () => {
+      const fastAttackNotes = [note('a', 0, 4), note('b', 0.05, 4)];
+      const lastWins = evaluateMidiEnvelopePresetLevelAtTime(
+        fastAttackNotes,
+        overlapEnvelope,
+        0.1,
+        'lastNoteWins'
+      ).shape;
+      const legato = evaluateMidiEnvelopePresetLevelAtTime(
+        fastAttackNotes,
+        overlapEnvelope,
+        0.1,
+        'legato'
+      ).shape;
+      expect(legato).toBeCloseTo(lastWins, 5);
+    });
+
+    it('omitted policy matches lastNoteWins', () => {
+      const implicit = evaluateMidiEnvelopePresetLevelAtTime(
+        overlapNotes,
+        overlapEnvelope,
+        1.05
+      ).shape;
+      const explicit = evaluateMidiEnvelopePresetLevelAtTime(
+        overlapNotes,
+        overlapEnvelope,
+        1.05,
+        'lastNoteWins'
+      ).shape;
+      expect(implicit).toBeCloseTo(explicit, 6);
+    });
   });
 
   it('getMidiEnvelopeValueForParam returns null without binding or snapshot', () => {

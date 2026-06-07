@@ -29,6 +29,12 @@ import {
 } from '../../shaders/arrangement/pattern/notePatternBake';
 import type { PreviewProgramInstance } from '../types';
 
+export interface ArrangementLoopUniformUpdate {
+  nodeId: string;
+  paramName: string;
+  value: number;
+}
+
 /** Matches `note-ripple-field` `windowSeconds` NodeSpec max. */
 const MAX_PATTERN_WINDOW_SECONDS = 8;
 
@@ -111,26 +117,29 @@ function shaderOnsetIterationCap(nodeType: ArrangementPatternOnsetNodeType): num
   }
 }
 
-export function applyArrangementPatternOnsetLoopUniforms(args: {
+/** Collect per-frame `onsetLoopStart` / `onsetLoopEnd` for arrangement pattern nodes (preview + export). */
+export function collectArrangementPatternOnsetLoopUniformUpdates(args: {
   graph: NodeGraph | null | undefined;
-  shaderInstance: PreviewProgramInstance | null | undefined;
   timelineTime: number;
   audioSetup?: AudioSetup | null;
-}): void {
-  const { graph, shaderInstance, timelineTime, audioSetup } = args;
-  if (!graph?.nodes?.length || !shaderInstance || !Number.isFinite(timelineTime)) {
-    return;
+}): ArrangementLoopUniformUpdate[] {
+  const { graph, timelineTime, audioSetup } = args;
+  if (!graph?.nodes?.length || !Number.isFinite(timelineTime)) {
+    return [];
   }
 
   const snapshot = audioSetup?.arrangementSnapshot;
+  const updates: ArrangementLoopUniformUpdate[] = [];
 
   for (const node of graph.nodes) {
     if (!isArrangementPatternOnsetNodeType(node.type)) continue;
 
     const baked = snapshot ? bakedOnsetsForNode(node, snapshot) : getArrangementPatternOnsetBakeCache(node.id);
     if (!baked?.length) {
-      shaderInstance.setParameter(node.id, 'onsetLoopStart', 0);
-      shaderInstance.setParameter(node.id, 'onsetLoopEnd', 0);
+      updates.push(
+        { nodeId: node.id, paramName: 'onsetLoopStart', value: 0 },
+        { nodeId: node.id, paramName: 'onsetLoopEnd', value: 0 }
+      );
       continue;
     }
 
@@ -149,7 +158,25 @@ export function applyArrangementPatternOnsetLoopUniforms(args: {
       timelineTime,
       loopBudget
     );
-    shaderInstance.setParameter(node.id, 'onsetLoopStart', start);
-    shaderInstance.setParameter(node.id, 'onsetLoopEnd', end);
+    updates.push(
+      { nodeId: node.id, paramName: 'onsetLoopStart', value: start },
+      { nodeId: node.id, paramName: 'onsetLoopEnd', value: end }
+    );
+  }
+
+  return updates;
+}
+
+export function applyArrangementPatternOnsetLoopUniforms(args: {
+  graph: NodeGraph | null | undefined;
+  shaderInstance: PreviewProgramInstance | null | undefined;
+  timelineTime: number;
+  audioSetup?: AudioSetup | null;
+}): void {
+  const { graph, shaderInstance, timelineTime, audioSetup } = args;
+  if (!shaderInstance) return;
+
+  for (const u of collectArrangementPatternOnsetLoopUniformUpdates({ graph, timelineTime, audioSetup })) {
+    shaderInstance.setParameter(u.nodeId, u.paramName, u.value);
   }
 }

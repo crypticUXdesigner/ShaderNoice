@@ -3,6 +3,12 @@ import type { NodeSpec } from '../../types/nodeSpec';
 import { formatParamLiteralForGlsl } from './MainCodeGeneratorUtils';
 import { sanitizeAutomationLaneId } from './MainCodeGeneratorOutput';
 import { isAutomationLaneDriving } from '../../utils/automationEvaluator';
+import { buildRemapperTargetOutExpression } from '../../utils/driverRemap';
+import { getSignalIdFromVirtualNodeId } from '../../utils/virtualNodes';
+import {
+  isAudioVirtualDriverConnection,
+  resolveParameterInputMode,
+} from '../../utils/resolveParameterInputMode';
 
 export type PlaceholderContext = {
   escapeRegex: (str: string) => string;
@@ -101,10 +107,30 @@ export function replacePlaceholders(
       }
       const paramInputVar = parameterInputVars.get(paramName);
       if (paramInputVar) {
-        const inputMode = node.parameterInputModes?.[paramName] || paramSpec?.inputMode || 'override';
+        const connection = graph?.connections.find(
+          (c) =>
+            !c.disabled &&
+            c.targetNodeId === node.id &&
+            c.targetParameter === paramName
+        );
+        const inputMode = resolveParameterInputMode(node, paramName, paramSpec, connection);
+        const isAudioDriver =
+          connection != null && isAudioVirtualDriverConnection(connection);
         if (inputMode === 'override') {
+          let expr = paramInputVar;
+          if (isAudioDriver && connection) {
+            const signalId = getSignalIdFromVirtualNodeId(connection.sourceNodeId);
+            expr = buildRemapperTargetOutExpression(
+              paramInputVar,
+              connection,
+              signalId,
+              (value) => formatParamLiteralForGlsl(value, { type: 'float' })
+            );
+          } else if (!isAudioDriver) {
+            expr = clampFloatExpression(paramInputVar, paramSpec);
+          }
           const regex = new RegExp(`\\$param\\.${ctx.escapeRegex(paramName)}\\b`, 'g');
-          result = result.replace(regex, clampFloatExpression(paramInputVar, paramSpec));
+          result = result.replace(regex, expr);
         } else {
           const uniformName = uniformNames.get(`${node.id}.${paramName}`) || '';
           let configValue: string;

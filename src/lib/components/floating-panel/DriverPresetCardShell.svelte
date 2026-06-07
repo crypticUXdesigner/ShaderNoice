@@ -6,7 +6,6 @@
   import type { Snippet } from 'svelte';
 
   interface Props {
-    connected?: boolean;
     selected?: boolean;
     /** Focused driver body: no inset panel-card chrome */
     embedded?: boolean;
@@ -24,7 +23,6 @@
   }
 
   let {
-    connected = false,
     selected = false,
     embedded = false,
     selectable = false,
@@ -46,7 +44,6 @@
   class={['driver-preset-card-shell', className].filter(Boolean).join(' ')}
   class:panel-card={!embedded}
   class:is-embedded={embedded}
-  class:connected
   class:selected
   role={selectable ? 'option' : undefined}
   aria-selected={selectable ? selected : undefined}
@@ -95,11 +92,6 @@
     box-sizing: border-box;
     padding-bottom: var(--pd-sm);
     cursor: default;
-
-    &.connected {
-      outline: 1px solid var(--color-blue-90);
-      outline-offset: -1px;
-    }
 
     &.is-embedded {
       padding-bottom: 0;

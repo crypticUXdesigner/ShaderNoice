@@ -1,5 +1,5 @@
 <script lang="ts">
-  /** Storybook: default, selected, connected, and embedded card chrome. */
+  /** Storybook: default, selected, and embedded card chrome. */
   import DriverPresetCardShell from './DriverPresetCardShell.svelte';
   import { Button, IconSvg } from '../ui';
 </script>
@@ -38,7 +38,7 @@
     {/snippet}
   </DriverPresetCardShell>
 
-  <DriverPresetCardShell connected ariaLabel="Connected preset card">
+  <DriverPresetCardShell ariaLabel="Disconnect action preset card">
     {#snippet headerTitle()}
       <span class="demo-title">Envelope: Lead</span>
     {/snippet}

@@ -1,4 +1,4 @@
-﻿import type { NodeGraph } from '../../data-model/types';
+﻿import type { NodeGraph, Connection } from '../../data-model/types';
 import type { NodeSpec, PortType } from '../../types/nodeSpec';
 import type { AudioSetup } from '../../data-model/audioSetupTypes';
 import type { CompilationResult, ParamLayout, UniformMetadata, WebGpuPassPlan, WebGpuTextureDesc } from '../../runtime/types';
@@ -23,14 +23,19 @@ import {
 } from './bokehV1Wgsl';
 import { INFLATED_ICOSAHEDRON_MVP_WGSL } from './inflatedIcosahedronMvpWgsl';
 import { UniformGenerator } from './UniformGenerator';
+import { computeUpstreamReachableNodeIds } from './computeUpstreamReachableNodeIds';
+import { generateOutputVariableName, formatParamLiteralForGlsl } from './MainCodeGeneratorUtils';
 import { getParameterDefaultValue as getParameterDefaultValueHelper, isAudioNode as isAudioNodeHelper } from './NodeShaderCompilerHelpers';
 import {
   GENERIC_RAYMARCHER_WEBGPU_MVP_SDF_TYPES,
   genericRaymarcherWebGpuMvpSdfAllowedListSentence,
 } from './genericRaymarcherWebGpuMvpAllowlist';
-import { VIRTUAL_NODE_PREFIX } from '../../utils/virtualNodes';
+import { buildRemapperTargetOutExpression } from '../../utils/driverRemap';
+import { getSignalIdFromVirtualNodeId, VIRTUAL_NODE_PREFIX } from '../../utils/virtualNodes';
+import { resolveParameterInputMode } from '../../utils/resolveParameterInputMode';
 import { RADIAL_PULSE_SPAWN_SLOT_COUNT, radialPulseSpawnTimelineParam } from '../nodes/radial-pulse';
 import { TURBULENCE_TIME_INTRINSIC_SCALE } from '../nodes/turbulence';
+import { FRACTAL_MAX_ITERATIONS } from '../nodes/fractal';
 import {
   arrangementLanesGlslSuffix,
   buildArrangementLanesWgslNodeHelper,
@@ -78,6 +83,7 @@ export const WGSL_SUPPORTED_NODE_TYPES = new Set([
   'oscillator-2d',
   'path-drive',
   'particle-system',
+  'pixelize',
   'orbit-camera',
   'look-at-camera',
   'rotate',
@@ -460,27 +466,6 @@ function computeParamLayout(uniforms: UniformMetadata[]): ParamLayout {
   const out: Record<string, number> = {};
   for (let i = 0; i < keys.length; i++) out[keys[i] as string] = i;
   return out;
-}
-
-function computeUpstreamReachableNodeIds(graph: NodeGraph, outputNodeId: string): Set<string> {
-  const upstreamByTarget = new Map<string, string[]>();
-  for (const c of graph.connections) {
-    const list = upstreamByTarget.get(c.targetNodeId);
-    if (list) list.push(c.sourceNodeId);
-    else upstreamByTarget.set(c.targetNodeId, [c.sourceNodeId]);
-  }
-
-  const reachable = new Set<string>();
-  const stack: string[] = [outputNodeId];
-  while (stack.length > 0) {
-    const id = stack.pop() as string;
-    if (reachable.has(id)) continue;
-    reachable.add(id);
-    const ups = upstreamByTarget.get(id);
-    if (!ups) continue;
-    for (const srcId of ups) stack.push(srcId);
-  }
-  return reachable;
 }
 
 function paramSlotExpr(layout: ParamLayout, nodeId: string, paramName: string, lane: 0 | 1 | 2 | 3): string {
@@ -2212,6 +2197,7 @@ export function compileWgslMvp(
   const { uniforms, paramLayout } = buildUniformsForReachableNodes(graph, nodeSpecs, reachable, audioSetup);
 
   const exprByOutput = new Map<string, Expr>();
+  const fragmentPrelude: string[] = [];
   const helperFns = new Map<string, string>();
 
   const requireHelper = (id: string, wgsl: string): void => {
@@ -2241,19 +2227,50 @@ fn rotate2(p: vec2<f32>, angle: f32) -> vec2<f32> {
     return exprByOutput.get(`${nodeId}.${port}`) ?? null;
   };
 
+  /** `${sourceNodeId}.${sourcePort}` for wires into reachable targets (incl. parameter wires). */
+  const downstreamUsedOutputs = new Set<string>();
+  for (const c of graph.connections) {
+    if (c.disabled) continue;
+    if (!reachable.has(c.targetNodeId) || !reachable.has(c.sourceNodeId)) continue;
+    if (!c.sourcePort) continue;
+    downstreamUsedOutputs.add(`${c.sourceNodeId}.${c.sourcePort}`);
+  }
+
+  const fragmentBoundOutputs = new Set<string>();
+
+  const isFragmentBindingRef = (code: string): boolean => /^[A-Za-z_][A-Za-z0-9_]*$/.test(code.trim());
+
+  /** Mirror WebGL `node_<id>_<port>` lets: bind once per output used downstream (02B). */
+  const finalizeNodeFragmentOutputs = (nodeId: string): void => {
+    const prefix = `${nodeId}.`;
+    for (const key of [...exprByOutput.keys()]) {
+      if (!key.startsWith(prefix)) continue;
+      if (!downstreamUsedOutputs.has(key)) continue;
+      if (fragmentBoundOutputs.has(key)) continue;
+      const expr = exprByOutput.get(key);
+      if (!expr) continue;
+      if (isFragmentBindingRef(expr.code)) {
+        fragmentBoundOutputs.add(key);
+        continue;
+      }
+      const port = key.slice(prefix.length);
+      const binding = generateOutputVariableName(nodeId, port);
+      fragmentPrelude.push(`let ${binding}: ${expr.type} = ${expr.code};`);
+      exprByOutput.set(key, { type: expr.type, code: binding });
+      fragmentBoundOutputs.add(key);
+    }
+  };
+
   /**
    * Index of `targetParameter` connections by `${targetNodeId}.${targetParameter}`.
    * Lets WGSL emit substitute the source's value (incl. virtual audio remap output) into a parameter slot
    * when a wire targets a parameter (e.g. `constant-float -> sierpinski-tetra-sdf.scale`,
    * `audio-signal:remap-X -> ether-sdf.timeOffset`). Mirrors GLSL parameter input resolution.
    */
-  const paramConnByKey = new Map<string, { sourceNodeId: string; sourcePort: string }>();
+  const paramConnByKey = new Map<string, Connection>();
   for (const c of graph.connections) {
     if (c.targetParameter) {
-      paramConnByKey.set(`${c.targetNodeId}.${c.targetParameter}`, {
-        sourceNodeId: c.sourceNodeId,
-        sourcePort: c.sourcePort,
-      });
+      paramConnByKey.set(`${c.targetNodeId}.${c.targetParameter}`, c);
     }
   }
 
@@ -2294,10 +2311,14 @@ fn rotate2(p: vec2<f32>, angle: f32) -> vec2<f32> {
     if (conn) {
       const node = graph.nodes.find((n) => n.id === nodeId);
       const spec = node ? nodeSpecs.get(node.type) : undefined;
-      const inputMode =
-        node?.parameterInputModes?.[paramName] ??
-        spec?.parameters?.[paramName]?.inputMode ??
-        'override';
+      const inputMode = node
+        ? resolveParameterInputMode(
+            node,
+            paramName,
+            spec?.parameters?.[paramName],
+            conn
+          )
+        : 'override';
 
       const configExpr = paramSlotExpr(layout, nodeId, paramName, lane);
 
@@ -2314,8 +2335,18 @@ fn rotate2(p: vec2<f32>, angle: f32) -> vec2<f32> {
 
       if (inputExpr != null) {
         switch (inputMode) {
-          case 'override':
+          case 'override': {
+            if (audioSlot != null) {
+              const signalId = getSignalIdFromVirtualNodeId(conn.sourceNodeId);
+              return buildRemapperTargetOutExpression(
+                inputExpr,
+                conn,
+                signalId,
+                (value) => formatParamLiteralForGlsl(value, { type: 'float' })
+              );
+            }
             return inputExpr;
+          }
           case 'add':
             return `((${configExpr}) + (${inputExpr}))`;
           case 'subtract':
@@ -2838,6 +2869,70 @@ fn pd_wanderJitterWgsl(t: f32, size: f32, wanderAmt: f32, jitterAmt: f32) -> vec
         // WGSL float modulo via the same expansion used elsewhere: a - b * floor(a / b)
         const parity = `(${row} - 2.0 * floor(${row} / 2.0))`;
         const out = `fract(vec2<f32>((${q}).x + ${parity} * ${brickOffsetX} * ${brickAmount}, (${q}).y))`;
+
+        setNodeOut(nodeId, 'out', { type: 'vec2<f32>', code: out });
+        break;
+      }
+      case 'pixelize': {
+        const inUv = resolveInputVec2(nodeId, 'in');
+        if (!inUv) break;
+
+        const centerX = paramSlotExprWired(paramLayout, nodeId, 'pixelizeCenterX', 0);
+        const centerY = paramSlotExprWired(paramLayout, nodeId, 'pixelizeCenterY', 0);
+        const scale = paramSlotExprWired(paramLayout, nodeId, 'pixelizeScale', 0);
+        const spaceMode = paramSlotExprWired(paramLayout, nodeId, 'pixelizeSpace', 0);
+        const aspectVal = paramSlotExprWired(paramLayout, nodeId, 'pixelizeAspect', 0);
+        const cellsX = paramSlotExprWired(paramLayout, nodeId, 'pixelizeCellsX', 0);
+        const cellsY = paramSlotExprWired(paramLayout, nodeId, 'pixelizeCellsY', 0);
+        const offsetX = paramSlotExprWired(paramLayout, nodeId, 'pixelizeOffsetX', 0);
+        const offsetY = paramSlotExprWired(paramLayout, nodeId, 'pixelizeOffsetY', 0);
+        const driftX = paramSlotExprWired(paramLayout, nodeId, 'pixelizeDriftX', 0);
+        const driftY = paramSlotExprWired(paramLayout, nodeId, 'pixelizeDriftY', 0);
+        const snapMode = paramSlotExprWired(paramLayout, nodeId, 'pixelizeSnap', 0);
+        const amount = paramSlotExprWired(paramLayout, nodeId, 'pixelizeAmount', 0);
+
+        requireHelper(
+          'pixelize',
+          `
+fn pixelizeSnapCoord(q: vec2<f32>, snapMode: i32) -> vec2<f32> {
+  if (snapMode == 2) {
+    return round(q);
+  }
+  if (snapMode == 1) {
+    return floor(q + vec2<f32>(0.5));
+  }
+  return floor(q);
+}
+
+fn pixelizeScreenNorm(aspect: f32) -> vec2<f32> {
+  var sc = in.uv;
+  let aspectK = globals.v0.z / (globals.v0.w * max(aspect, 1.0e-4));
+  sc.y = sc.y * aspectK;
+  return sc;
+}
+
+fn pixelizeScreenToUv(sc: vec2<f32>, aspect: f32) -> vec2<f32> {
+  let aspectK = globals.v0.z / (globals.v0.w * max(aspect, 1.0e-4));
+  return vec2<f32>(sc.x, sc.y / aspectK);
+}
+          `
+        );
+
+        const center = `vec2<f32>(${centerX}, ${centerY})`;
+        const scaleSafe = `max(${scale}, 1.0e-4)`;
+        const pivoted = `(${center} + (${inUv.code} - ${center}) / ${scaleSafe})`;
+        const screenNorm = `pixelizeScreenNorm(${aspectVal})`;
+        const workP = `select(${pivoted}, ${screenNorm}, ${spaceMode} > 0.5)`;
+        const cells = `vec2<f32>(max(${cellsX}, 1.0), max(${cellsY}, 1.0))`;
+        // Drift uses globals.v0.x — same time source as GLSL $time in pixelize NodeSpec.
+        const offset = `vec2<f32>(${offsetX}, ${offsetY}) + vec2<f32>(${driftX}, ${driftY}) * globals.v0.x`;
+        const q = `(${workP} * ${cells} + ${offset})`;
+        const snap = `i32(clamp(floor(${snapMode} + 0.5), 0.0, 2.0))`;
+        const snappedQ = `pixelizeSnapCoord(${q}, ${snap})`;
+        const snappedRaw = `(${snappedQ} / ${cells})`;
+        const snapped = `select(${snappedRaw}, pixelizeScreenToUv(${snappedRaw}, ${aspectVal}), ${spaceMode} > 0.5)`;
+        const amt = `clamp(${amount}, 0.0, 1.0)`;
+        const out = `mix(${inUv.code}, ${snapped}, ${amt})`;
 
         setNodeOut(nodeId, 'out', { type: 'vec2<f32>', code: out });
         break;
@@ -5825,6 +5920,7 @@ fn bayer8(a: vec2<f32>) -> f32 {
           },
           alphaMode,
           requireHelper,
+          appendFragmentPrelude: (line) => fragmentPrelude.push(line),
           setNodeOut,
           paramMode: mode,
           paramOpacity: opacity,
@@ -6286,8 +6382,8 @@ fn etherSdfMap(pIn: vec3<f32>, t: f32, rotXZ: f32, rotXY: f32, scale: f32, wobbl
         const timeLinked = tryResolveInputF32(nodeId, 'time');
         const timeBaseCode = timeLinked ? timeLinked.code : 'globals.v0.x';
 
-        const waveScale = paramSlotExprWired(paramLayout, nodeId, 'waveScale', 0);
         const waveFrequency = paramSlotExprWired(paramLayout, nodeId, 'waveFrequency', 0);
+        const waveThickness = paramSlotExprWired(paramLayout, nodeId, 'waveThickness', 0);
         const waveAmplitude = paramSlotExprWired(paramLayout, nodeId, 'waveAmplitude', 0);
         const waveType = paramSlotExprWired(paramLayout, nodeId, 'waveType', 0);
         const waveDirectionDeg = paramSlotExprWired(paramLayout, nodeId, 'waveDirection', 0);
@@ -6302,7 +6398,7 @@ fn etherSdfMap(pIn: vec3<f32>, t: f32, rotXZ: f32, rotXY: f32, scale: f32, wobbl
         requireHelper(
           'stripes-wave',
           `
-fn wavePatternStripes(p: vec2<f32>, frequency: f32, amplitude: f32, phase: f32, waveType: f32) -> f32 {
+fn wavePatternStripes(p: vec2<f32>, frequency: f32, amplitude: f32, thickness: f32, phase: f32, waveType: f32) -> f32 {
   let x = p.x * frequency + phase;
   let vSine = sin(x) * amplitude;
   let vCos = cos(x) * amplitude;
@@ -6320,7 +6416,15 @@ fn wavePatternStripes(p: vec2<f32>, frequency: f32, amplitude: f32, phase: f32, 
     vSquare * select(0.0, 1.0, is2) +
     vTri * select(0.0, 1.0, is3);
 
-  return v * 0.5 + 0.5;
+  let wave01 = v * 0.5 + 0.5;
+
+  if (thickness >= 0.999) {
+    return wave01;
+  }
+
+  let threshold = 1.0 - thickness;
+  let edge = 0.5 * (1.0 - thickness);
+  return smoothstep(threshold - edge, threshold + edge, wave01);
 }
           `
         );
@@ -6329,7 +6433,7 @@ fn wavePatternStripes(p: vec2<f32>, frequency: f32, amplitude: f32, phase: f32, 
         const wavePhase = `(${waveTime} * ${wavePhaseSpeed} + ${wavePhaseOffset})`;
         const ang = `(${waveDirectionDeg} * 3.14159 / 180.0)`;
         const p = `rotate2(${uvIn.code}, ${ang})`;
-        const waveVal = `wavePatternStripes(${p} * ${waveScale}, ${waveFrequency}, ${waveAmplitude}, ${wavePhase}, ${waveType})`;
+        const waveVal = `wavePatternStripes(${p}, ${waveFrequency}, ${waveAmplitude}, ${waveThickness}, ${wavePhase}, ${waveType})`;
         setNodeOut(nodeId, 'out', { type: 'f32', code: `(${waveVal} * ${waveIntensity})` });
         break;
       }
@@ -8026,7 +8130,6 @@ fn hexSDF(pIn: vec2<f32>, r: f32) -> f32 {
         if (!uvIn) break;
 
         const flowScale = paramSlotExprWired(paramLayout, nodeId, 'flowScale', 0);
-        const flowCurlScale = paramSlotExprWired(paramLayout, nodeId, 'flowCurlScale', 0);
         const flowTimeSpeed = paramSlotExprWired(paramLayout, nodeId, 'flowTimeSpeed', 0);
         const flowTimeOffset = paramSlotExprWired(paramLayout, nodeId, 'flowTimeOffset', 0);
         const flowOctavesF = paramSlotExprWired(paramLayout, nodeId, 'flowOctaves', 0);
@@ -8075,7 +8178,6 @@ fn flowCurl(p: vec3<f32>, eps: f32) -> vec2<f32> {
         );
 
         const flowTime = `(globals.v0.x + ${flowTimeOffset}) * ${flowTimeSpeed}`;
-        const eps = `(0.02 * ${flowCurlScale})`;
         const uv = `(${uvIn.code} * ${flowScale})`;
 
         const octF = `clamp(${flowOctavesF}, 1.0, 6.0)`;
@@ -8084,12 +8186,12 @@ fn flowCurl(p: vec3<f32>, eps: f32) -> vec2<f32> {
         // Unrolled up to 6 octaves (matches node spec loop bound).
         const curlSum = `
 (
-  (select(vec2<f32>(0.0, 0.0), flowCurl(vec3<f32>(${uv} * 1.0, ${flowTime} * 0.1 + 0.0 * 0.17), ${eps} / 1.0) * 1.0, 0 < ${octI})) +
-  (select(vec2<f32>(0.0, 0.0), flowCurl(vec3<f32>(${uv} * 2.0, ${flowTime} * 0.1 + 1.0 * 0.17), ${eps} / 2.0) * (${flowGain}), 1 < ${octI})) +
-  (select(vec2<f32>(0.0, 0.0), flowCurl(vec3<f32>(${uv} * 4.0, ${flowTime} * 0.1 + 2.0 * 0.17), ${eps} / 4.0) * (${flowGain} * ${flowGain}), 2 < ${octI})) +
-  (select(vec2<f32>(0.0, 0.0), flowCurl(vec3<f32>(${uv} * 8.0, ${flowTime} * 0.1 + 3.0 * 0.17), ${eps} / 8.0) * (${flowGain} * ${flowGain} * ${flowGain}), 3 < ${octI})) +
-  (select(vec2<f32>(0.0, 0.0), flowCurl(vec3<f32>(${uv} * 16.0, ${flowTime} * 0.1 + 4.0 * 0.17), ${eps} / 16.0) * (${flowGain} * ${flowGain} * ${flowGain} * ${flowGain}), 4 < ${octI})) +
-  (select(vec2<f32>(0.0, 0.0), flowCurl(vec3<f32>(${uv} * 32.0, ${flowTime} * 0.1 + 5.0 * 0.17), ${eps} / 32.0) * (${flowGain} * ${flowGain} * ${flowGain} * ${flowGain} * ${flowGain}), 5 < ${octI}))
+  (select(vec2<f32>(0.0, 0.0), flowCurl(vec3<f32>(${uv} * 1.0, ${flowTime} * 0.1 + 0.0 * 0.17), 0.02 / 1.0) * 1.0, 0 < ${octI})) +
+  (select(vec2<f32>(0.0, 0.0), flowCurl(vec3<f32>(${uv} * 2.0, ${flowTime} * 0.1 + 1.0 * 0.17), 0.02 / 2.0) * (${flowGain}), 1 < ${octI})) +
+  (select(vec2<f32>(0.0, 0.0), flowCurl(vec3<f32>(${uv} * 4.0, ${flowTime} * 0.1 + 2.0 * 0.17), 0.02 / 4.0) * (${flowGain} * ${flowGain}), 2 < ${octI})) +
+  (select(vec2<f32>(0.0, 0.0), flowCurl(vec3<f32>(${uv} * 8.0, ${flowTime} * 0.1 + 3.0 * 0.17), 0.02 / 8.0) * (${flowGain} * ${flowGain} * ${flowGain}), 3 < ${octI})) +
+  (select(vec2<f32>(0.0, 0.0), flowCurl(vec3<f32>(${uv} * 16.0, ${flowTime} * 0.1 + 4.0 * 0.17), 0.02 / 16.0) * (${flowGain} * ${flowGain} * ${flowGain} * ${flowGain}), 4 < ${octI})) +
+  (select(vec2<f32>(0.0, 0.0), flowCurl(vec3<f32>(${uv} * 32.0, ${flowTime} * 0.1 + 5.0 * 0.17), 0.02 / 32.0) * (${flowGain} * ${flowGain} * ${flowGain} * ${flowGain} * ${flowGain}), 5 < ${octI}))
 )
         `.replaceAll('\n', ' ');
 
@@ -8102,9 +8204,19 @@ fn flowCurl(p: vec3<f32>, eps: f32) -> vec2<f32> {
         const pIn = resolveInputVec2(nodeId, 'in');
         if (!pIn) break;
 
+        const mode = paramSlotExprWired(paramLayout, nodeId, 'fractalMode', 0);
         const intensity = paramSlotExprWired(paramLayout, nodeId, 'fractalIntensity', 0);
+        const scale = paramSlotExprWired(paramLayout, nodeId, 'fractalScale', 0);
         const layers = paramSlotExprWired(paramLayout, nodeId, 'fractalLayers', 0);
         const iterationsF = paramSlotExprWired(paramLayout, nodeId, 'fractalIterations', 0);
+        const contrast = paramSlotExprWired(paramLayout, nodeId, 'fractalContrast', 0);
+        const centerX = paramSlotExprWired(paramLayout, nodeId, 'fractalCenterX', 0);
+        const centerY = paramSlotExprWired(paramLayout, nodeId, 'fractalCenterY', 0);
+        const offsetX = paramSlotExprWired(paramLayout, nodeId, 'fractalOffsetX', 0);
+        const offsetY = paramSlotExprWired(paramLayout, nodeId, 'fractalOffsetY', 0);
+        const foldCount = paramSlotExprWired(paramLayout, nodeId, 'fractalFoldCount', 0);
+        const juliaReal = paramSlotExprWired(paramLayout, nodeId, 'fractalJuliaReal', 0);
+        const juliaImag = paramSlotExprWired(paramLayout, nodeId, 'fractalJuliaImag', 0);
         const timeOffset = paramSlotExprWired(paramLayout, nodeId, 'fractalTimeOffset', 0);
         const animationSpeed = paramSlotExprWired(paramLayout, nodeId, 'fractalAnimationSpeed', 0);
         const rotationSpeed = paramSlotExprWired(paramLayout, nodeId, 'fractalRotationSpeed', 0);
@@ -8113,38 +8225,127 @@ fn flowCurl(p: vec3<f32>, eps: f32) -> vec2<f32> {
         requireHelper(
           'fractal',
           `
-fn fractalDeformWgsl(p: vec2<f32>, time: f32, intensity: f32, layers: f32, iterations: i32, timeOffset: f32, animationSpeed: f32, rotationSpeed: f32, layerPhase: f32) -> f32 {
-  var z = p;
-  var scale = 1.0;
-  var value = 0.0;
+fn fractalCmulWgsl(a: vec2<f32>, b: vec2<f32>) -> vec2<f32> {
+  return vec2<f32>(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
+}
+
+fn fractalRotate2Wgsl(z: vec2<f32>, angle: f32) -> vec2<f32> {
+  let c = cos(angle);
+  let s = sin(angle);
+  return vec2<f32>(z.x * c - z.y * s, z.x * s + z.y * c);
+}
+
+fn fractalKaleidoFoldWgsl(z_in: vec2<f32>, folds: i32) -> vec2<f32> {
+  var z = abs(z_in);
+  let a = atan2(z.y, z.x);
+  let r = length(z);
+  let sector = 6.28318530718 / f32(max(folds, 2));
+  let folded = mod(a + sector * 0.5, sector) - sector * 0.5;
+  return vec2<f32>(cos(folded), sin(folded)) * r;
+}
+
+fn fractalDeformWgsl(
+  p: vec2<f32>,
+  time: f32,
+  mode: i32,
+  intensity: f32,
+  layers: f32,
+  iterations: i32,
+  contrast_in: f32,
+  offset: vec2<f32>,
+  foldCount: i32,
+  juliaC: vec2<f32>,
+  timeOffset: f32,
+  animationSpeed: f32,
+  rotationSpeed: f32,
+  layerPhase: f32
+) -> f32 {
   let layerScale = max(layers, 0.0001);
+  let contrast = max(contrast_in, 0.0001);
   let t = (time + timeOffset) * animationSpeed;
 
-  for (var i = 0; i < 16; i = i + 1) {
+  if (mode == 3) {
+    var z = p;
+    var c = juliaC;
+    c = c + vec2<f32>(sin(t * rotationSpeed), cos(t * rotationSpeed)) * 0.15;
+    var escaped = 0.0;
+    for (var i = 0; i < ${FRACTAL_MAX_ITERATIONS}; i = i + 1) {
+      if (i >= iterations) { break; }
+      z = fractalCmulWgsl(z, z) + c;
+      if (dot(z, z) > 4.0) {
+        escaped = f32(i + 1) / f32(max(iterations, 1));
+        break;
+      }
+    }
+    if (escaped <= 0.0) { escaped = 1.0; }
+    return pow(escaped, contrast) * intensity;
+  }
+
+  var z = p;
+  var scaleAcc = 1.0;
+  var value = 0.0;
+  var minDist = 1e6;
+
+  for (var i = 0; i < ${FRACTAL_MAX_ITERATIONS}; i = i + 1) {
     if (i >= iterations) { break; }
 
     let angle = t * rotationSpeed + f32(i) * layerPhase;
-    let c = cos(angle);
-    let s = sin(angle);
-    z = vec2<f32>(z.x * c - z.y * s, z.x * s + z.y * c);
+    z = fractalRotate2Wgsl(z, angle);
 
-    z = abs(z);
-    if (z.x < z.y) {
-      z = z.yx;
+    if (mode == 1) {
+      z = fractalKaleidoFoldWgsl(z, foldCount);
+      z = z * layerScale - offset;
+      scaleAcc = scaleAcc * layerScale;
+      value = value + exp(-length(z) * scaleAcc);
+    } else if (mode == 2) {
+      z = abs(z);
+      z = z - offset * 0.5;
+      z = abs(z) - offset * 0.25;
+      z = z * layerScale;
+      scaleAcc = scaleAcc * layerScale;
+      value = value + exp(-max(abs(z.x), abs(z.y)) * scaleAcc);
+    } else if (mode == 4) {
+      z = abs(z);
+      if (z.x < z.y) {
+        z = z.yx;
+      }
+      z = z * layerScale - offset;
+      scaleAcc = scaleAcc * layerScale;
+      let trap = abs(length(z) - 0.5);
+      value = value + exp(-trap * scaleAcc * 2.0);
+    } else if (mode == 5) {
+      z = abs(z);
+      if (z.x < z.y) {
+        z = z.yx;
+      }
+      z = z * layerScale - offset;
+      scaleAcc = scaleAcc * layerScale;
+      minDist = min(minDist, length(z) / scaleAcc);
+    } else {
+      z = abs(z);
+      if (z.x < z.y) {
+        z = z.yx;
+      }
+      z = z * layerScale - offset;
+      scaleAcc = scaleAcc * layerScale;
+      value = value + exp(-length(z) * scaleAcc);
     }
-    z = z * layerScale - vec2<f32>(1.0, 1.0);
-    scale = scale * layerScale;
-
-    value = value + exp(-length(z) * scale);
   }
 
-  return value * intensity;
+  if (mode == 5) {
+    value = exp(-minDist * 3.0);
+  }
+
+  return pow(max(value, 0.0), contrast) * intensity;
 }
           `
         );
 
-        const iterations = `clamp(i32(${iterationsF} + 0.5), 1, 16)`;
-        const value = `fractalDeformWgsl(${pIn.code} * 2.0, globals.v0.x, ${intensity}, ${layers}, ${iterations}, ${timeOffset}, ${animationSpeed}, ${rotationSpeed}, ${layerPhase})`;
+        const iterations = `clamp(i32(${iterationsF} + 0.5), 1, ${FRACTAL_MAX_ITERATIONS})`;
+        const modeI = `clamp(i32(${mode} + 0.5), 0, 5)`;
+        const foldsI = `clamp(i32(${foldCount} + 0.5), 2, 8)`;
+        const fractalUv = `((${pIn.code} - vec2<f32>(${centerX}, ${centerY})) * ${scale})`;
+        const value = `fractalDeformWgsl(${fractalUv}, globals.v0.x, ${modeI}, ${intensity}, ${layers}, ${iterations}, ${contrast}, vec2<f32>(${offsetX}, ${offsetY}), ${foldsI}, vec2<f32>(${juliaReal}, ${juliaImag}), ${timeOffset}, ${animationSpeed}, ${rotationSpeed}, ${layerPhase})`;
         setNodeOut(nodeId, 'out', { type: 'f32', code: `(${value} * 0.3)` });
         break;
       }
@@ -9080,6 +9281,8 @@ fn arrangementNotesOklchToRgbWgsl(oklch: vec3<f32>) -> vec3<f32> {
         break;
       }
     }
+
+    finalizeNodeFragmentOutputs(nodeId);
   }
 
   const outNode = graph.nodes.find((n) => n.id === finalOutputNodeId);
@@ -9165,7 +9368,7 @@ fn vs(@builtin(vertex_index) vid : u32) -> VsOut {
 
 ${helpersBlock}@fragment
 fn fs(in : VsOut) -> @location(0) vec4<f32> {
-  return ${colorVec4};
+${fragmentPrelude.length > 0 ? `${fragmentPrelude.map((line) => `  ${line}`).join('\n')}\n` : ''}  return ${colorVec4};
 }
 `;
 

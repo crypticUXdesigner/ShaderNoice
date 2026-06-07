@@ -22,6 +22,8 @@ import {
 
   removeMidiEnvelopePreset,
 
+  updateMidiEnvelopeBindingOut,
+
   updateMidiEnvelopePreset,
 
   updateMidiEnvelopeRemapper,
@@ -108,7 +110,9 @@ describe('MIDI envelope preset sharing', () => {
 
     expect(bindingA?.id).not.toBe(bindingB?.id);
 
-    expect(findMidiEnvelopeRemapper(graph, remapperId)?.outMax).toBe(0.9);
+    expect(bindingA?.outMax).toBe(0.9);
+    expect(bindingB?.outMin).toBe(0);
+    expect(bindingB?.outMax).toBe(1);
 
   });
 
@@ -136,7 +140,14 @@ describe('MIDI envelope preset sharing', () => {
 
     });
 
-    graph = updateMidiEnvelopeRemapper(graph, remapperId, { outMin: 0, outMax: 2 });
+    graph = updateMidiEnvelopeBindingOut(graph, findMidiEnvelopeBindingForParam(graph, 'n1', 'value')!.id, {
+      outMin: 0,
+      outMax: 2,
+    });
+    graph = updateMidiEnvelopeBindingOut(graph, findMidiEnvelopeBindingForParam(graph, 'n2', 'value')!.id, {
+      outMin: 0,
+      outMax: 2,
+    });
 
 
 
@@ -144,7 +155,7 @@ describe('MIDI envelope preset sharing', () => {
 
     expect(preset?.envelope.adsr.attackSeconds).toBe(0.5);
 
-    expect(findMidiEnvelopeRemapper(graph, remapperId)?.outMax).toBe(2);
+    expect(findMidiEnvelopeBindingForParam(graph, 'n1', 'value')?.outMax).toBe(2);
 
     expect(graph.midiEnvelopeBindings).toHaveLength(2);
 

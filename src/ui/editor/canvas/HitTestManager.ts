@@ -8,6 +8,12 @@ import type { NodeSpec } from '../../../types/nodeSpec';
 import type { NodeRenderMetrics } from '../NodeRenderer';
 import { getCSSVariableAsNumber } from '../../../utils/cssTokens';
 import type { ViewStateManager } from './ViewStateManager';
+import { getHeaderPortHitRadiusCanvas, getParamPortHitRadiusCanvas } from './portHitRadius';
+import {
+  resolveConnectTarget as resolveConnectTargetImpl,
+  type ConnectSource,
+  type PortHit,
+} from './connectTargetResolver';
 import { FREQ_MIN, FREQ_MAX, hzToNorm } from '../rendering/layout/elements/FrequencyRangeElement';
 import {
   getParameterControlHitRegions,
@@ -119,11 +125,9 @@ export class HitTestManager {
    */
   hitTestPort(mouseX: number, mouseY: number): { nodeId: string, port: string, isOutput: boolean, parameter?: string, snapPosition?: { x: number; y: number } } | null {
     const canvasPos = this.screenToCanvas(mouseX, mouseY);
-    const portRadius = getCSSVariableAsNumber('port-radius', 12); // Visual radius (matches CSS)
-    const hitMargin = 10; // Increased from 4 to 10 for easier interaction
-    const hitRadius = portRadius + hitMargin;
-    // Parameter ports are smaller (param-port-size ~6px) – use generous hit area for easy snap
-    const paramPortHitRadius = getCSSVariableAsNumber('param-port-size', 6) + 20;
+    const zoom = this.getViewState().zoom;
+    const headerPortHitRadius = getHeaderPortHitRadiusCanvas(zoom);
+    const paramPortHitRadius = getParamPortHitRadiusCanvas(zoom);
 
     // DOM-based hit test for parameter ports (DOM layout differs from canvas metrics)
     const domEl = document.elementFromPoint(mouseX, mouseY);
@@ -179,7 +183,7 @@ export class HitTestManager {
           const dx = canvasPos.x - pos.x;
           const dy = canvasPos.y - pos.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
-          if (distance < hitRadius) {
+          if (distance < headerPortHitRadius) {
             return { nodeId: node.id, port: port.name, isOutput: false };
           }
         }
@@ -192,7 +196,7 @@ export class HitTestManager {
           const dx = canvasPos.x - pos.x;
           const dy = canvasPos.y - pos.y;
           const distance = Math.sqrt(dx * dx + dy * dy);
-          if (distance < hitRadius) {
+          if (distance < headerPortHitRadius) {
             return { nodeId: node.id, port: port.name, isOutput: true };
           }
         }
@@ -202,8 +206,21 @@ export class HitTestManager {
     return null;
   }
 
+  /** Resolve connect drag target (strict hit preferred, else magnetic nearest compatible port). */
+  resolveConnectTarget(source: ConnectSource, screenX: number, screenY: number): PortHit | null {
+    return resolveConnectTargetImpl(source, screenX, screenY, {
+      graph: this.graph,
+      nodeSpecs: this.nodeSpecs,
+      nodeMetrics: this.nodeMetrics,
+      screenToCanvas: this.screenToCanvas,
+      getViewState: this.getViewState,
+      hitTestPort: (x, y) => this.hitTestPort(x, y),
+      getParamPortPositionsFromDOM: this.getParamPortPositionsFromDOM,
+      getHeaderOutputPortPositionsFromDOM: this.getHeaderOutputPortPositionsFromDOM,
+    });
+  }
+
   /**
-   * Hit test for connections
    * Returns connection ID if mouse is over a connection, null otherwise
    */
   hitTestConnection(mouseX: number, mouseY: number): string | null {

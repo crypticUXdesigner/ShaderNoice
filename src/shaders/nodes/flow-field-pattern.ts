@@ -3,7 +3,7 @@ import type { NodeSpec } from '../../types/nodeSpec';
 /**
  * Flow Field Pattern
  * Curl-noise-based 2D flow pattern (vec2 in → float out).
- * Parameter groups: Flow (scale, curlScale, octaves, gain), Output (intensity), Animation (timeSpeed, timeOffset).
+ * Parameter groups: Flow (scale, octaves, gain), Output (intensity), Animation (timeSpeed, timeOffset).
  */
 export const flowFieldPatternNodeSpec: NodeSpec = {
   id: 'flow-field-pattern',
@@ -33,14 +33,6 @@ export const flowFieldPatternNodeSpec: NodeSpec = {
       max: 20.0,
       step: 0.01,
       label: 'Scale'
-    },
-    flowCurlScale: {
-      type: 'float',
-      default: 1.0,
-      min: 0.01,
-      max: 5.0,
-      step: 0.01,
-      label: 'Curl Scale'
     },
     flowTimeSpeed: {
       type: 'float',
@@ -88,8 +80,8 @@ export const flowFieldPatternNodeSpec: NodeSpec = {
     elements: [
       {
         type: 'grid',
-        parameters: ['flowScale', 'flowCurlScale', 'flowOctaves', 'flowGain', 'flowIntensity'],
-        layout: { columns: 2, parameterSpan: { flowIntensity: 2 } }
+        parameters: ['flowScale', 'flowOctaves', 'flowGain', 'flowIntensity'],
+        layout: { columns: 2 }
       },
       {
         type: 'grid',
@@ -139,7 +131,6 @@ vec2 flowCurl(vec3 p, float eps) {
 `,
   mainCode: `
   float flowTime = ($time + $param.flowTimeOffset) * $param.flowTimeSpeed;
-  float eps = 0.02 * $param.flowCurlScale;
   vec2 uv = $input.in * $param.flowScale;
   vec2 curlSum = vec2(0.0, 0.0);
   float freq = 1.0;
@@ -149,7 +140,7 @@ vec2 flowCurl(vec3 p, float eps) {
   for (int i = 0; i < 6; i++) {
     if (i >= $param.flowOctaves) break;
     vec3 p = vec3(uv * freq, flowTime * 0.1 + float(i) * 0.17);
-    curlSum += flowCurl(p, eps / freq) * amp;
+    curlSum += flowCurl(p, 0.02 / freq) * amp;
     freq *= lacunarity;
     amp *= $param.flowGain;
   }

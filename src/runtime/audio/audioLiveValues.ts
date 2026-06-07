@@ -4,6 +4,7 @@
  */
 
 import type { AudioSetup } from '../../data-model/audioSetupTypes';
+import { applyDriverGate, applyDriverRemap } from '../../utils/driverRemap';
 import { getSignalIdFromVirtualNodeId } from '../../utils/virtualNodes';
 import type { AnalyzerNodeState } from './FrequencyAnalyzer';
 
@@ -39,10 +40,7 @@ export function getVirtualNodeLiveValue(
     const inMax = band.remapInMax ?? 1;
     const outMin = band.remapOutMin ?? 0;
     const outMax = band.remapOutMax ?? 1;
-    const range = inMax - inMin;
-    const normalized = range !== 0 ? (bandValue - inMin) / range : 0;
-    const clamped = Math.max(0, Math.min(1, normalized));
-    return outMin + clamped * (outMax - outMin);
+    return applyDriverRemap(bandValue, inMin, inMax, outMin, outMax);
   }
 
   const remapMatch = signalId.match(/^remap-(.+)$/);
@@ -53,11 +51,8 @@ export function getVirtualNodeLiveValue(
     const analyzerState = getAnalyzerNodeState(remapper.bandId);
     const bandValue = analyzerState?.smoothedBandValues?.[0];
     if (typeof bandValue !== 'number' || isNaN(bandValue)) return null;
-    const { inMin, inMax, outMin, outMax } = remapper;
-    const range = inMax - inMin;
-    const normalized = range !== 0 ? (bandValue - inMin) / range : 0;
-    const clamped = Math.max(0, Math.min(1, normalized));
-    return outMin + clamped * (outMax - outMin);
+    const { inMin, inMax } = remapper;
+    return applyDriverGate(bandValue, inMin, inMax);
   }
 
   return null;
@@ -81,9 +76,6 @@ export function getPanelBandLiveValues(
     return { incoming: null, outgoing: null };
   }
   const { inMin, inMax, outMin, outMax } = remap;
-  const range = inMax - inMin;
-  const normalized = range !== 0 ? (incoming - inMin) / range : 0;
-  const clamped = Math.max(0, Math.min(1, normalized));
-  const outgoing = outMin + clamped * (outMax - outMin);
+  const outgoing = applyDriverRemap(incoming, inMin, inMax, outMin, outMax);
   return { incoming, outgoing };
 }

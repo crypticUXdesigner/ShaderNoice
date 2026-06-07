@@ -26,7 +26,7 @@
         "test": "vitest run",
         "test:webgpu-golden": "tsx scripts/webgpu-golden-parity.ts",
         "check": "npm run type-check && npm test && npm run lint",
-        "verify:pages": "npm audit --audit-level=high && npm run check && npm run build && npm run build-storybook && npm run test:value-input-chromium",
+        "verify:pages": "npm audit --audit-level=high && npm run check && npm run build && npm run build-storybook && npm run test:value-input-chromium && npm run audit:node-docs:strict",
         "preview": "vite preview",
         "migrate": "tsx scripts/migrate.ts",
         "build-phosphor-icons": "tsx scripts/build-phosphor-icons.ts",
@@ -38,7 +38,10 @@
         "test:value-input-chromium": "tsx scripts/value-input-doubleclick-chromium.ts",
         "storybook": "storybook dev -p 6006",
         "build-storybook": "storybook build",
-        "generate-stories": "tsx scripts/generate-svelte-stories.ts"
+        "generate-stories": "tsx scripts/generate-svelte-stories.ts",
+        "preset-demos:encode": "tsx scripts/preset-demos/encode-preset-demos.ts",
+        "audit:node-docs": "tsx scripts/audit-node-docs.ts && tsx scripts/audit-node-doc-quality.ts",
+        "audit:node-docs:strict": "tsx scripts/audit-node-docs.ts --strict && tsx scripts/audit-node-doc-quality.ts --strict"
     },
     "devDependencies": {
         "@axe-core/playwright": "^4.11.1",

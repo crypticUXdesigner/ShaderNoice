@@ -2,6 +2,7 @@ import type { NodeGraph } from '../data-model/types';
 import type { AudioSetup } from '../data-model/audioSetupTypes';
 import type { CompilationResult, ShaderCompiler } from '../runtime/types';
 import { isRuntimeOnlyParameter } from '../utils/runtimeOnlyParams';
+import { isParameterUniformSuppressedByConnection } from '../utils/resolveParameterInputMode';
 import type { BlurGaussianSeparableV1Runtime } from '../runtime/renderBackends/blurGaussianSeparablePassPlanRuntime';
 import {
   createBlurGaussianSeparableV1Runtime,
@@ -31,6 +32,7 @@ import {
   validateCrepuscularRaysV1ShaderModules,
 } from '../runtime/renderBackends/crepuscularRaysPassPlanRuntime';
 import { selectWebGpuRgbaExportFormat } from '../runtime/renderBackends/webgpuPresentationFormat';
+import { refreshExportArrangementBakeCaches } from '../video-export/refreshExportArrangementBakeCaches';
 
 type NavigatorGpu = {
   gpu?: GPU;
@@ -110,8 +112,7 @@ function transferParametersFromGraph(graph: NodeGraph, result: CompilationResult
     for (const [paramName, value] of Object.entries(node.parameters)) {
       if (isRuntimeOnlyParameter(node.type, paramName)) continue;
 
-      const isConnected = graph.connections.some((c) => c.targetNodeId === node.id && c.targetParameter === paramName);
-      if (isConnected && node.parameterInputModes?.[paramName] === 'override') continue;
+      if (isParameterUniformSuppressedByConnection(graph, node, paramName)) continue;
 
       if (typeof value === 'number') {
         setParamSlot(paramsData, result.paramLayout, node.id, paramName, value);
@@ -179,6 +180,8 @@ export async function renderWebGpuExportRgba8(
   if (!compilation.supported) {
     return { ok: false, reason: 'compile.unsupported', compilation };
   }
+
+  refreshExportArrangementBakeCaches(graph, audioSetup);
 
   const width = Math.max(1, Math.floor(opts.width));
   const height = Math.max(1, Math.floor(opts.height));

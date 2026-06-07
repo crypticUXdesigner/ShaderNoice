@@ -14,7 +14,7 @@ import type { ShaderCompiler } from '../runtime/types';
 import { createOfflineAudioProvider } from './OfflineAudioProvider';
 import { createExportRenderPath } from './ExportRenderPath';
 import { WebCodecsVideoExporter, isSupported } from './WebCodecsVideoExporter';
-import type { FrameAudioState } from './OfflineAudioProvider';
+import { buildExportFrameState, createExportFrameUniformScratch } from './buildExportFrameState';
 import { createWebGpuVideoExportRenderPath } from './WebGpuVideoExportRenderPath';
 import type { StreamTargetChunk } from 'mediabunny';
 import {
@@ -89,11 +89,13 @@ export type VideoExportResolvedConfig = VideoExportDialogConfig & {
 function showExportDialog(options: VideoExportOrchestratorOptions): {
   config: Promise<VideoExportResolvedConfig>;
   setProgress: (current: number, total: number) => void;
+  setDestinationReady: (ready: boolean) => void;
   requestCancel: () => void;
   close: () => void;
   cancelled: Promise<void>;
 } {
   const progressStore = writable({ current: 0, total: 0 });
+  const destinationReadyStore = writable(false);
   const container = document.createElement('div');
   document.body.appendChild(container);
 
@@ -147,6 +149,7 @@ function showExportDialog(options: VideoExportOrchestratorOptions): {
       onClose: handleClose,
       onConfirm: handleConfirm,
       progress: progressStore,
+      destinationReady: destinationReadyStore,
       onCancelExport: handleCancelExport,
     },
   });
@@ -155,6 +158,9 @@ function showExportDialog(options: VideoExportOrchestratorOptions): {
     config,
     setProgress(current: number, total: number) {
       progressStore.set({ current, total });
+    },
+    setDestinationReady(ready: boolean) {
+      destinationReadyStore.set(ready);
     },
     requestCancel() {
       handleCancelExport();
@@ -301,6 +307,7 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
   // Pick output file upfront so we can stream bytes and avoid 4 GiB ArrayBuffer limits.
   const filename = defaultFilename();
   const fileHandle = await pickSaveHandle(filename);
+  dialog.setDestinationReady(true);
   const fileStream = await fileHandle.createWritable();
   const writable = createFileSystemWritableStream(fileStream);
 
@@ -350,6 +357,8 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
     outputTarget: { kind: 'stream', writable },
   });
 
+  const exportUniformScratch = createExportFrameUniformScratch();
+
   try {
     const yieldEvery = Math.max(1, Math.round(frameRate / 30)); // ~30 yields/sec at common FPS
     for (let frameIndex = 0; frameIndex < maxFrames; frameIndex++) {
@@ -365,9 +374,16 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
         await new Promise<void>((r) => requestAnimationFrame(() => r()));
       }
 
-      const frameState: FrameAudioState = offlineProvider
-        ? offlineProvider.getFrameState(frameIndex)
-        : { channelSamples: [], uniformUpdates: [], timelineTime: frameIndex / frameRate };
+      const frameState = buildExportFrameState({
+        graph,
+        audioSetup,
+        frameIndex,
+        frameRate,
+        startTimeSeconds: startSeconds,
+        offlineAudio: offlineProvider,
+        scratch: exportUniformScratch,
+        replayStatefulDrivers: false,
+      });
 
       let canvas: HTMLCanvasElement | OffscreenCanvas;
       if (webgpuAsyncRender) {

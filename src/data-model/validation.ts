@@ -7,6 +7,7 @@
 import type { NodeGraph, Connection, ValidationResult, AutomationState, AutomationLane } from './types';
 import type { ArrangementSnapshot } from '../audiotool/arrangement/types';
 import type { MidiEnvelopeBinding, MidiEnvelopePreset } from './midiEnvelopeTypes';
+import { isMidiEnvelopeRetriggerPolicy } from './midiEnvelopeTypes';
 import { sortEvaluableRegions } from '../utils/automationEvaluator';
 import { isPortConnection, getConnectionTargetKey } from './connectionUtils';
 import type { NodeSpecification } from './validationTypes';
@@ -239,12 +240,12 @@ export function validateMidiEnvelopePresetsAndBindings(
       );
     }
     if (
-      typeof remapper.outMin !== 'number' ||
-      !Number.isFinite(remapper.outMin) ||
-      typeof remapper.outMax !== 'number' ||
-      !Number.isFinite(remapper.outMax)
+      typeof remapper.inMin !== 'number' ||
+      !Number.isFinite(remapper.inMin) ||
+      typeof remapper.inMax !== 'number' ||
+      !Number.isFinite(remapper.inMax)
     ) {
-      warnings.push(`MIDI envelope remapper ${remapper.id}: outMin/outMax must be finite numbers`);
+      warnings.push(`MIDI envelope remapper ${remapper.id}: inMin/inMax must be finite numbers`);
     }
   }
 
@@ -270,6 +271,15 @@ export function validateMidiEnvelopePresetsAndBindings(
     if (!bound) {
       warnings.push(`MIDI envelope binding ${binding.id}: bindings must reference a parameter port`);
       continue;
+    }
+
+    if (
+      typeof binding.outMin !== 'number' ||
+      !Number.isFinite(binding.outMin) ||
+      typeof binding.outMax !== 'number' ||
+      !Number.isFinite(binding.outMax)
+    ) {
+      warnings.push(`MIDI envelope binding ${binding.id}: outMin/outMax must be finite numbers`);
     }
 
     const paramKey = `${binding.nodeId}:${binding.paramName}`;
@@ -337,6 +347,14 @@ function validateMidiEnvelopePresetFields(preset: MidiEnvelopePreset, warnings: 
   }
   if (typeof adsr.sustainLevel === 'number' && (adsr.sustainLevel < 0 || adsr.sustainLevel > 1)) {
     warnings.push(`MIDI envelope preset ${preset.id}: adsr.sustainLevel must be in [0, 1]`);
+  }
+  if (
+    preset.retriggerPolicy !== undefined &&
+    !isMidiEnvelopeRetriggerPolicy(preset.retriggerPolicy)
+  ) {
+    warnings.push(
+      `MIDI envelope preset ${preset.id}: retriggerPolicy must be lastNoteWins, holdIfHigher, or legato`
+    );
   }
 }
 

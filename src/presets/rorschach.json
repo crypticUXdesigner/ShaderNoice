@@ -1,0 +1,290 @@
+{
+  "format": "shadernoice-node-graph",
+  "formatVersion": "2.0",
+  "graph": {
+    "id": "graph-preset-rorschach",
+    "name": "Rorschach",
+    "version": "2.0",
+    "nodes": [
+      {
+        "id": "node-1780579257235-40vx2hmxh",
+        "type": "uv-coordinates",
+        "position": {
+          "x": -696,
+          "y": 150
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1780579257235-qaw3hah9z",
+        "type": "final-output",
+        "position": {
+          "x": 5245,
+          "y": 1461
+        },
+        "parameters": {}
+      },
+      {
+        "id": "node-1780579330805-n846aimi5",
+        "type": "streak",
+        "position": {
+          "x": 915,
+          "y": 149
+        },
+        "parameters": {
+          "streakAngleDeg": 90,
+          "streakStretch": 0.7,
+          "streakWidth": 0.63,
+          "streakFalloff": 1.7000000000000002,
+          "streakIntensity": 1
+        }
+      },
+      {
+        "id": "node-1780579400434-bfugkzbqt",
+        "type": "noise",
+        "position": {
+          "x": 919,
+          "y": 1700
+        },
+        "parameters": {
+          "noiseMode": 2,
+          "noiseScale": 3.8600000000000003,
+          "noiseOctaves": 10,
+          "noiseLacunarity": 1.23,
+          "noiseGain": 0.64,
+          "noiseTimeSpeed": 0.467,
+          "noiseTimeOffset": 0,
+          "noiseIntensity": 1
+        },
+        "label": "Md Noise"
+      },
+      {
+        "id": "node-1780579413915-flpkapes6",
+        "type": "blend",
+        "position": {
+          "x": 3403,
+          "y": 1564
+        },
+        "parameters": {
+          "mode": 3,
+          "opacity": 1,
+          "alphaMode": 0
+        }
+      },
+      {
+        "id": "node-1780605290340-f8mxvx16j",
+        "type": "crease-fold",
+        "position": {
+          "x": -215,
+          "y": 151
+        },
+        "parameters": {
+          "creaseFoldAngle": 0,
+          "creaseFoldOffset": 0,
+          "creaseFoldAmount": 1,
+          "creaseFoldSoftness": 0.5,
+          "creaseFoldRepeatSpacing": 0,
+          "creaseFoldRepeatCount": 1,
+          "creaseFoldPhase": 0,
+          "creaseFoldBlend": 1
+        }
+      },
+      {
+        "id": "node-1780605475963-hpjm86hg7",
+        "type": "noise",
+        "position": {
+          "x": 914,
+          "y": 2558
+        },
+        "parameters": {
+          "noiseMode": 2,
+          "noiseScale": 6.91,
+          "noiseOctaves": 10,
+          "noiseLacunarity": 1.6800000000000002,
+          "noiseGain": 0.58,
+          "noiseTimeSpeed": 0.777,
+          "noiseTimeOffset": 0,
+          "noiseIntensity": 1
+        },
+        "label": "Sm Noise"
+      },
+      {
+        "id": "node-1780605487550-cy0x840uq",
+        "type": "blend",
+        "position": {
+          "x": 1942,
+          "y": 1701
+        },
+        "parameters": {
+          "mode": 3,
+          "opacity": 1,
+          "alphaMode": 0
+        }
+      },
+      {
+        "id": "node-1780605657022-hjqqnmxjn",
+        "type": "smoothstep",
+        "position": {
+          "x": 4110,
+          "y": 1462
+        },
+        "parameters": {
+          "edge0": 0.31,
+          "edge1": 0.74
+        }
+      },
+      {
+        "id": "node-1780690086923-9jnayuyx9",
+        "type": "noise",
+        "position": {
+          "x": 918,
+          "y": 846
+        },
+        "parameters": {
+          "noiseMode": 2,
+          "noiseScale": 2.21,
+          "noiseOctaves": 10,
+          "noiseLacunarity": 1.28,
+          "noiseGain": 0.7,
+          "noiseTimeSpeed": 0.3,
+          "noiseTimeOffset": 0,
+          "noiseIntensity": 1
+        },
+        "label": "Lg Noise"
+      },
+      {
+        "id": "node-1780690093943-vmakzxy5q",
+        "type": "blend",
+        "position": {
+          "x": 2671,
+          "y": 1632
+        },
+        "parameters": {
+          "mode": 3,
+          "opacity": 1,
+          "alphaMode": 0
+        }
+      },
+      {
+        "id": "node-1780690246923-h8bjr1m7p",
+        "type": "one-minus",
+        "position": {
+          "x": 4790,
+          "y": 1461
+        },
+        "parameters": {}
+      }
+    ],
+    "connections": [
+      {
+        "id": "60a9b05e-94cd-4d48-87b8-77d112c4ea33",
+        "sourceNodeId": "node-1780579330805-n846aimi5",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780579413915-flpkapes6",
+        "targetPort": "base"
+      },
+      {
+        "id": "9095e185-62f0-447e-b384-2c02ee8e4b0f",
+        "sourceNodeId": "node-1780579257235-40vx2hmxh",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780605290340-f8mxvx16j",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1780605481719-69beb4ss6",
+        "sourceNodeId": "node-1780605290340-f8mxvx16j",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780579400434-bfugkzbqt",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1780605485679-3zhcbablm",
+        "sourceNodeId": "node-1780605290340-f8mxvx16j",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780605475963-hpjm86hg7",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1780605492789-3qnm27llq",
+        "sourceNodeId": "node-1780579400434-bfugkzbqt",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780605487550-cy0x840uq",
+        "targetPort": "base"
+      },
+      {
+        "id": "conn-1780605494275-rfr6menu4",
+        "sourceNodeId": "node-1780605475963-hpjm86hg7",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780605487550-cy0x840uq",
+        "targetPort": "blend"
+      },
+      {
+        "id": "conn-1780605659915-yzt2y2alv",
+        "sourceNodeId": "node-1780579413915-flpkapes6",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780605657022-hjqqnmxjn",
+        "targetPort": "x"
+      },
+      {
+        "id": "conn-1780606740302-t9p6unytm",
+        "sourceNodeId": "node-1780605290340-f8mxvx16j",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780579330805-n846aimi5",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1780690090857-elr5qjhrl",
+        "sourceNodeId": "node-1780605290340-f8mxvx16j",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780690086923-9jnayuyx9",
+        "targetPort": "in"
+      },
+      {
+        "id": "conn-1780690097592-cz7p9b6jn",
+        "sourceNodeId": "node-1780690086923-9jnayuyx9",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780690093943-vmakzxy5q",
+        "targetPort": "base"
+      },
+      {
+        "id": "conn-1780690100607-jd9tm05dd",
+        "sourceNodeId": "node-1780605487550-cy0x840uq",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780690093943-vmakzxy5q",
+        "targetPort": "blend"
+      },
+      {
+        "id": "conn-1780690105137-epnz6mxjp",
+        "sourceNodeId": "node-1780690093943-vmakzxy5q",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780579413915-flpkapes6",
+        "targetPort": "blend"
+      },
+      {
+        "id": "34e90c55-0ae6-4769-82eb-ab367d69d074",
+        "sourceNodeId": "node-1780605657022-hjqqnmxjn",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780690246923-h8bjr1m7p",
+        "targetPort": "in"
+      },
+      {
+        "id": "fc2547ff-5b44-4d34-8281-40172d9eafb2",
+        "sourceNodeId": "node-1780690246923-h8bjr1m7p",
+        "sourcePort": "out",
+        "targetNodeId": "node-1780579257235-qaw3hah9z",
+        "targetPort": "in"
+      }
+    ],
+    "viewState": {
+      "zoom": 0.17150730506446626,
+      "panX": 4.757972538765557,
+      "panY": 258.5584104132097,
+      "selectedNodeIds": []
+    }
+  },
+  "audioSetup": {
+    "files": [],
+    "bands": [],
+    "remappers": []
+  }
+}

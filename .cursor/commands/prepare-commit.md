@@ -8,7 +8,9 @@ Run before merging to **`main`** — matches **`.github/workflows/deploy.yml`** 
 npm run verify:pages
 ```
 
-Covers **`npm audit --audit-level=high`** → **`npm run check`** (type-check, vitest, lint) → **`npm run build`** → **`npm run build-storybook`**.
+Covers **`npm audit --audit-level=high`** → **`npm run check`** (type-check, vitest, lint) → **`npm run build`** → **`npm run build-storybook`** → **`npm run test:value-input-chromium`** → **`npm run audit:node-docs:strict`** (registry coverage + layout-exposed Controls parity).
+
+When changing node docs or specs, also run **`npm run audit:node-docs`** (report-only) while editing; strict mode is required before merge.
 
 If **`package.json` / `package-lock.json`** touched:
 

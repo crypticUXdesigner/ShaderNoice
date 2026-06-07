@@ -38,12 +38,65 @@ import {
   mvpGenericRaymarcherDisplacementGraph,
   mvpGenericRaymarcherSierpinskiTetraScaleAudioSetup,
   mvpGenericRaymarcherSierpinskiTetraScaleWireGraph,
+  mvpBloomSphereGraph,
 } from '../validation/webgpuMvpFixtures';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function buildNodeSpecsMap(): Map<string, NodeSpec> {
   return new Map(nodeSystemSpecs.map((s) => [s.id, s]));
+}
+
+/** Deep blend chain: noise → blend₀ ← arrangement; each blendᵢ also takes arrangement on `blend`; chain → final-output. */
+function buildDeepBlendArrangementChainGraph(
+  graphId: string,
+  graphName: string,
+  blendCount: number,
+  arrangementNode: { id: string; type: string },
+): NodeGraph {
+  const blendIds = Array.from({ length: blendCount }, (_, i) => `n-blend-${i}`);
+  const arrId = arrangementNode.id;
+  const nodes: NodeGraph['nodes'] = [
+    { id: 'n-noise', type: 'noise', position: { x: 0, y: 0 }, parameters: {} },
+    { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+    { id: arrId, type: arrangementNode.type, position: { x: 0, y: 0 }, parameters: {} },
+    ...blendIds.map((id) => ({
+      id,
+      type: 'blend' as const,
+      position: { x: 0, y: 0 },
+      parameters: { alphaMode: 0 },
+    })),
+    { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+  ];
+  const connections: NodeGraph['connections'] = [
+    { id: 'c-noise', sourceNodeId: 'n-noise', sourcePort: 'out', targetNodeId: blendIds[0]!, targetPort: 'base' },
+    { id: 'c-uv-arr', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: arrId, targetPort: 'in' },
+    { id: 'c-arr-blend0', sourceNodeId: arrId, sourcePort: 'out', targetNodeId: blendIds[0]!, targetPort: 'blend' },
+  ];
+  for (let i = 0; i < blendIds.length - 1; i++) {
+    connections.push({
+      id: `c-chain-${i}`,
+      sourceNodeId: blendIds[i]!,
+      sourcePort: 'out',
+      targetNodeId: blendIds[i + 1]!,
+      targetPort: 'base',
+    });
+    connections.push({
+      id: `c-arr-${i + 1}`,
+      sourceNodeId: arrId,
+      sourcePort: 'out',
+      targetNodeId: blendIds[i + 1]!,
+      targetPort: 'blend',
+    });
+  }
+  connections.push({
+    id: 'c-out',
+    sourceNodeId: blendIds[blendIds.length - 1]!,
+    sourcePort: 'out',
+    targetNodeId: 'n-out',
+    targetPort: 'in',
+  });
+  return { id: graphId, name: graphName, version: '2.0', nodes, connections };
 }
 
 /**
@@ -346,6 +399,39 @@ describe('NodeShaderCompiler', () => {
       expect(result.shaderCode).toMatch(/evalArrangementNotes_n_notes\s*\(/);
       expect(result.metadata.previewDependencies?.usesTimelineTime).toBe(true);
     });
+
+    it('main code uses the same per-instance eval struct name as functions (hub-style node ids)', () => {
+      const notesId = 'node-1780523651744-o4udtu71d';
+      const graph: NodeGraph = {
+        id: 'graph-arr-notes-hub-id',
+        name: 'Arrangement notes hub id',
+        version: '2.0',
+        nodes: [
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: notesId, type: 'arrangement-notes', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: notesId, targetPort: 'in' },
+          { id: 'c2', sourceNodeId: notesId, sourcePort: 'out', targetNodeId: 'n-out', targetPort: 'in' },
+        ],
+      };
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [],
+        remappers: [],
+        primarySource: { type: 'playlist', trackId: 'fixture' },
+        arrangementSnapshot,
+      };
+      const result = compiler.compile(graph, audioSetup);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      const evalStruct =
+        'ArrangementNotesEvalOutnode1780523651744o4udtu71d_node_1780523651744_o4udtu71d';
+      expect(result.shaderCode).toContain(`struct ${evalStruct}`);
+      expect(result.shaderCode).toMatch(new RegExp(`${evalStruct}\\s+notesEval\\s*=`));
+    });
   });
 
   describe('arrangement-notes (WGSL)', () => {
@@ -488,6 +574,230 @@ describe('NodeShaderCompiler', () => {
 
       expect(result.metadata.errors).toHaveLength(0);
       expect(result.shaderCode).toContain('ARR_PATTERN_ONSET_COUNT_n_compass = 0');
+    });
+  });
+
+  describe('GLSL upstream reachability (arrangement-blend-preview-perf-v1)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    const audioSetup: AudioSetup = {
+      files: [],
+      bands: [],
+      remappers: [],
+      primarySource: { type: 'playlist', trackId: 'fixture' },
+      arrangementSnapshot,
+    };
+
+    it('omits unwired arrangement-notes eval from GLSL when noise feeds final-output', () => {
+      const graph: NodeGraph = {
+        id: 'graph-unwired-notes',
+        name: 'Unwired notes',
+        version: '2.0',
+        nodes: [
+          { id: 'n-noise', type: 'noise', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-notes', type: 'arrangement-notes', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c-hot', sourceNodeId: 'n-noise', sourcePort: 'out', targetNodeId: 'n-out', targetPort: 'in' },
+          { id: 'c-cold', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-notes', targetPort: 'in' },
+        ],
+      };
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(graph, audioSetup);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).not.toMatch(/evalArrangementNotes_n_notes\s*\(/);
+      expect(result.shaderCode).not.toContain('ARR_NOTE_COUNT_n_notes');
+    });
+
+    it('omits unwired pitch-class-compass eval from GLSL when noise feeds final-output', () => {
+      const graph: NodeGraph = {
+        id: 'graph-unwired-compass',
+        name: 'Unwired compass',
+        version: '2.0',
+        nodes: [
+          { id: 'n-noise', type: 'noise', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-compass', type: 'pitch-class-compass', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c-hot', sourceNodeId: 'n-noise', sourcePort: 'out', targetNodeId: 'n-out', targetPort: 'in' },
+          { id: 'c-cold', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-compass', targetPort: 'in' },
+        ],
+      };
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(graph, audioSetup);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.shaderCode).not.toMatch(/evalPitchClassCompass_n_compass\s*\(/);
+      expect(result.shaderCode).not.toContain('ARR_PATTERN_ONSET_COUNT_n_compass');
+    });
+
+    it('includes arrangement-notes eval once when wired through blend to final-output', () => {
+      const graph: NodeGraph = {
+        id: 'graph-notes-blend',
+        name: 'Notes through blend',
+        version: '2.0',
+        nodes: [
+          { id: 'n-noise', type: 'noise', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-notes', type: 'arrangement-notes', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-blend', type: 'blend', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n-noise', sourcePort: 'out', targetNodeId: 'n-blend', targetPort: 'base' },
+          { id: 'c2', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-notes', targetPort: 'in' },
+          { id: 'c3', sourceNodeId: 'n-notes', sourcePort: 'out', targetNodeId: 'n-blend', targetPort: 'blend' },
+          { id: 'c4', sourceNodeId: 'n-blend', sourcePort: 'out', targetNodeId: 'n-out', targetPort: 'in' },
+        ],
+      };
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(graph, audioSetup);
+
+      expect(result.metadata.errors).toHaveLength(0);
+      const evalCalls = result.shaderCode.match(/evalArrangementNotes_n_notes\s*\(/g) ?? [];
+      expect(evalCalls).toHaveLength(2);
+      expect(result.shaderCode).toMatch(/node_n_notes_out\s*=/);
+    });
+  });
+
+  describe('WGSL blend let bindings (arrangement-blend-preview-perf-v1 / 02A)', () => {
+    const arrangementSnapshot = buildArrangementSnapshot(spikeFixture as RawArrangementEntities);
+
+    const audioSetup: AudioSetup = {
+      files: [],
+      bands: [],
+      remappers: [],
+      primarySource: { type: 'playlist', trackId: 'fixture' },
+      arrangementSnapshot,
+    };
+
+    /** Extract the `return` expression from the WGSL fragment entry (excludes prelude `let`s). */
+    function extractWgslFsReturnExpr(wgsl: string): string {
+      const fsMatch = wgsl.match(/@fragment[\s\S]*?fn fs[^{]*\{([\s\S]*)\n\}/);
+      if (!fsMatch) return '';
+      const body = fsMatch[1] ?? '';
+      const returnMatch = body.match(/return\s+([\s\S]+?);/);
+      return returnMatch?.[1]?.trim() ?? '';
+    }
+
+    it('binds blend base/src once per vec4 blend node (not 4× per channel in return)', () => {
+      const graph: NodeGraph = {
+        id: 'graph-wgpu-blend-lets-vec4',
+        name: 'Two-blend vec4 chain with notes',
+        version: '2.0',
+        nodes: [
+          { id: 'n-noise', type: 'noise', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-notes', type: 'arrangement-notes', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-blend-a', type: 'blend', position: { x: 0, y: 0 }, parameters: { alphaMode: 0 } },
+          { id: 'n-blend-b', type: 'blend', position: { x: 0, y: 0 }, parameters: { alphaMode: 0 } },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n-noise', sourcePort: 'out', targetNodeId: 'n-blend-a', targetPort: 'base' },
+          { id: 'c2', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-notes', targetPort: 'in' },
+          { id: 'c3', sourceNodeId: 'n-notes', sourcePort: 'out', targetNodeId: 'n-blend-a', targetPort: 'blend' },
+          { id: 'c4', sourceNodeId: 'n-blend-a', sourcePort: 'out', targetNodeId: 'n-blend-b', targetPort: 'base' },
+          { id: 'c5', sourceNodeId: 'n-notes', sourcePort: 'out', targetNodeId: 'n-blend-b', targetPort: 'blend' },
+          { id: 'c6', sourceNodeId: 'n-blend-b', sourcePort: 'out', targetNodeId: 'n-out', targetPort: 'in' },
+        ],
+      };
+
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(graph, audioSetup, { backend: 'webgpu' });
+
+      expect(result.backend).toBe('webgpu');
+      expect(result.supported).toBe(true);
+      expect(result.metadata.errors).toHaveLength(0);
+
+      const wgsl = result.code;
+      expect(wgsl).toContain('let blend_base_n_blend_a:');
+      expect(wgsl).toContain('let blend_src_n_blend_a:');
+      expect(wgsl).toContain('let blend_base_n_blend_b:');
+      expect(wgsl).toContain('let blend_src_n_blend_b:');
+
+      const returnExpr = extractWgslFsReturnExpr(wgsl);
+      // Pre-02A: notes eval inlined ~4× per blend channel in return (~8+ in return for 2 blends).
+      // Post-02A: return references bindings; heavy eval lives in prelude lets only.
+      const notesEvalInReturn = returnExpr.match(/evalArrangementNotes_n_notes\s*\(/g) ?? [];
+      expect(notesEvalInReturn.length).toBe(0);
+      expect(wgsl).toContain('let node_n_notes_out:');
+    });
+
+    it('compiles 5-blend chain with arrangement-notes without expression blow-up', () => {
+      const graph = buildDeepBlendArrangementChainGraph(
+        'graph-wgpu-5-blend-notes',
+        'Five-blend notes chain',
+        5,
+        { id: 'n-notes', type: 'arrangement-notes' },
+      );
+
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(graph, audioSetup, { backend: 'webgpu' });
+
+      expect(result.backend).toBe('webgpu');
+      expect(result.supported).toBe(true);
+      expect(result.metadata.errors).toHaveLength(0);
+
+      // Pre-fix deep blend chains could throw `Invalid string length` during codegen (~multi-MB).
+      // With blend lets, shader stays bounded; full per-node dedupe lands in 02B.
+      expect(result.code.length).toBeLessThan(500_000);
+
+      const notesEvalCalls = result.code.match(/evalArrangementNotes_n_notes\s*\(/g) ?? [];
+      // 02B: one eval in fragment prelude (`let node_n_notes_out`) plus helper `fn` signature — not per-blend.
+      expect(notesEvalCalls.length).toBeLessThanOrEqual(2);
+      expect(result.code).toContain('let node_n_notes_out:');
+    });
+
+    it('compiles 14-blend chain with arrangement-notes (02B per-node fragment lets)', () => {
+      const graph = buildDeepBlendArrangementChainGraph(
+        'graph-wgpu-14-blend-notes',
+        'Fourteen-blend notes chain',
+        14,
+        { id: 'n-notes', type: 'arrangement-notes' },
+      );
+
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(graph, audioSetup, { backend: 'webgpu' });
+
+      expect(result.backend).toBe('webgpu');
+      expect(result.supported).toBe(true);
+      expect(result.metadata.errors).toHaveLength(0);
+      // Pre-fix deep blend + arrangement graphs could throw `Invalid string length` (~multi-MB WGSL).
+      expect(result.code.length).toBeLessThan(500_000);
+
+      const notesEvalCalls = result.code.match(/evalArrangementNotes_n_notes\s*\(/g) ?? [];
+      expect(notesEvalCalls.length).toBeLessThanOrEqual(2);
+      expect(result.code).toContain('let node_n_notes_out:');
+
+      const returnExpr = extractWgslFsReturnExpr(result.code);
+      expect(returnExpr.match(/evalArrangementNotes_n_notes\s*\(/g) ?? []).toHaveLength(0);
+    });
+
+    it('compiles 14-blend chain with chord-voronoi-bloom (02B O(1) eval per node)', () => {
+      const graph = buildDeepBlendArrangementChainGraph(
+        'graph-wgpu-14-blend-bloom',
+        'Fourteen-blend chord voronoi bloom chain',
+        14,
+        { id: 'n-bloom', type: 'chord-voronoi-bloom' },
+      );
+
+      const compiler = new NodeShaderCompiler(buildNodeSpecsMap());
+      const result = compiler.compile(graph, audioSetup, { backend: 'webgpu' });
+
+      expect(result.backend).toBe('webgpu');
+      expect(result.supported).toBe(true);
+      expect(result.metadata.errors).toHaveLength(0);
+      expect(result.code.length).toBeLessThan(500_000);
+
+      const bloomEvalCalls = result.code.match(/evalChordVoronoiBloom_n_bloom\s*\(/g) ?? [];
+      expect(bloomEvalCalls.length).toBeLessThanOrEqual(2);
+      expect(result.code).toContain('let node_n_bloom_out:');
     });
   });
 
@@ -1415,11 +1725,11 @@ describe('NodeShaderCompiler', () => {
       expect(result.paramLayout['n-const.z']).toBeTypeOf('number');
     });
 
-    it('compiles src/presets/sphere.json on WebGPU (no structural fallback)', () => {
+    it('compiles src/presets/watercolor-waves.json on WebGPU (no structural fallback)', () => {
       const nodeSpecsMap = buildNodeSpecsMap();
       const compiler = new NodeShaderCompiler(nodeSpecsMap);
 
-      const raw = readFileSync(join(process.cwd(), 'src', 'presets', 'sphere.json'), 'utf8');
+      const raw = readFileSync(join(process.cwd(), 'src', 'presets', 'watercolor-waves.json'), 'utf8');
       const parsed = JSON.parse(raw) as { graph: NodeGraph; audioSetup?: AudioSetup | null };
 
       const result = compiler.compile(
@@ -2194,48 +2504,6 @@ describe('NodeShaderCompiler', () => {
       expect(result.code).toContain('0.866025');
     });
 
-    /**
-     * Fractal presets: bounded generic-raymarcher pilot wires fractal sdf nodes inline in WGSL.
-     * Smoke-check each compiles WebGPU-supported; drift surfaces via `scripts/scan-webgpu-presets.ts`.
-     */
-    describe.each([
-      { file: 'fractal-julia-slab.json', wgslSubstring: 'julia_sl_' },
-      { file: 'fractal-mandelbox.json', wgslSubstring: 'mandelbox_sdf_distance' },
-      { file: 'fractal-menger-sponge.json', wgslSubstring: 'mer_sponge_distance' },
-      { file: 'fractal-sierpinski-tetra.json', wgslSubstring: 'ster_tetra_distance' },
-    ])('fractal preset WebGPU ($file)', ({ file, wgslSubstring }) => {
-      it('compiles fractal sdf graph on WebGPU with bounded generic-raymarcher march', () => {
-        const nodeSpecsMap = buildNodeSpecsMap();
-        const compiler = new NodeShaderCompiler(nodeSpecsMap);
-        const raw = readFileSync(join(process.cwd(), 'src', 'presets', file), 'utf8');
-        const parsed = JSON.parse(raw) as { graph: NodeGraph };
-
-        const result = compiler.compile(structuredClone(parsed.graph), null, { backend: 'webgpu' });
-
-        expect(result.backend).toBe('webgpu');
-        expect(result.supported).toBe(true);
-        expect(result.code).toContain('@fragment');
-        expect(result.code).toContain(wgslSubstring);
-        expect(result.code).toContain('genericRaymarchbounded_');
-      });
-    });
-
-    it('compiles fractal-mandelbulb preset on bounded WebGPU generic-raymarcher + mandelbulb-sdf pilot', () => {
-      const nodeSpecsMap = buildNodeSpecsMap();
-      const compiler = new NodeShaderCompiler(nodeSpecsMap);
-      const raw = readFileSync(join(process.cwd(), 'src', 'presets', 'fractal-mandelbulb.json'), 'utf8');
-      const parsed = JSON.parse(raw) as { graph: NodeGraph };
-
-      const result = compiler.compile(structuredClone(parsed.graph), null, { backend: 'webgpu' });
-
-      expect(result.backend).toBe('webgpu');
-      expect(result.supported).toBe(true);
-      expect(result.code).toContain('@fragment');
-      expect(WGSL_SUPPORTED_NODE_TYPES.has('generic-raymarcher')).toBe(true);
-      expect(WGSL_SUPPORTED_NODE_TYPES.has('mandelbulb-sdf')).toBe(true);
-      expect(result.code).toContain('mandelbulbSdf_distance');
-      expect(result.code).toContain('genericRaymarchbounded_');
-    });
 
     it('compiles bounded WebGPU generic-raymarcher with hex-prism-sdf sdf source', () => {
       const nodeSpecsMap = buildNodeSpecsMap();
@@ -2857,7 +3125,8 @@ describe('NodeShaderCompiler', () => {
       expect(result.supported).toBe(true);
       expect(result.metadata.errors).toHaveLength(0);
       expect(result.code).toContain('@fragment');
-      expect(result.code).toContain('applyBlendMode(0.0,');
+      expect(result.code).toContain('let blend_base_n_blend: f32 = 0.0');
+      expect(result.code).toContain('applyBlendMode(blend_base_n_blend, blend_src_n_blend');
     });
 
     it('compiles when blend.base is unconnected on vec4 chain (defaults to vec4(0.0), GLSL parity)', () => {
@@ -2912,7 +3181,8 @@ describe('NodeShaderCompiler', () => {
       expect(result.supported).toBe(true);
       expect(result.metadata.errors).toHaveLength(0);
       expect(result.code).toContain('@fragment');
-      expect(result.code).toContain('mix(vec4<f32>(0.0).xyz');
+      expect(result.code).toContain('let blend_base_n_bc: vec4<f32> = vec4<f32>(0.0)');
+      expect(result.code).toContain('mix(blend_base_n_bc.xyz');
     });
   });
 
@@ -3871,10 +4141,8 @@ describe('NodeShaderCompiler', () => {
   });
 
   describe('turbulence node (function extraction must ignore // comments)', () => {
-    it('compiles new preset with uv → turbulence → orbit without spurious reserved word output', () => {
-      const presetPath = join(__dirname, '..', 'presets', 'bloom-sphere.json');
-      const preset = JSON.parse(readFileSync(presetPath, 'utf8')) as { graph: NodeGraph };
-      const graph: NodeGraph = structuredClone(preset.graph);
+    it('compiles bloom-sphere graph with uv → turbulence → orbit without spurious reserved word output', () => {
+      const graph: NodeGraph = structuredClone(mvpBloomSphereGraph());
 
       const turbId = 'node-turb-test';
       graph.nodes.push({
@@ -3968,7 +4236,7 @@ describe('NodeShaderCompiler', () => {
      * If this fails, the bug is in the compiler for the real graph. If it passes, the bug is
      * likely runtime (uniforms, WebGL state, etc.).
      */
-    const presetPath = join(__dirname, '../presets/sphere.json');
+    const presetPath = join(__dirname, '../presets/watercolor-waves.json');
     it.skip('with full preset graph: Intensity before quad-warp and correct variable in shader (preset no longer contains this scenario)', () => {
       const raw = readFileSync(presetPath, 'utf-8');
       const preset = JSON.parse(raw) as { graph: NodeGraph; audioSetup?: AudioSetup };
@@ -4640,6 +4908,82 @@ describe('NodeShaderCompiler', () => {
         body,
         'SDF function body must not contain raw $param.timeOffset placeholder when audio connection is present'
       ).not.toContain('$param.timeOffset');
+    });
+
+    it('audio driver on radial-uv-warp overrides multiply mode in mainCode (not knob * remap)', () => {
+      const remapperId = 'remap-clean-fisheye';
+      const virtualRemapId = `audio-signal:remap-${remapperId}`;
+      const uvId = 'n-uv-radial-audio';
+      const warpId = 'n-warp-radial-audio';
+      const outId = 'n-out-radial-audio';
+
+      const graph: NodeGraph = {
+        id: 'graph-radial-audio-multiply-mode',
+        name: 'Radial audio multiply mode',
+        version: '2.0',
+        nodes: [
+          { id: uvId, type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          {
+            id: warpId,
+            type: 'radial-uv-warp',
+            position: { x: 0, y: 0 },
+            parameters: { warpMode: 1, fisheyeStrength: -0.61, fisheyeAspect: 1 },
+            parameterInputModes: { fisheyeStrength: 'multiply' },
+          },
+          { id: outId, type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: uvId, sourcePort: 'out', targetNodeId: warpId, targetPort: 'in' },
+          {
+            id: 'c2',
+            sourceNodeId: virtualRemapId,
+            sourcePort: 'out',
+            targetNodeId: warpId,
+            targetParameter: 'fisheyeStrength',
+          },
+          { id: 'c3', sourceNodeId: warpId, sourcePort: 'out', targetNodeId: outId, targetPort: 'in' },
+        ],
+      };
+
+      const audioSetup: AudioSetup = {
+        files: [],
+        bands: [
+          {
+            id: 'band-bd',
+            name: 'Bd',
+            sourceFileId: 'f1',
+            frequencyBands: [[77, 123]],
+            smoothingHalfLifeSeconds: 0.016,
+            fftSize: 2048,
+          },
+        ],
+        remappers: [
+          {
+            id: remapperId,
+            name: 'Clean',
+            bandId: 'band-bd',
+            inMin: 0.62,
+            inMax: 1,
+            outMin: -0.22,
+            outMax: -1,
+          },
+        ],
+      };
+
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const result = compiler.compile(graph, audioSetup);
+
+      expect(result.metadata.errors).toHaveLength(0);
+
+      const uniformNodeId = `remap-${remapperId}`;
+      const sanitizedId = uniformNodeId.replace(/[^a-zA-Z0-9]/g, '_').replace(/^(\d)/, 'n$1');
+      const expectedUniform = `u${sanitizedId}Out`;
+      expect(result.shaderCode, 'shader must call fisheyeRadial').toContain('fisheyeRadial_');
+      expect(result.shaderCode, 'shader must use audio remap uniform').toContain(expectedUniform);
+      expect(result.shaderCode, 'must not multiply knob uniform with audio remap').not.toMatch(
+        /FisheyeStrength\s*\*\s*u/
+      );
     });
 
     it('compiles graph with mandelbulb-sdf driving generic-raymarcher SDF', () => {

@@ -28,7 +28,7 @@ Any browser build where parameter drivers and graph wires coexist (local dev and
 
 - **Effective values (JS):** `computeEffectiveParameterValue` in `parameterValueCalculator.ts` combines a config/base (automation or MIDI when present) with an enabled connection using the port’s input mode. Disabled connections are skipped; disabled lanes/bindings are skipped in their evaluators.
 - **Shader float params:** `FloatParamExpressions.ts` can emit `evalAutomation_*` for an active lane while a separate enabled graph wire still contributes via `resolveFloatParameterInputVarsFromConnections`.
-- **Bypass toggle:** `getParamDriverBypassState` / `setParamDriverBypass` in `paramDriverBypass.ts` target one store per precedence; see work package `parameter-driver-bypass-on-node`.
+- **Bypass toggle:** `getParamDriverBypassState` / `setParamDriverBypass` in `paramDriverBypass.ts` target one store per precedence (port-above power toggle shipped 2026-05-31).
 
 Intentional v1 scope: document the gap; node toggle follows connection-first precedence.
 

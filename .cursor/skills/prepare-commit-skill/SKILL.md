@@ -18,7 +18,7 @@ Mirror **`.github/workflows/deploy.yml`** locally so **`main`** stays publishabl
 ## Execution
 
 1. **Lockfile churn?** Run **`npm ci`** when `package.json` / `package-lock.json` moved; repair lock before continuing.
-2. **Always** run **`npm run verify:pages`** (audit high → check → build → storybook build). Capture failures with crisp remediation bullets.
+2. **Always** run **`npm run verify:pages`** (audit high → check → build → storybook build → value-input chromium → **`audit:node-docs:strict`**). Capture failures with crisp remediation bullets. Node doc edits: use report-only **`npm run audit:node-docs`** while iterating.
 3. **Optional:** Playwright/a11y ONLY on request — CI treats a11y as **non-blocking**.
 4. **Docs hygiene (when docs changed):** If this work touched `docs/**`, run `/cleanup-docs`.
 

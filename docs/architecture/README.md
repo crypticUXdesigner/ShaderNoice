@@ -1,6 +1,6 @@
 # Architecture documentation
 
-**Last updated:** 2026-05-14
+**Last updated:** 2026-06-07
 
 This folder describes **how the codebase is shaped**: ownership of the graph, control flow from UI to WebGL, where compilation runs (main thread vs worker), and where major subsystems live. **Product behavior** for users is specified in [`docs/user-goals/`](../user-goals/README.md). **Delivery tasks and experiments** live in [`docs/implementation/`](../implementation/README.md).
 
@@ -79,6 +79,7 @@ flowchart TB
 | [GAP-INVENTORY.md](./GAP-INVENTORY.md) | WebGPU compile failure patterns vs graph-valid cases; prioritizes wire-time guards (companion to wire-validation design). |
 | [webgl-webgpu-preview-export.md](./webgl-webgpu-preview-export.md) | Exclusive WebGL2 vs WebGPU preview/export: invariants, hard block UX, session export inheritance; links coverage matrix + parity plan. |
 | [COVERAGE-MATRIX.md](./COVERAGE-MATRIX.md) | WGSL MVP vs export axes, pass-plan kinds, `unsupportedReasons` taxonomy, export gate test index. |
+| [wgsl-coverage-ledger.md](./wgsl-coverage-ledger.md) | **Generated** per-node WGSL status table — `npx tsx scripts/generate-wgsl-coverage-ledger-table.ts --write-doc`. |
 | [PARITY-PLAN.md](./PARITY-PLAN.md) | CI vs `test:webgpu-golden`, RMS thresholds, “drop WebGL” checklist. |
 | [WIRE-VALIDATION-DESIGN.md](./WIRE-VALIDATION-DESIGN.md) | Mode-aware WebGPU connection validation (Phase 1 rules, API shape, non-goals). |
 | [compilation-worker.md](./compilation-worker.md) | Optional Web Worker for `NodeShaderCompiler`; message flow; factory wiring; main-thread `applyCompilationResult`. |

@@ -20,6 +20,8 @@ import {
   type FloatParamExpressionMap
 } from './FloatParamExpressions';
 import { formatParamLiteralForGlsl } from './MainCodeGeneratorUtils';
+import { findFinalOutputNode } from './MainCodeGeneratorOutput';
+import { computeUpstreamReachableNodeIds } from './computeUpstreamReachableNodeIds';
 
 function clampFloatExpression(expr: string, paramSpec: NodeSpec['parameters'][string] | undefined): string {
   if (!paramSpec || paramSpec.type !== 'float') return expr;
@@ -70,9 +72,15 @@ export class FunctionGenerator {
     // Per-node Power: nodes dropped from execution order (bypassed) must not contribute helper
     // functions either, so the compiled shader stays free of bypassed-node code.
     const executionOrderSet = new Set(executionOrder);
+    const finalOutputNode = findFinalOutputNode(graph, executionOrder, this.nodeSpecs);
+    const reachableNodeIds =
+      finalOutputNode != null
+        ? computeUpstreamReachableNodeIds(graph, finalOutputNode.id)
+        : null;
 
     for (const node of graph.nodes) {
       if (!executionOrderSet.has(node.id)) continue;
+      if (reachableNodeIds != null && !reachableNodeIds.has(node.id)) continue;
       const nodeSpec = this.nodeSpecs.get(node.type);
       if (!nodeSpec?.functions) continue;
 

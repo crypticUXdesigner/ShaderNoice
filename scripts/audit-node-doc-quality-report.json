@@ -1,0 +1,1067 @@
+{
+  "registryCount": 162,
+  "missingDoc": [],
+  "longDesc": [
+    {
+      "id": "oscillator-2d",
+      "len": 1425,
+      "category": "Inputs"
+    },
+    {
+      "id": "box-torus-sdf",
+      "len": 1131,
+      "category": "Shapes"
+    },
+    {
+      "id": "triangle-grid",
+      "len": 969,
+      "category": "Patterns"
+    },
+    {
+      "id": "iridescent-tunnel",
+      "len": 931,
+      "category": "Shapes"
+    },
+    {
+      "id": "path-drive",
+      "len": 897,
+      "category": "Inputs"
+    },
+    {
+      "id": "glass-shell",
+      "len": 791,
+      "category": "Shapes"
+    },
+    {
+      "id": "bloom-sphere",
+      "len": 744,
+      "category": "Shapes"
+    },
+    {
+      "id": "fractal",
+      "len": 722,
+      "category": "Patterns"
+    },
+    {
+      "id": "inflated-icosahedron",
+      "len": 691,
+      "category": "Shapes"
+    },
+    {
+      "id": "uv-band-shift",
+      "len": 655,
+      "category": "Distort"
+    },
+    {
+      "id": "blur",
+      "len": 650,
+      "category": "Effects"
+    },
+    {
+      "id": "oklch-color",
+      "len": 642,
+      "category": "Inputs"
+    },
+    {
+      "id": "bezier-curve",
+      "len": 628,
+      "category": "Inputs"
+    },
+    {
+      "id": "shapes-2d",
+      "len": 610,
+      "category": "Shapes"
+    },
+    {
+      "id": "sky-dome",
+      "len": 606,
+      "category": "Shapes"
+    },
+    {
+      "id": "uv-block-glitch",
+      "len": 596,
+      "category": "Distort"
+    },
+    {
+      "id": "vector-field",
+      "len": 593,
+      "category": "Distort"
+    },
+    {
+      "id": "mask-composite-float",
+      "len": 591,
+      "category": "Mask"
+    },
+    {
+      "id": "mask-composite-vec2",
+      "len": 575,
+      "category": "Mask"
+    },
+    {
+      "id": "mask-composite-vec3",
+      "len": 570,
+      "category": "Mask"
+    },
+    {
+      "id": "bokeh",
+      "len": 567,
+      "category": "Effects"
+    },
+    {
+      "id": "voronoi-noise",
+      "len": 563,
+      "category": "Patterns"
+    },
+    {
+      "id": "bayer-dither",
+      "len": 550,
+      "category": "Effects"
+    },
+    {
+      "id": "orbit-camera",
+      "len": 544,
+      "category": "Inputs"
+    },
+    {
+      "id": "turbulence",
+      "len": 540,
+      "category": "Distort"
+    },
+    {
+      "id": "spherical-fibonacci",
+      "len": 529,
+      "category": "Shapes"
+    },
+    {
+      "id": "stripes",
+      "len": 527,
+      "category": "Patterns"
+    },
+    {
+      "id": "look-at-camera",
+      "len": 515,
+      "category": "Inputs"
+    },
+    {
+      "id": "pixelize",
+      "len": 515,
+      "category": "Distort"
+    },
+    {
+      "id": "select",
+      "len": 515,
+      "category": "Mask"
+    },
+    {
+      "id": "swizzle",
+      "len": 513,
+      "category": "Utilities"
+    },
+    {
+      "id": "particle-system",
+      "len": 511,
+      "category": "Patterns"
+    },
+    {
+      "id": "fragment-coordinates",
+      "len": 508,
+      "category": "Inputs"
+    },
+    {
+      "id": "volume-rays",
+      "len": 502,
+      "category": "Patterns"
+    },
+    {
+      "id": "mixed-wave-signal",
+      "len": 497,
+      "category": "Inputs"
+    },
+    {
+      "id": "infinite-zoom",
+      "len": 497,
+      "category": "Distort"
+    },
+    {
+      "id": "crepuscular-rays",
+      "len": 487,
+      "category": "Effects"
+    },
+    {
+      "id": "sphere-raymarch",
+      "len": 487,
+      "category": "Shapes"
+    },
+    {
+      "id": "drive-home-lights",
+      "len": 484,
+      "category": "Shapes"
+    },
+    {
+      "id": "rings",
+      "len": 475,
+      "category": "Patterns"
+    },
+    {
+      "id": "plane-grid",
+      "len": 471,
+      "category": "Patterns"
+    },
+    {
+      "id": "combine-vector",
+      "len": 468,
+      "category": "Utilities"
+    },
+    {
+      "id": "iterated-inversion",
+      "len": 467,
+      "category": "Patterns"
+    },
+    {
+      "id": "split-vector",
+      "len": 467,
+      "category": "Utilities"
+    },
+    {
+      "id": "lerp",
+      "len": 460,
+      "category": "Utilities"
+    },
+    {
+      "id": "polar-coordinates",
+      "len": 457,
+      "category": "Distort"
+    },
+    {
+      "id": "compare",
+      "len": 451,
+      "category": "Mask"
+    },
+    {
+      "id": "plane-project",
+      "len": 449,
+      "category": "Distort"
+    },
+    {
+      "id": "metaballs",
+      "len": 447,
+      "category": "Shapes"
+    },
+    {
+      "id": "warp-terrain",
+      "len": 444,
+      "category": "Patterns"
+    },
+    {
+      "id": "resolution",
+      "len": 432,
+      "category": "Inputs"
+    },
+    {
+      "id": "constant-vec3",
+      "len": 430,
+      "category": "Inputs"
+    },
+    {
+      "id": "constant-vec2",
+      "len": 427,
+      "category": "Inputs"
+    },
+    {
+      "id": "constant-vec4",
+      "len": 426,
+      "category": "Inputs"
+    },
+    {
+      "id": "color-gradient",
+      "len": 423,
+      "category": "Blend"
+    },
+    {
+      "id": "blend",
+      "len": 420,
+      "category": "Blend"
+    },
+    {
+      "id": "clamp-01",
+      "len": 416,
+      "category": "Utilities"
+    },
+    {
+      "id": "oklch-color-map",
+      "len": 409,
+      "category": "Blend"
+    },
+    {
+      "id": "saturate",
+      "len": 401,
+      "category": "Utilities"
+    }
+  ],
+  "noExamples": [
+    "constant-vec4",
+    "radial-uv-warp",
+    "ripple",
+    "brick-tiling",
+    "uv-block-glitch",
+    "uv-band-shift",
+    "infinite-zoom",
+    "warp-terrain",
+    "spherical-fibonacci",
+    "displacement-3d",
+    "iridescent-tunnel",
+    "inflated-icosahedron",
+    "star-shape-2d",
+    "iterated-inversion",
+    "plane-grid",
+    "mask-composite-float",
+    "mask-composite-vec3",
+    "edge-detection",
+    "chromatic-aberration",
+    "normal-mapping",
+    "hash32",
+    "one-minus",
+    "lerp",
+    "swizzle",
+    "bayer-dither"
+  ],
+  "needsExamples": [
+    "constant-vec4",
+    "radial-uv-warp",
+    "ripple",
+    "brick-tiling",
+    "uv-block-glitch",
+    "uv-band-shift",
+    "infinite-zoom",
+    "warp-terrain",
+    "spherical-fibonacci",
+    "displacement-3d",
+    "iridescent-tunnel",
+    "inflated-icosahedron",
+    "star-shape-2d",
+    "iterated-inversion",
+    "plane-grid",
+    "mask-composite-float",
+    "mask-composite-vec3",
+    "edge-detection",
+    "chromatic-aberration",
+    "normal-mapping",
+    "lerp",
+    "bayer-dither"
+  ],
+  "controlsMismatch": [
+    {
+      "id": "mixed-wave-signal",
+      "category": "Inputs",
+      "exposed": [
+        "Global speed",
+        "Global offset",
+        "Out min",
+        "Out max",
+        "Speed",
+        "Phase",
+        "Weight",
+        "Shape"
+      ],
+      "doc": [
+        "globalSpeed",
+        "globalOffset",
+        "w0Speed, w1Speed, w2Speed",
+        "w0Offset, w1Offset, w2Offset",
+        "w0Weight, w1Weight, w2Weight",
+        "w0Shape, w1Shape, w2Shape",
+        "outMin, outMax"
+      ],
+      "missingInDoc": [
+        "Global speed",
+        "Global offset",
+        "Out min",
+        "Out max",
+        "Speed",
+        "Phase",
+        "Weight",
+        "Shape"
+      ],
+      "extraInDoc": [
+        "globalSpeed",
+        "globalOffset",
+        "w0Speed, w1Speed, w2Speed",
+        "w0Offset, w1Offset, w2Offset",
+        "w0Weight, w1Weight, w2Weight",
+        "w0Shape, w1Shape, w2Shape",
+        "outMin, outMax"
+      ]
+    },
+    {
+      "id": "kaleidoscope",
+      "category": "Distort",
+      "exposed": [
+        "Center X",
+        "Center Y",
+        "Segments",
+        "Rotation",
+        "Smooth Edge"
+      ],
+      "doc": [
+        "Smooth Edge"
+      ],
+      "missingInDoc": [
+        "Center X",
+        "Center Y",
+        "Segments",
+        "Rotation"
+      ],
+      "extraInDoc": []
+    },
+    {
+      "id": "displace",
+      "category": "Distort",
+      "exposed": [
+        "Mode",
+        "Scale",
+        "Offset X",
+        "Offset Y"
+      ],
+      "doc": [
+        "Mode",
+        "Scale",
+        "Offset X",
+        "Offset Y",
+        "Angle",
+        "Amount"
+      ],
+      "missingInDoc": [],
+      "extraInDoc": [
+        "Angle",
+        "Amount"
+      ]
+    },
+    {
+      "id": "brick-tiling",
+      "category": "Distort",
+      "exposed": [
+        "Scale X",
+        "Scale Y",
+        "Offset X",
+        "Offset Y",
+        "Brick Amount",
+        "Brick Offset X"
+      ],
+      "doc": [
+        "Scale X / Y",
+        "Offset X / Y",
+        "Brick Amount",
+        "Brick Offset X"
+      ],
+      "missingInDoc": [
+        "Scale X",
+        "Scale Y",
+        "Offset X",
+        "Offset Y"
+      ],
+      "extraInDoc": [
+        "Scale X / Y",
+        "Offset X / Y"
+      ]
+    },
+    {
+      "id": "pixelize",
+      "category": "Distort",
+      "exposed": [
+        "Amount",
+        "Cells X",
+        "Cells Y",
+        "Space",
+        "Snap",
+        "Offset X",
+        "Offset Y",
+        "Center X",
+        "Center Y",
+        "Scale",
+        "Drift X",
+        "Drift Y"
+      ],
+      "doc": [
+        "Amount",
+        "Cells X / Y",
+        "Space",
+        "Snap",
+        "Offset X / Y",
+        "Aspect",
+        "Center X / Y & Scale",
+        "Drift X / Y"
+      ],
+      "missingInDoc": [
+        "Cells X",
+        "Cells Y",
+        "Offset X",
+        "Offset Y",
+        "Center X",
+        "Center Y",
+        "Scale",
+        "Drift X",
+        "Drift Y"
+      ],
+      "extraInDoc": [
+        "Cells X / Y",
+        "Offset X / Y",
+        "Aspect",
+        "Center X / Y & Scale",
+        "Drift X / Y"
+      ]
+    },
+    {
+      "id": "fractal",
+      "category": "Patterns",
+      "exposed": [
+        "Mode",
+        "Intensity",
+        "Scale",
+        "Iterations",
+        "Contrast",
+        "Center X",
+        "Center Y",
+        "Detail Scale",
+        "Offset X",
+        "Offset Y",
+        "Speed",
+        "Time Offset",
+        "Rotation Speed",
+        "Layer Phase"
+      ],
+      "doc": [
+        "Mode",
+        "Intensity",
+        "Scale",
+        "Detail Scale",
+        "Iterations",
+        "Contrast",
+        "Center X",
+        "Center Y",
+        "Offset X",
+        "Offset Y",
+        "Folds",
+        "Julia X",
+        "Julia Y",
+        "Speed",
+        "Rotation Speed",
+        "Layer Phase",
+        "Time Offset"
+      ],
+      "missingInDoc": [],
+      "extraInDoc": [
+        "Folds",
+        "Julia X",
+        "Julia Y"
+      ]
+    },
+    {
+      "id": "blur",
+      "category": "Effects",
+      "exposed": [
+        "Amount",
+        "Radius",
+        "Mode"
+      ],
+      "doc": [
+        "Amount",
+        "Radius",
+        "Mode",
+        "Direction",
+        "Center X",
+        "Center Y"
+      ],
+      "missingInDoc": [],
+      "extraInDoc": [
+        "Direction",
+        "Center X",
+        "Center Y"
+      ]
+    }
+  ],
+  "missingControlsDoc": [
+    {
+      "id": "constant-vec2",
+      "category": "Inputs",
+      "exposedCount": 2
+    },
+    {
+      "id": "constant-vec3",
+      "category": "Inputs",
+      "exposedCount": 3
+    },
+    {
+      "id": "constant-vec4",
+      "category": "Inputs",
+      "exposedCount": 4
+    },
+    {
+      "id": "oscillator-2d",
+      "category": "Inputs",
+      "exposedCount": 13
+    },
+    {
+      "id": "path-drive",
+      "category": "Inputs",
+      "exposedCount": 11
+    },
+    {
+      "id": "oklch-color",
+      "category": "Inputs",
+      "exposedCount": 3
+    },
+    {
+      "id": "bezier-curve",
+      "category": "Inputs",
+      "exposedCount": 4
+    },
+    {
+      "id": "polar-coordinates",
+      "category": "Distort",
+      "exposedCount": 5
+    },
+    {
+      "id": "vector-field",
+      "category": "Distort",
+      "exposedCount": 10
+    },
+    {
+      "id": "turbulence",
+      "category": "Distort",
+      "exposedCount": 5
+    },
+    {
+      "id": "radial-uv-warp",
+      "category": "Distort",
+      "exposedCount": 6
+    },
+    {
+      "id": "ripple",
+      "category": "Distort",
+      "exposedCount": 8
+    },
+    {
+      "id": "vortex",
+      "category": "Distort",
+      "exposedCount": 7
+    },
+    {
+      "id": "quad-warp",
+      "category": "Distort",
+      "exposedCount": 8
+    },
+    {
+      "id": "plane-project",
+      "category": "Distort",
+      "exposedCount": 19
+    },
+    {
+      "id": "uv-block-glitch",
+      "category": "Distort",
+      "exposedCount": 16
+    },
+    {
+      "id": "uv-band-shift",
+      "category": "Distort",
+      "exposedCount": 9
+    },
+    {
+      "id": "infinite-zoom",
+      "category": "Distort",
+      "exposedCount": 6
+    },
+    {
+      "id": "warp-terrain",
+      "category": "Patterns",
+      "exposedCount": 5
+    },
+    {
+      "id": "voronoi-noise",
+      "category": "Patterns",
+      "exposedCount": 10
+    },
+    {
+      "id": "cubic-curl-noise",
+      "category": "Patterns",
+      "exposedCount": 4
+    },
+    {
+      "id": "rings",
+      "category": "Patterns",
+      "exposedCount": 12
+    },
+    {
+      "id": "radial-pulse",
+      "category": "Patterns",
+      "exposedCount": 12
+    },
+    {
+      "id": "gradient",
+      "category": "Patterns",
+      "exposedCount": 7
+    },
+    {
+      "id": "radial-rays",
+      "category": "Patterns",
+      "exposedCount": 8
+    },
+    {
+      "id": "crepuscular-rays",
+      "category": "Effects",
+      "exposedCount": 9
+    },
+    {
+      "id": "volume-rays",
+      "category": "Patterns",
+      "exposedCount": 14
+    },
+    {
+      "id": "streak",
+      "category": "Patterns",
+      "exposedCount": 5
+    },
+    {
+      "id": "flow-field-pattern",
+      "category": "Patterns",
+      "exposedCount": 6
+    },
+    {
+      "id": "hexagonal-grid",
+      "category": "Patterns",
+      "exposedCount": 23
+    },
+    {
+      "id": "stripes",
+      "category": "Patterns",
+      "exposedCount": 10
+    },
+    {
+      "id": "dots",
+      "category": "Patterns",
+      "exposedCount": 4
+    },
+    {
+      "id": "disco-pattern",
+      "category": "Patterns",
+      "exposedCount": 3
+    },
+    {
+      "id": "triangle-grid",
+      "category": "Patterns",
+      "exposedCount": 6
+    },
+    {
+      "id": "particle-system",
+      "category": "Patterns",
+      "exposedCount": 7
+    },
+    {
+      "id": "rain-drops",
+      "category": "Distort",
+      "exposedCount": 6
+    },
+    {
+      "id": "sphere-raymarch",
+      "category": "Shapes",
+      "exposedCount": 14
+    },
+    {
+      "id": "spherical-fibonacci",
+      "category": "Shapes",
+      "exposedCount": 5
+    },
+    {
+      "id": "bloom-sphere",
+      "category": "Shapes",
+      "exposedCount": 22
+    },
+    {
+      "id": "box-torus-sdf",
+      "category": "Shapes",
+      "exposedCount": 31
+    },
+    {
+      "id": "glass-shell",
+      "category": "Shapes",
+      "exposedCount": 31
+    },
+    {
+      "id": "displacement-3d",
+      "category": "Distort",
+      "exposedCount": 10
+    },
+    {
+      "id": "iridescent-tunnel",
+      "category": "Shapes",
+      "exposedCount": 19
+    },
+    {
+      "id": "inflated-icosahedron",
+      "category": "Shapes",
+      "exposedCount": 18
+    },
+    {
+      "id": "shapes-2d",
+      "category": "Shapes",
+      "exposedCount": 8
+    },
+    {
+      "id": "metaballs",
+      "category": "Shapes",
+      "exposedCount": 11
+    },
+    {
+      "id": "iterated-inversion",
+      "category": "Patterns",
+      "exposedCount": 13
+    },
+    {
+      "id": "plane-grid",
+      "category": "Patterns",
+      "exposedCount": 6
+    },
+    {
+      "id": "sky-dome",
+      "category": "Shapes",
+      "exposedCount": 16
+    },
+    {
+      "id": "blend",
+      "category": "Blend",
+      "exposedCount": 3
+    },
+    {
+      "id": "compare",
+      "category": "Mask",
+      "exposedCount": 2
+    },
+    {
+      "id": "select",
+      "category": "Mask",
+      "exposedCount": 1
+    },
+    {
+      "id": "glow-bloom",
+      "category": "Effects",
+      "exposedCount": 4
+    },
+    {
+      "id": "bokeh",
+      "category": "Effects",
+      "exposedCount": 6
+    },
+    {
+      "id": "edge-detection",
+      "category": "Effects",
+      "exposedCount": 4
+    },
+    {
+      "id": "chromatic-aberration",
+      "category": "Effects",
+      "exposedCount": 5
+    },
+    {
+      "id": "rgb-separation",
+      "category": "Effects",
+      "exposedCount": 7
+    },
+    {
+      "id": "scanlines",
+      "category": "Effects",
+      "exposedCount": 5
+    },
+    {
+      "id": "color-grading",
+      "category": "Effects",
+      "exposedCount": 8
+    },
+    {
+      "id": "normal-mapping",
+      "category": "Effects",
+      "exposedCount": 5
+    },
+    {
+      "id": "lighting-shading",
+      "category": "Effects",
+      "exposedCount": 11
+    },
+    {
+      "id": "lerp",
+      "category": "Utilities",
+      "exposedCount": 3
+    },
+    {
+      "id": "swizzle",
+      "category": "Utilities",
+      "exposedCount": 1
+    },
+    {
+      "id": "combine-vector",
+      "category": "Utilities",
+      "exposedCount": 3
+    },
+    {
+      "id": "oklch-color-map",
+      "category": "Blend",
+      "exposedCount": 20
+    },
+    {
+      "id": "color-gradient",
+      "category": "Blend",
+      "exposedCount": 21
+    },
+    {
+      "id": "tone-mapping",
+      "category": "Effects",
+      "exposedCount": 3
+    }
+  ],
+  "jargonWithoutGloss": [
+    {
+      "id": "orbit-camera",
+      "term": "SDF"
+    },
+    {
+      "id": "bezier-curve",
+      "term": "OKLCH"
+    },
+    {
+      "id": "circle-inversion",
+      "term": "SDF"
+    },
+    {
+      "id": "warp-terrain",
+      "term": "FBM"
+    },
+    {
+      "id": "sphere-raymarch",
+      "term": "SDF"
+    },
+    {
+      "id": "glass-shell",
+      "term": "SDF"
+    },
+    {
+      "id": "glass-shell",
+      "term": "OKLCH"
+    },
+    {
+      "id": "displacement-3d",
+      "term": "SDF"
+    },
+    {
+      "id": "displacement-3d",
+      "term": "FBM"
+    },
+    {
+      "id": "iridescent-tunnel",
+      "term": "OKLCH"
+    },
+    {
+      "id": "inflated-icosahedron",
+      "term": "SDF"
+    },
+    {
+      "id": "star-shape-2d",
+      "term": "SDF"
+    },
+    {
+      "id": "sky-dome",
+      "term": "OKLCH"
+    },
+    {
+      "id": "drive-home-lights",
+      "term": "OKLCH"
+    },
+    {
+      "id": "mask-composite-vec3",
+      "term": "OKLCH"
+    },
+    {
+      "id": "oklch-color-map",
+      "term": "OKLCH"
+    },
+    {
+      "id": "color-gradient",
+      "term": "OKLCH"
+    },
+    {
+      "id": "tone-mapping",
+      "term": "OKLCH"
+    }
+  ],
+  "byCategory": {
+    "Inputs": {
+      "total": 15,
+      "longDesc": 12,
+      "noExamples": 1,
+      "controlsMismatch": 8
+    },
+    "MIDI": {
+      "total": 11,
+      "longDesc": 0,
+      "noExamples": 0,
+      "controlsMismatch": 0
+    },
+    "Distort": {
+      "total": 23,
+      "longDesc": 8,
+      "noExamples": 7,
+      "controlsMismatch": 17
+    },
+    "Patterns": {
+      "total": 20,
+      "longDesc": 10,
+      "noExamples": 3,
+      "controlsMismatch": 19
+    },
+    "Effects": {
+      "total": 13,
+      "longDesc": 4,
+      "noExamples": 4,
+      "controlsMismatch": 12
+    },
+    "Shapes": {
+      "total": 13,
+      "longDesc": 11,
+      "noExamples": 4,
+      "controlsMismatch": 10
+    },
+    "SDF": {
+      "total": 11,
+      "longDesc": 0,
+      "noExamples": 0,
+      "controlsMismatch": 0
+    },
+    "Math": {
+      "total": 33,
+      "longDesc": 0,
+      "noExamples": 0,
+      "controlsMismatch": 0
+    },
+    "Blend": {
+      "total": 4,
+      "longDesc": 3,
+      "noExamples": 0,
+      "controlsMismatch": 3
+    },
+    "Mask": {
+      "total": 5,
+      "longDesc": 5,
+      "noExamples": 2,
+      "controlsMismatch": 2
+    },
+    "Utilities": {
+      "total": 13,
+      "longDesc": 6,
+      "noExamples": 4,
+      "controlsMismatch": 3
+    },
+    "Output": {
+      "total": 1,
+      "longDesc": 0,
+      "noExamples": 0,
+      "controlsMismatch": 0
+    }
+  }
+}

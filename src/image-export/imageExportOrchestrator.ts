@@ -10,7 +10,7 @@ import type { NodeGraph } from '../data-model/types';
 import type { AudioSetup } from '../data-model/audioSetupTypes';
 import type { ShaderCompiler } from '../runtime/types';
 import { createExportRenderPath } from '../video-export/ExportRenderPath';
-import type { FrameAudioState } from '../video-export/OfflineAudioProvider';
+import { buildExportFrameState } from '../video-export/buildExportFrameState';
 import ImageExportDialog from '../lib/components/export/ImageExportDialog.svelte';
 import type { ImageExportConfirmPayload } from './types';
 import { renderWebGpuExportRgba8 } from './WebGpuExportRenderPath';
@@ -221,11 +221,15 @@ function createPreviewController(
     if (disposed) return null;
     const [w, h] = previewSize(opts.targetWidth, opts.targetHeight);
     const t = Math.max(0, Number.isFinite(opts.timeSeconds) ? opts.timeSeconds : 0);
-    const frameState: FrameAudioState = {
-      channelSamples: [],
-      uniformUpdates: [],
-      timelineTime: t,
-    };
+    // frameRate=1, frameIndex=t → uTime=t; override keeps MIDI eval at scrub time (not frame-center).
+    const frameState = buildExportFrameState({
+      graph,
+      audioSetup,
+      frameIndex: t,
+      frameRate: 1,
+      startTimeSeconds: 0,
+      timelineTimeOverride: t,
+    });
 
     if (exportRasterBackend === 'webgpu') {
       try {
@@ -310,11 +314,16 @@ export async function runImageExportFlow(options: ImageExportOrchestratorOptions
 
     const timeSeconds = config.mode === 'time' ? Math.max(0, config.timeSeconds) : initialTimeSeconds;
 
-    const frameState: FrameAudioState = {
-      channelSamples: [],
-      uniformUpdates: [],
-      timelineTime: timeSeconds,
-    };
+    const frameState = buildExportFrameState({
+      graph: options.graph,
+      audioSetup: options.audioSetup,
+      frameIndex: 0,
+      frameRate: 1,
+      startTimeSeconds: timeSeconds,
+      shaderTime: timeSeconds,
+      timelineTimeOverride: timeSeconds,
+      replayStatefulDrivers: true,
+    });
 
     if (options.exportRasterBackend === 'webgpu') {
       const wg = await renderWebGpuExportRgba8(options.graph, options.compiler, options.audioSetup, {

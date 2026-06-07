@@ -1403,8 +1403,8 @@ export function mvpStripesGraph(): NodeGraph {
         type: 'stripes',
         position: { x: 0, y: 0 },
         parameters: {
-          waveScale: 1.4,
-          waveFrequency: 10.0,
+          waveFrequency: 14.0,
+          waveThickness: 1.0,
           waveAmplitude: 1.0,
           waveType: 3,
           waveDirection: 25.0,
@@ -1626,7 +1626,6 @@ export function mvpFlowFieldPatternGraph(): NodeGraph {
         position: { x: 0, y: 0 },
         parameters: {
           flowScale: 2.2,
-          flowCurlScale: 1.0,
           flowTimeSpeed: 1.1,
           flowTimeOffset: 0.0,
           flowOctaves: 3,
@@ -3393,8 +3392,6 @@ export function mvpGenericRaymarcherSierpinskiTetraScaleAudioSetup(): AudioSetup
         bandId: MVP_STETRA_AUDIO_BAND_ID,
         inMin: 0,
         inMax: 1,
-        outMin: 1.5,
-        outMax: 2.5,
       },
     ],
   };

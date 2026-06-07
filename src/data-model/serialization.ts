@@ -20,7 +20,12 @@ import type {
   MidiEnvelopeAdsr,
   MidiEnvelopeRemapper,
 } from './midiEnvelopeTypes';
-import { DEFAULT_MIDI_ENVELOPE_ADSR, DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT } from './midiEnvelopeTypes';
+import {
+  DEFAULT_MIDI_ENVELOPE_ADSR,
+  DEFAULT_MIDI_ENVELOPE_REMAPPER_INPUT,
+  DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT,
+  isMidiEnvelopeRetriggerPolicy,
+} from './midiEnvelopeTypes';
 import { migrateLegacyMidiEnvelopeBindings } from './midiEnvelopePresetMigration';
 import { migrateMidiEnvelopePresetToRemappers } from './midiEnvelopeRemapperMigration';
 import { isEnvelopeCurve } from '../utils/envelopeEasing';
@@ -33,6 +38,7 @@ import { ensureBandAttackReleaseHalfLives } from './audioSmoothingMigration';
 import { ensureBandMode } from './audioBandModeMigration';
 import { migrateDomainRepetitionToTiling } from './tilingUnifyMigration';
 import { migrateRemoveColorMapNodes } from './colorMapNodeRemovalMigration';
+import { migrateDriverRemapOutToTargets } from './driverRemapPerTargetOutMigration';
 
 const CURRENT_FORMAT_VERSION = '2.0' as const;
 
@@ -95,6 +101,10 @@ const MIGRATIONS_BY_VERSION: Record<string, MigrationStep[]> = {
       ...ctx,
       graph: migrateRemoveColorMapNodes(ctx.graph),
     }),
+    (ctx: MigrationContext): MigrationContext => {
+      const migrated = migrateDriverRemapOutToTargets(ctx.graph, ctx.audioSetup);
+      return { graph: migrated.graph, audioSetup: migrated.audioSetup };
+    },
   ],
 };
 
@@ -402,20 +412,20 @@ function sanitizeMidiEnvelopeRemapper(val: unknown): MidiEnvelopeRemapper | null
   if (!val || typeof val !== 'object') return null;
   const o = val as Record<string, unknown>;
   if (typeof o.id !== 'string' || typeof o.envelopePresetId !== 'string') return null;
-  const outMin =
-    typeof o.outMin === 'number' && Number.isFinite(o.outMin)
-      ? o.outMin
-      : DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT.outMin;
-  const outMax =
-    typeof o.outMax === 'number' && Number.isFinite(o.outMax)
-      ? o.outMax
-      : DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT.outMax;
+  const inMin =
+    typeof o.inMin === 'number' && Number.isFinite(o.inMin)
+      ? o.inMin
+      : DEFAULT_MIDI_ENVELOPE_REMAPPER_INPUT.inMin;
+  const inMax =
+    typeof o.inMax === 'number' && Number.isFinite(o.inMax)
+      ? o.inMax
+      : DEFAULT_MIDI_ENVELOPE_REMAPPER_INPUT.inMax;
   const name = typeof o.name === 'string' && o.name.trim() ? o.name.trim() : undefined;
   return {
     id: o.id,
     envelopePresetId: o.envelopePresetId,
-    outMin,
-    outMax,
+    inMin,
+    inMax,
     ...(name ? { name } : {}),
   };
 }
@@ -428,11 +438,15 @@ function sanitizeMidiEnvelopePreset(val: unknown): MidiEnvelopePreset | null {
     ? o.trackIds.filter((t): t is string => typeof t === 'string')
     : [];
   const label = typeof o.label === 'string' && o.label.trim() ? o.label.trim() : undefined;
+  const retriggerPolicy = isMidiEnvelopeRetriggerPolicy(o.retriggerPolicy)
+    ? o.retriggerPolicy
+    : undefined;
   return {
     id: o.id,
     ...(label ? { label } : {}),
     trackIds,
     envelope: sanitizeEnvelopeDefinition(o.envelope),
+    ...(retriggerPolicy ? { retriggerPolicy } : {}),
   };
 }
 
@@ -443,11 +457,21 @@ function sanitizeMidiEnvelopeBinding(val: unknown): MidiEnvelopeBinding | null {
     return null;
   }
   if (typeof o.remapperId === 'string') {
+    const outMin =
+      typeof o.outMin === 'number' && Number.isFinite(o.outMin)
+        ? o.outMin
+        : DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT.outMin;
+    const outMax =
+      typeof o.outMax === 'number' && Number.isFinite(o.outMax)
+        ? o.outMax
+        : DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT.outMax;
     return {
       id: o.id,
       remapperId: o.remapperId,
       nodeId: o.nodeId,
       paramName: o.paramName,
+      outMin,
+      outMax,
       ...(o.disabled === true ? { disabled: true } : {}),
     };
   }

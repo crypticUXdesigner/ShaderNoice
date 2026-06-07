@@ -3,6 +3,7 @@
    * Wide ADSR envelope editor — visual shape + draggable handles + compact numeric controls.
    * Layout mirrors RemapRangeEditor: graph strip is wider than tall.
    */
+  import type { Snippet } from 'svelte';
   import { Button, ButtonGroup } from '../button';
   import EnvelopeCurveIcon from '../icon/EnvelopeCurveIcon.svelte';
   import ValueInput from './ValueInput.svelte';
@@ -26,6 +27,8 @@
     onOutMinChange?: (value: number) => void;
     onOutMaxChange?: (value: number) => void;
     onVelocityToPeakChange?: (velocityToPeak: boolean) => void;
+    /** Full-width row below ADSR numeric controls (e.g. MIDI overlap mode). */
+    controlsTrail?: Snippet;
   }
 
   type HandleId = 'attack' | 'decaySustain' | 'release';
@@ -128,6 +131,7 @@
     onOutMinChange,
     onOutMaxChange,
     onVelocityToPeakChange,
+    controlsTrail,
   }: Props = $props();
 
   const showOutputControls = $derived(outMin != null && outMax != null);
@@ -630,6 +634,12 @@
       </div>
     {/if}
   </div>
+
+  {#if controlsTrail}
+    <div class="controls-trail" role="presentation" onpointerdown={stopCardSelect} onclick={stopCardSelect}>
+      {@render controlsTrail()}
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -744,6 +754,10 @@
     font-size: var(--text-2xs);
     color: var(--color-gray-100);
     text-align: center;
+  }
+
+  .controls-trail {
+    width: 100%;
   }
 
   .controls-grid {

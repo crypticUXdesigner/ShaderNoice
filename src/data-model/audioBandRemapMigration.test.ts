@@ -62,9 +62,8 @@ describe('migrateBandRemapToRemappers', () => {
       bandId,
       inMin: 0,
       inMax: 0.52,
-      outMin: 0.51,
-      outMax: 1,
     });
+    expect(outSetup.remappers[0]).not.toHaveProperty('outMin');
     expect(outGraph.connections[0].sourceNodeId).toBe(
       `audio-signal:remap-band-${bandId}`
     );
@@ -136,8 +135,6 @@ describe('migrateBandRemapToRemappers', () => {
           bandId,
           inMin: 0,
           inMax: 1,
-          outMin: 0,
-          outMax: 1,
         },
       ],
     };

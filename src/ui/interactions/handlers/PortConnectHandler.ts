@@ -10,6 +10,7 @@
 import { InteractionType } from '../InteractionTypes';
 import type { InteractionEvent, InteractionHandler } from '../InteractionHandler';
 import type { HandlerContext } from '../HandlerContext';
+import type { ConnectSource } from '../../editor/canvas/connectTargetResolver';
 
 export class PortConnectHandler implements InteractionHandler {
   priority = 45; // High priority - port connection is specific interaction
@@ -98,19 +99,7 @@ export class PortConnectHandler implements InteractionHandler {
     this.connectionMouseX = event.screenPosition.x;
     this.connectionMouseY = event.screenPosition.y;
     
-    // Check if hovering over a valid target port (for snap highlight and for release fallback)
-    const portHit = this.context.hitTestPort?.(event.screenPosition.x, event.screenPosition.y);
-    if (portHit && portHit.nodeId !== this.connectionStartNodeId) {
-      if (this.connectionStartIsOutput && !portHit.isOutput) {
-        this.hoveredPort = portHit; // output → input or param
-      } else if (!this.connectionStartIsOutput && portHit.isOutput) {
-        this.hoveredPort = portHit; // input → output
-      } else {
-        this.hoveredPort = null;
-      }
-    } else {
-      this.hoveredPort = null;
-    }
+    this.hoveredPort = this.resolveConnectTargetAt(event.screenPosition.x, event.screenPosition.y);
     
     // Update NodeEditorCanvas state for rendering
     this.context.setConnectionState?.({
@@ -214,6 +203,27 @@ export class PortConnectHandler implements InteractionHandler {
     parameter?: string;
   } | null {
     return this.hoveredPort;
+  }
+
+  private getConnectSource(): ConnectSource | null {
+    if (!this.connectionStartNodeId) return null;
+    return {
+      nodeId: this.connectionStartNodeId,
+      port: this.connectionStartPort ?? '',
+      isOutput: this.connectionStartIsOutput,
+      parameter: this.connectionStartParameter,
+    };
+  }
+
+  private resolveConnectTargetAt(screenX: number, screenY: number): {
+    nodeId: string;
+    port: string;
+    isOutput: boolean;
+    parameter?: string;
+  } | null {
+    const source = this.getConnectSource();
+    if (!source) return null;
+    return this.context.resolveConnectTarget?.(source, screenX, screenY) ?? null;
   }
   
   /**

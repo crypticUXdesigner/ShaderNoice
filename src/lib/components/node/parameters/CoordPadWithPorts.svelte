@@ -9,12 +9,14 @@
   import ParamPort from './ParamPort.svelte';
   import { ModeButton, Button, IconSvg } from '../../ui';
   import type { AttachedDriverKind, ParamPortState } from './ParamPort.svelte';
+  import type { ParamPortDriverCellDisplay } from '../../../../utils/paramPortAudioState';
   import type { IconName } from '../../../../utils/icons';
   interface PortGroupProps {
     label: string;
     portId: string;
     portState: ParamPortState;
     signalName: string;
+    driverCell?: ParamPortDriverCellDisplay | null;
     liveValue: number;
     attachedDriverKind?: AttachedDriverKind;
     /** Evaluable automation lane on this axis only. */
@@ -144,7 +146,17 @@
           ariaLabel="Center X mode"
         />
       {/if}
-      {#if portGroupX.portState === 'audio-connected' && portGroupX.signalName}
+      {#if portGroupX.driverCell}
+        <div class="signal">
+          <span class="name">{portGroupX.driverCell.label}</span>
+          <div class="peak" role="img" aria-label={portGroupX.driverCell.meterAriaLabel}>
+            <div
+              class="fill"
+              style="width: {Math.max(0, Math.min(100, portGroupX.driverCell.meterLevel * 100))}%"
+            ></div>
+          </div>
+        </div>
+      {:else if portGroupX.portState === 'audio-connected' && portGroupX.signalName}
         <div class="signal">
           <span class="name">{portGroupX.signalName}</span>
           <div class="peak" role="img" aria-label="X input signal level">
@@ -177,7 +189,17 @@
           ariaLabel="Center Y mode"
         />
       {/if}
-      {#if portGroupY.portState === 'audio-connected' && portGroupY.signalName}
+      {#if portGroupY.driverCell}
+        <div class="signal">
+          <span class="name">{portGroupY.driverCell.label}</span>
+          <div class="peak" role="img" aria-label={portGroupY.driverCell.meterAriaLabel}>
+            <div
+              class="fill"
+              style="width: {Math.max(0, Math.min(100, portGroupY.driverCell.meterLevel * 100))}%"
+            ></div>
+          </div>
+        </div>
+      {:else if portGroupY.portState === 'audio-connected' && portGroupY.signalName}
         <div class="signal">
           <span class="name">{portGroupY.signalName}</span>
           <div class="peak" role="img" aria-label="Y input signal level">

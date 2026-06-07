@@ -22,8 +22,10 @@ import type { ErrorHandler } from '../utils/errorHandling';
 import { globalErrorHandler, ErrorUtils } from '../utils/errorHandling';
 import type { Disposable } from '../utils/Disposable';
 import { GraphChangeDetector } from '../utils/changeDetection/GraphChangeDetector';
+import { automationEqual } from '../utils/changeDetection/automationComparison';
 import { isCompileTimeBakeParameter } from '../utils/compileTimeBakeParams';
 import { isRuntimeOnlyParameter } from '../utils/runtimeOnlyParams';
+import { isParameterUniformSuppressedByConnection } from '../utils/resolveParameterInputMode';
 import {
   applyUniformDefaults as applyUniformDefaultsImpl,
   transferParameters as transferParametersImpl,
@@ -557,6 +559,8 @@ export class CompilationManager implements Disposable {
     this.immediateCompileScheduled = false;
     this.clearPendingRecompileKickRafs();
     this.clearPendingSchedulerBridgeRaf();
+    this.clearPendingWorkerApplyRaf();
+    this.clearPendingApplyRetryRaf();
     if (this.compileIdleCallback !== null && typeof window !== 'undefined' && window.cancelIdleCallback) {
       window.cancelIdleCallback(this.compileIdleCallback);
       this.compileIdleCallback = null;
@@ -596,32 +600,8 @@ export class CompilationManager implements Disposable {
   ): void {
     if (!this.graph || !this.shaderInstance) return;
     
-    // Update uniform immediately (cheap operation, doesn't block)
-    // Check if parameter is connected to an output
-    const isConnected = this.graph.connections.some(
-      conn => conn.targetNodeId === nodeId && conn.targetParameter === paramName
-    );
-    
-    if (isConnected) {
-      // Parameter has input connection - check the input mode
-      const node = this.graph.nodes.find(n => n.id === nodeId);
-      if (node) {
-        // Get the input mode from node override (if explicitly set)
-        const inputMode = node.parameterInputModes?.[paramName];
-        
-        // If mode is explicitly set to 'override', the input completely replaces the config value,
-        // so the uniform is not used and we can skip updating it.
-        // But if mode is 'add', 'subtract', 'multiply', or undefined (might default to something other than override),
-        // the uniform IS used in the combination expression, so we MUST update it.
-        // To be safe and ensure correctness, we'll update the uniform unless mode is explicitly 'override'.
-        if (inputMode !== 'override') {
-          // Mode is add/subtract/multiply or undefined - uniform is used in combination, so update it
-          this.shaderInstance.setParameter(nodeId, paramName, value);
-        }
-        // If mode is explicitly 'override', skip uniform update (input completely replaces config)
-      }
-    } else {
-      // No input connection - just update uniform
+    const node = this.graph.nodes.find(n => n.id === nodeId);
+    if (!node || !isParameterUniformSuppressedByConnection(this.graph, node, paramName)) {
       this.shaderInstance.setParameter(nodeId, paramName, value);
     }
     
@@ -764,6 +744,8 @@ export class CompilationManager implements Disposable {
           this.renderer.markDirty('compilation');
           this.renderer.render();
 
+          this.renderer.finalizeWebGpuProgramSwap?.();
+
           // WebGpuRenderBackend may return the same `PreviewProgramInstance` when WGSL + param
           // layout are unchanged (pipeline reuse). Destroying it would mark the live GPU pipeline
           // destroyed and freeze preview until a graph-mutating recompile.
@@ -780,6 +762,7 @@ export class CompilationManager implements Disposable {
             // Preserve program pending semantics for the caller (recompileExecute will schedule retry).
             throw e;
           }
+          this.renderer.rollbackWebGpuProgramSwap?.();
           try {
             maybe.destroy();
           } catch {
@@ -864,7 +847,9 @@ export class CompilationManager implements Disposable {
       this.renderer.render();
 
       // First render succeeded; now it is safe to release the previous instance.
-      prevInstance?.destroy();
+      if (prevInstance != null && prevInstance !== newInstance) {
+        prevInstance.destroy();
+      }
 
       this.onRecompiled?.();
       this.lastSuccessfulCompileAudioFingerprint = this.computeAudioCompileFingerprint();
@@ -921,6 +906,9 @@ export class CompilationManager implements Disposable {
     const changes = this.detectGraphChanges(this.graph);
     const previousResult = this.compilationMetadata?.result ?? null;
 
+    const automationChanged =
+      priorGraph !== null && !automationEqual(priorGraph.automation, this.graph.automation);
+
     const audioNeedsCompile =
       this.lastSuccessfulCompileAudioFingerprint === null ||
       this.computeAudioCompileFingerprint() !== this.lastSuccessfulCompileAudioFingerprint;
@@ -936,6 +924,7 @@ export class CompilationManager implements Disposable {
       return;
     }
     const tryIncremental =
+      !automationChanged &&
       previousResult !== null &&
       changes.removedNodes.length === 0 &&
       changes.removedConnectionIds.length === 0 &&
@@ -984,6 +973,11 @@ export class CompilationManager implements Disposable {
     if (!outputNodeId) return false;
 
     if (!graph.nodes.some((n) => n.id === outputNodeId)) return false;
+
+    // Automation is baked into global evalAutomation_* helpers; never idle-skip when lanes/curves differ.
+    if (priorGraph !== null && !automationEqual(priorGraph.automation, graph.automation)) {
+      return false;
+    }
 
     // If output node was removed or changed, we must recompile.
     if (changes.removedNodes.includes(outputNodeId) || changes.changedNodeIds.has(outputNodeId)) return false;

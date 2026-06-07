@@ -1,8 +1,14 @@
 import type { NodeGraph } from '../../data-model/types';
 import type { NodeSpec } from '../../types/nodeSpec';
 import { isAutomationLaneDriving } from '../../utils/automationEvaluator';
+import { buildRemapperTargetOutExpression } from '../../utils/driverRemap';
+import { getSignalIdFromVirtualNodeId } from '../../utils/virtualNodes';
 import { formatParamLiteralForGlsl } from './MainCodeGeneratorUtils';
 import { resolveFloatParameterInputVarsFromConnections } from './resolveFloatParameterInputVarsFromConnections';
+import {
+  isAudioVirtualDriverConnection,
+  resolveParameterInputMode,
+} from '../../utils/resolveParameterInputMode';
 
 export type FloatParamExpressionMap = Record<string, string> & {
   __hasInputConnections?: boolean;
@@ -106,12 +112,29 @@ export function buildFloatParamExpressions(
     const paramInputVar = parameterInputVars.get(paramName);
     if (paramInputVar) {
       hasInputConnections = true;
-      const inputMode =
-        node.parameterInputModes?.[paramName] ||
-        paramSpec.inputMode ||
-        'override';
+      const connection = graph.connections.find(
+        (c) =>
+          !c.disabled &&
+          c.targetNodeId === node.id &&
+          c.targetParameter === paramName
+      );
+      const inputMode = resolveParameterInputMode(node, paramName, paramSpec, connection);
+      const isAudioDriver =
+        connection != null && isAudioVirtualDriverConnection(connection);
       if (inputMode === 'override') {
-        expressions[paramName] = clampFloatExpression(paramInputVar, paramSpec);
+        if (isAudioDriver && connection) {
+          const signalId = getSignalIdFromVirtualNodeId(connection.sourceNodeId);
+          expressions[paramName] = buildRemapperTargetOutExpression(
+            paramInputVar,
+            connection,
+            signalId,
+            (value) => formatParamLiteralForGlsl(value, { type: 'float' })
+          );
+        } else {
+          expressions[paramName] = isAudioDriver
+            ? paramInputVar
+            : clampFloatExpression(paramInputVar, paramSpec);
+        }
       } else {
         const automationExpr = getAutomationExpressionForParam(
           node.id,

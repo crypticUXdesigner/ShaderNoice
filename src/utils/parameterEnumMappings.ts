@@ -170,8 +170,23 @@ export function getParameterEnumMappings(
     return { 0: 'Simplex 2D', 1: 'Simplex 3D', 2: 'Value fBm' };
   }
 
-  // wave-patterns
-  if (nodeId === 'wave-patterns' && paramName === 'waveType') {
+  // fractal
+  if (nodeId === 'fractal' && paramName === 'fractalMode') {
+    return {
+      0: 'KIFS',
+      1: 'Kaleidoscope',
+      2: 'Cross',
+      3: 'Julia',
+      4: 'Orbit trap',
+      5: 'Min distance'
+    };
+  }
+
+  // stripes (and legacy wave-patterns id)
+  if (
+    (nodeId === 'stripes' || nodeId === 'wave-patterns') &&
+    paramName === 'waveType'
+  ) {
     return { 0: 'Sine', 1: 'Cosine', 2: 'Square', 3: 'Triangle' };
   }
 
@@ -302,6 +317,14 @@ export function getParameterEnumMappings(
   // displace
   if (nodeId === 'displace' && paramName === 'displaceMode') {
     return { 0: 'Vector offset', 1: 'Directional' };
+  }
+
+  if (nodeId === 'pixelize' && paramName === 'pixelizeSpace') {
+    return { 0: 'UV', 1: 'Screen' };
+  }
+
+  if (nodeId === 'pixelize' && paramName === 'pixelizeSnap') {
+    return { 0: 'Floor', 1: 'Center', 2: 'Round' };
   }
 
   // uv-band-shift

@@ -10,6 +10,7 @@
   import ParamPort from './ParamPort.svelte';
   import { ModeButton, IconSvg } from '../../ui';
   import type { ParamPortState, AttachedDriverKind } from './ParamPort.svelte';
+  import type { ParamPortDriverCellDisplay } from '../../../../utils/paramPortAudioState';
   import type { IconName } from '../../../../utils/icons';
 
   interface Props {
@@ -23,6 +24,8 @@
     paramName?: string;
     portState?: ParamPortState;
     signalName?: string;
+    /** Audio/MIDI driver label + peak meter in the port row (preferred over legacy signalName + liveValue). */
+    driverCell?: ParamPortDriverCellDisplay | null;
     attachedDriverKind?: AttachedDriverKind;
     liveValue?: number;
     supportsAudio?: boolean;
@@ -54,6 +57,7 @@
     paramName = '',
     portState = 'default',
     signalName = '',
+    driverCell = null,
     attachedDriverKind = null,
     liveValue = 0,
     supportsAudio,
@@ -150,7 +154,17 @@
           : 'Parameter mode. Click when connected.'}
       />
     {/if}
-    {#if portState === 'audio-connected' && signalName && !driverBypassed}
+    {#if driverCell && !driverBypassed}
+      <div class="signal">
+        <span class="name">{driverCell.label}</span>
+        <div class="peak" role="img" aria-label={driverCell.meterAriaLabel}>
+          <div
+            class="fill"
+            style="width: {Math.max(0, Math.min(100, driverCell.meterLevel * 100))}%"
+          ></div>
+        </div>
+      </div>
+    {:else if portState === 'audio-connected' && signalName && !driverBypassed}
       <div class="signal">
         <span class="name">{signalName}</span>
         <div class="peak" role="img" aria-label="Input signal level">

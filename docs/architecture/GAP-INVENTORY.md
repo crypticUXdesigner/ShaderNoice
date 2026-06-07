@@ -1,8 +1,10 @@
 # WebGPU compile gap inventory (data-model valid → WGSL MVP `supported: false`)
 
-**Purpose:** Prioritize **wire-time** and other editor guards so **WebGPU** sessions fail predictably, not only at compile/export. **Sources of truth:** [`WgslMvpCompiler.ts`](../../src/shaders/compilation/WgslMvpCompiler.ts), [`COVERAGE-MATRIX.md`](./COVERAGE-MATRIX.md), [`wgsl-coverage-ledger.md`](../implementation/webgpu-migration/wgsl-coverage-ledger.md) (regenerate via `npx tsx scripts/generate-wgsl-coverage-ledger-table.ts --write-doc`).
+**Last reviewed:** 2026-06-07
 
-**Counts (snapshot, see COVERAGE-MATRIX):** ~**143** registered `nodeSystemSpecs` ids vs **141** in `WGSL_SUPPORTED_NODE_TYPES`; **2** types are **pass-plan-only** (not fullscreen-inline): `glow-bloom`, `crepuscular-rays`. **4** types participate in `webgpuPassPlan`: `blur`, `bokeh`, `glow-bloom`, `crepuscular-rays`.
+**Purpose:** Prioritize **wire-time** and other editor guards so **WebGPU** sessions fail predictably, not only at compile/export. **Sources of truth:** [`WgslMvpCompiler.ts`](../../src/shaders/compilation/WgslMvpCompiler.ts), [`COVERAGE-MATRIX.md`](./COVERAGE-MATRIX.md), [`wgsl-coverage-ledger.md`](./wgsl-coverage-ledger.md) (regenerate via `npx tsx scripts/generate-wgsl-coverage-ledger-table.ts --write-doc`).
+
+**Counts (snapshot, see COVERAGE-MATRIX):** **162** registered `nodeSystemSpecs` ids; **163** in `WGSL_SUPPORTED_NODE_TYPES` (includes legacy transform ids retained for parity); **2** registered types are **pass-plan-only** (not fullscreen-inline): `glow-bloom`, `crepuscular-rays`. **4** types participate in `webgpuPassPlan`: `blur`, `bokeh`, `glow-bloom`, `crepuscular-rays`.
 
 ## Summary — largest “surprise” buckets for finishers
 

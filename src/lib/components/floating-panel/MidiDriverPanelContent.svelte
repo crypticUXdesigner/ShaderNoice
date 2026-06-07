@@ -10,6 +10,7 @@
   import type { MidiEnvelopePreset, MidiEnvelopeRemapper } from '../../../data-model/midiEnvelopeTypes';
   import {
     addMidiEnvelopeBinding,
+    addMidiEnvelopePreset,
     addMidiEnvelopeRemapper,
     connectMidiEnvelopeRemapperToParam,
     duplicateMidiEnvelopeRemapper,
@@ -21,9 +22,14 @@
     unbindMidiEnvelopeBindingForParam,
     updateMidiEnvelopePreset,
     updateMidiEnvelopeRemapper,
+    updateMidiEnvelopeBindingOut,
   } from '../../../data-model';
   import { listArrangementTracksForFilter } from '../../../audiotool/arrangement/arrangementTrackFilter';
-  import { prepareGraphForMidiDriverAttach } from '../../../utils/parameterDriverAttach';
+  import {
+    applyMidiRemapperConnectDefaults,
+    prepareGraphForMidiDriverAttach,
+  } from '../../../utils/parameterDriverAttach';
+  import { defaultDriverRemapOutForParam, resolveMidiBindingOut } from '../../../utils/driverRemap';
   import { confirmDeleteDriverAsset } from '../../../utils/confirmDriverAssetDelete';
   import { getMidiEnvelopeRemapperConnections } from '../../../utils/getMidiEnvelopeRemapperConnections';
   import { getMidiEnvelopePresetConnections } from '../../../utils/getMidiEnvelopePresetConnections';
@@ -36,7 +42,6 @@
   import DriverFocusedHeader from './DriverFocusedHeader.svelte';
   import {
     formatDriverMidiTrackSetSourceText,
-    resolveDriverConnectionTargetDisplay,
     resolveDriverTargetDisplay,
   } from './driverTargetDisplay';
   import { getParameterDriverKindMeta } from '../../../utils/parameterDriverKindMeta';
@@ -66,6 +71,7 @@
     onBrowseOverview,
     arrangementImportBusy = false,
     onImportArrangement,
+    hasConnectTarget = true,
   }: MidiDriverPanelProps = $props();
 
   let activeNavPresetId = $state<string | typeof ALL_ENVELOPES | null>(null);
@@ -88,6 +94,33 @@
   );
 
   const tracksById = $derived(new Map(tracks.map((t) => [t.id, t] as const)));
+
+  const targetParamSpec = $derived.by(() => {
+    const node = graph.nodes.find((n) => n.id === targetNodeId);
+    if (!node) return undefined;
+    return nodeSpecs.get(node.type)?.parameters?.[targetParameter];
+  });
+
+  const driverRemapParamMin = $derived(
+    typeof targetParamSpec?.min === 'number' && Number.isFinite(targetParamSpec.min)
+      ? targetParamSpec.min
+      : undefined
+  );
+  const driverRemapParamMax = $derived(
+    typeof targetParamSpec?.max === 'number' && Number.isFinite(targetParamSpec.max)
+      ? targetParamSpec.max
+      : undefined
+  );
+  const driverRemapParamStep = $derived(
+    typeof targetParamSpec?.step === 'number' && Number.isFinite(targetParamSpec.step)
+      ? targetParamSpec.step
+      : undefined
+  );
+  const driverRemapParamType = $derived(
+    targetParamSpec?.type === 'int' || targetParamSpec?.type === 'float'
+      ? targetParamSpec.type
+      : undefined
+  );
 
   const allPresets = $derived(graph.midiEnvelopePresets ?? []);
   const allRemappers = $derived(graph.midiEnvelopeRemappers ?? []);
@@ -124,6 +157,10 @@
     resolveDriverTargetDisplay(graph, nodeSpecs, targetNodeId, targetParameter)
   );
 
+  const focusedBindingOut = $derived(
+    currentParamBinding ? resolveMidiBindingOut(currentParamBinding) : { outMin: 0, outMax: 1 }
+  );
+
   const focusedLiveValue = $derived.by(() => {
     if (!currentParamBinding) return null;
     const v = liveOutputByBinding.get(currentParamBinding.id);
@@ -135,7 +172,7 @@
     if (typeof activeNavPresetId === 'string') {
       return allPresets.filter((p) => p.id === activeNavPresetId);
     }
-    return allPresets.length > 0 ? [allPresets[0]!] : [];
+    return navPresets;
   });
 
   const deleteTargetPreset = $derived(
@@ -145,18 +182,6 @@
   );
 
   $effect(() => {
-    if (layoutMode !== 'overview' || activeNavPresetId) return;
-    const current = currentPreset;
-    if (current) {
-      activeNavPresetId = current.id;
-      return;
-    }
-    if (allPresets.length > 0) {
-      activeNavPresetId = allPresets[0]!.id;
-    }
-  });
-
-  $effect(() => {
     if (layoutMode !== 'overview') return;
     const presets = allPresets;
     if (presets.length === 0) return;
@@ -164,7 +189,7 @@
     if (typeof activeNavPresetId === 'string' && presets.some((p) => p.id === activeNavPresetId)) {
       return;
     }
-    activeNavPresetId = presets[0]!.id;
+    activeNavPresetId = ALL_ENVELOPES;
   });
 
   $effect(() => {
@@ -178,16 +203,11 @@
     const remapperId = focusRemapperId;
     const presetId = initialPresetId;
     if (remapperId) {
-      const remapper = allRemappers.find((r) => r.id === remapperId);
-      if (remapper) {
-        activeNavPresetId = remapper.envelopePresetId;
-        queueMicrotask(() => scrollToRemapper(remapperId));
-        didInitialScroll = true;
-        return;
-      }
+      queueMicrotask(() => scrollToRemapper(remapperId));
+      didInitialScroll = true;
+      return;
     }
     if (presetId && allPresets.some((p) => p.id === presetId)) {
-      activeNavPresetId = presetId;
       queueMicrotask(() => scrollToPreset(presetId));
       didInitialScroll = true;
     }
@@ -198,7 +218,7 @@
   }
 
   function canConnectRemapper(remapperId: string): boolean {
-    return !isRemapperConnectedToTarget(remapperId);
+    return hasConnectTarget && !isRemapperConnectedToTarget(remapperId);
   }
 
   $effect(() => {
@@ -271,6 +291,14 @@
       if (presetId) activeNavPresetId = presetId;
       return;
     }
+    if (!hasConnectTarget) {
+      const defaultTrackIds = tracks.length > 0 ? [tracks[0]!.id] : [];
+      const next = addMidiEnvelopePreset(graph, { trackIds: defaultTrackIds });
+      onGraphUpdate(next);
+      const created = next.midiEnvelopePresets?.at(-1);
+      if (created) activeNavPresetId = created.id;
+      return;
+    }
     const prepared = prepareGraphForMidiDriverAttach(graph, targetNodeId, targetParameter);
     const defaultTrackIds = tracks.length > 0 ? [tracks[0]!.id] : [];
     const next = addMidiEnvelopeBinding(prepared, targetNodeId, targetParameter, {
@@ -288,11 +316,13 @@
   function handleConnectRemapper(remapperId: string) {
     if (!canConnectRemapper(remapperId)) return;
     const prepared = prepareGraphForMidiDriverAttach(graph, targetNodeId, targetParameter);
+    const { outMin, outMax } = defaultDriverRemapOutForParam(targetParamSpec);
     const next = connectMidiEnvelopeRemapperToParam(
       prepared,
       remapperId,
       targetNodeId,
-      targetParameter
+      targetParameter,
+      { outMin, outMax }
     );
     onGraphUpdate(next);
     const remapper = allRemappers.find((r) => r.id === remapperId);
@@ -312,10 +342,7 @@
     onGraphUpdate(removeMidiEnvelopePreset(graph, presetId));
     if (activeNavPresetId === presetId) {
       const remaining = allPresets.filter((p) => p.id !== presetId);
-      activeNavPresetId =
-        currentPreset?.id && remaining.some((p) => p.id === currentPreset.id)
-          ? currentPreset.id
-          : (remaining[0]?.id ?? null);
+      activeNavPresetId = remaining.length > 0 ? ALL_ENVELOPES : null;
     }
   }
 
@@ -371,16 +398,21 @@
 
   function patchPreset(
     presetId: string,
-    patch: Partial<Pick<MidiEnvelopePreset, 'label' | 'trackIds' | 'envelope'>>
+    patch: Partial<Pick<MidiEnvelopePreset, 'label' | 'trackIds' | 'envelope' | 'retriggerPolicy'>>
   ) {
     onGraphUpdate(updateMidiEnvelopePreset(graph, presetId, patch));
   }
 
   function patchRemapper(
     remapperId: string,
-    patch: Partial<Pick<MidiEnvelopeRemapper, 'name' | 'outMin' | 'outMax'>>
+    patch: Partial<Pick<MidiEnvelopeRemapper, 'name' | 'inMin' | 'inMax'>>
   ) {
     onGraphUpdate(updateMidiEnvelopeRemapper(graph, remapperId, patch));
+  }
+
+  function patchBindingOut(patch: { outMin?: number; outMax?: number }) {
+    if (!currentParamBinding) return;
+    onGraphUpdate(updateMidiEnvelopeBindingOut(graph, currentParamBinding.id, patch));
   }
 
   function connectedTracksFor(preset: MidiEnvelopePreset) {
@@ -482,7 +514,7 @@
           class:is-active={activeNavPresetId === ALL_ENVELOPES}
           onclick={() => selectNavPreset(ALL_ENVELOPES)}
         >
-          All track sets
+          All drivers
         </button>
         {#each navPresets as preset (preset.id)}
           <button
@@ -545,20 +577,17 @@
                 embedded
                 remapper={currentRemapper}
                 envelopePresetName={presetName}
-                isConnectedToTarget={true}
+                liveInValue={livePresetShapeByPreset.get(currentPreset.id) ?? null}
+                liveOutValue={focusedLiveValue}
+                remapSections="both"
+                targetOutMin={focusedBindingOut.outMin}
+                targetOutMax={focusedBindingOut.outMax}
+                paramMin={driverRemapParamMin}
+                paramMax={driverRemapParamMax}
+                paramStep={driverRemapParamStep}
+                paramType={driverRemapParamType}
+                onTargetOutChange={patchBindingOut}
                 onRemapperChange={(patch) => patchRemapper(currentRemapper.id, patch)}
-                connectionTargets={getMidiEnvelopeRemapperConnections(
-                  graph,
-                  currentRemapper.id,
-                  nodeSpecs
-                )
-                  .map((c) =>
-                    resolveDriverConnectionTargetDisplay(graph, nodeSpecs, c.nodeId, c.paramName)
-                  )
-                  .filter((t): t is NonNullable<typeof t> => t != null)}
-                activeTargetNodeId={targetNodeId}
-                activeTargetParamName={targetParameter}
-                onRevealParameter={onRevealInNodeEditor}
               />
             </div>
           </div>
@@ -579,12 +608,12 @@
               variant="primary"
               size="md"
               mode="both"
-              title="Browse track sets"
-              aria-label="Browse track sets"
+              title="Swap track set"
+              aria-label="Swap track set"
               onclick={() => onBrowseOverview?.()}
             >
               <IconSvg name="swap" variant="line" />
-              Browse
+              Swap
             </Button>
           {/snippet}
         </DriverPanelEmptyState>
@@ -680,20 +709,22 @@
             <div class="remappers-list" role="list" aria-label="Remaps for {presetName}">
               {#each presetRemappers as remapper (remapper.id)}
                 {@const connected = isRemapperConnectedToTarget(remapper.id)}
-                {@const connectionTargets = getMidiEnvelopeRemapperConnections(
-                  graph,
-                  remapper.id,
-                  nodeSpecs
-                )
-                  .map((c) =>
-                    resolveDriverConnectionTargetDisplay(graph, nodeSpecs, c.nodeId, c.paramName)
-                  )
-                  .filter((t): t is NonNullable<typeof t> => t != null)}
                 <div use:setRemapperRef={remapper.id}>
                   <MidiRemapperCard
                     remapper={remapper}
                     envelopePresetName={presetName}
-                    isConnectedToTarget={connected}
+                    remapSections={connected && hasConnectTarget ? 'both' : 'gateOnly'}
+                    liveInValue={
+                      connected ? (livePresetShapeByPreset.get(preset.id) ?? null) : null
+                    }
+                    liveOutValue={connected ? focusedLiveValue : null}
+                    targetOutMin={focusedBindingOut.outMin}
+                    targetOutMax={focusedBindingOut.outMax}
+                    paramMin={connected ? driverRemapParamMin : undefined}
+                    paramMax={connected ? driverRemapParamMax : undefined}
+                    paramStep={connected ? driverRemapParamStep : undefined}
+                    paramType={connected ? driverRemapParamType : undefined}
+                    onTargetOutChange={connected ? patchBindingOut : undefined}
                     onConnect={
                       canConnectRemapper(remapper.id)
                         ? () => handleConnectRemapper(remapper.id)
@@ -706,10 +737,6 @@
                     onDuplicate={() =>
                       onGraphUpdate(duplicateMidiEnvelopeRemapper(graph, remapper.id))}
                     onRemapperChange={(patch) => patchRemapper(remapper.id, patch)}
-                    {connectionTargets}
-                    activeTargetNodeId={targetNodeId}
-                    activeTargetParamName={targetParameter}
-                    onRevealParameter={onRevealInNodeEditor}
                   />
                 </div>
               {/each}

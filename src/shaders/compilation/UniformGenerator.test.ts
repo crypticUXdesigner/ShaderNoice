@@ -135,5 +135,39 @@ describe('UniformGenerator', () => {
       expect(ringXUniform).toBeDefined();
       expect(ringXUniform?.type).toBe('float');
     });
+    it('keeps parameter uniform when audio driver connection is bypassed', () => {
+      const nodeSpecs = buildNodeSpecsMap();
+      const generator = new UniformGenerator(
+        nodeSpecs,
+        (spec) => spec.category === 'Audio',
+        getParameterDefaultValue
+      );
+      const graph: NodeGraph = {
+        id: 'graph-audio-bypass-uniform',
+        name: 'Audio bypass uniform',
+        version: '2.0',
+        nodes: [
+          {
+            id: 'n-warp',
+            type: 'radial-uv-warp',
+            position: { x: 0, y: 0 },
+            parameters: { fisheyeStrength: -0.61 },
+          },
+        ],
+        connections: [
+          {
+            id: 'c-audio',
+            sourceNodeId: 'audio-signal:remap-r1',
+            sourcePort: 'out',
+            targetNodeId: 'n-warp',
+            targetParameter: 'fisheyeStrength',
+            disabled: true,
+          },
+        ],
+      };
+
+      const uniformNames = generator.generateUniformNameMapping(graph);
+      expect(uniformNames.has('n-warp.fisheyeStrength')).toBe(true);
+    });
   });
 });

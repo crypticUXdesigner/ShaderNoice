@@ -12,7 +12,7 @@ export type AudioAnalysisWorkerRequest =
       maxFrames: number;
       pcmChannels: Float32Array[]; // channel data arrays (full track), copied for worker use
       analyzerConfigs: AnalyzerConfig[];
-      remapperConfigs: Array<{ id: string; bandId: string; inMin: number; inMax: number; outMin: number; outMax: number }>;
+      remapperConfigs: Array<{ id: string; bandId: string; inMin: number; inMax: number }>;
     }
   | {
       /** Tier B: FFT+smoothing for a subset of bands on one file (subset of analyzerConfigs + PCM). */

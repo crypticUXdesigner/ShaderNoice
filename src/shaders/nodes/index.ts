@@ -45,6 +45,7 @@ import { vortexNodeSpec } from './vortex';
 import { quadWarpNodeSpec } from './quad-warp';
 import { planeProjectNodeSpec } from './plane-project';
 import { brickTilingNodeSpec } from './brick-tiling';
+import { pixelizeNodeSpec } from './pixelize';
 import { uvBlockGlitchNodeSpec } from './uv-block-glitch';
 import { uvBandShiftNodeSpec } from './uv-band-shift';
 import { infiniteZoomNodeSpec } from './infinite-zoom';
@@ -221,6 +222,7 @@ export const nodeSystemSpecs: NodeSpec[] = [
   quadWarpNodeSpec,
   planeProjectNodeSpec,
   brickTilingNodeSpec,
+  pixelizeNodeSpec,
   uvBlockGlitchNodeSpec,
   uvBandShiftNodeSpec,
   infiniteZoomNodeSpec,

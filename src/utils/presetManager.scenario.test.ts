@@ -19,10 +19,10 @@ function expectedOutputVariableName(nodeId: string, portName: string): string {
 }
 
 describe('presetManager scenario tests', () => {
-  it('loads blur-softening preset via loadPreset and compiles without errors', async () => {
+  it('loads watercolor-waves preset via loadPreset and compiles without errors', async () => {
     const validationSpecs = toValidationSpecs(nodeSystemSpecs);
 
-    const loadResult = await loadPreset('blur-softening', validationSpecs);
+    const loadResult = await loadPreset('watercolor-waves', validationSpecs);
 
     expect(loadResult.errors, loadResult.errors.join('; ')).toHaveLength(0);
     expect(loadResult.graph).not.toBeNull();
@@ -50,9 +50,9 @@ describe('presetManager scenario tests', () => {
     expect(hasFinalOutputNode).toBe(true);
   });
 
-  it('loads blur-softening preset via loadPresetFromJson and compiles without errors', async () => {
+  it('loads watercolor-waves preset via loadPresetFromJson and compiles without errors', async () => {
     const validationSpecs = toValidationSpecs(nodeSystemSpecs);
-    const presetPath = join(__dirname, '../presets', 'blur-softening.json');
+    const presetPath = join(__dirname, '../presets', 'watercolor-waves.json');
     const json = readFileSync(presetPath, 'utf-8');
 
     const loadResult = await loadPresetFromJson(json, validationSpecs);
@@ -139,7 +139,7 @@ describe('presetManager scenario tests', () => {
 
   it('Scenario 4 — Load + undo: load preset, apply one change, undo restores graph invariants', async () => {
     const validationSpecs = toValidationSpecs(nodeSystemSpecs);
-    const presetPath = join(__dirname, '../presets', 'blur-softening.json');
+    const presetPath = join(__dirname, '../presets', 'pixelize.json');
     const json = readFileSync(presetPath, 'utf-8');
 
     const loadResult = await loadPresetFromJson(json, validationSpecs);
@@ -147,17 +147,17 @@ describe('presetManager scenario tests', () => {
     expect(loadResult.graph).not.toBeNull();
     const graphAfterLoad = loadResult.graph!;
 
-    const blurNode = graphAfterLoad.nodes.find((n) => n.type === 'blur');
-    expect(blurNode).toBeDefined();
-    const nodeId = blurNode!.id;
-    const paramName = 'blurAmount';
-    const originalValue = blurNode!.parameters[paramName] ?? 0;
+    const pixelizeNode = graphAfterLoad.nodes.find((n) => n.type === 'pixelize');
+    expect(pixelizeNode).toBeDefined();
+    const nodeId = pixelizeNode!.id;
+    const paramName = 'pixelizeCellsX';
+    const originalValue = pixelizeNode!.parameters[paramName] ?? 40;
 
     const undoManager = new UndoRedoManager();
     undoManager.clear();
     undoManager.pushState(graphAfterLoad);
 
-    const graphAfterEdit = updateNodeParameter(graphAfterLoad, nodeId, paramName, 0.5);
+    const graphAfterEdit = updateNodeParameter(graphAfterLoad, nodeId, paramName, 32);
     undoManager.pushState(graphAfterEdit);
 
     expect(undoManager.canUndo()).toBe(true);
@@ -185,7 +185,7 @@ describe('presetManager scenario tests', () => {
 
   it('Scenario 5 — Load + undo + redo: redo restores edited state', async () => {
     const validationSpecs = toValidationSpecs(nodeSystemSpecs);
-    const presetPath = join(__dirname, '../presets', 'blur-softening.json');
+    const presetPath = join(__dirname, '../presets', 'pixelize.json');
     const json = readFileSync(presetPath, 'utf-8');
 
     const loadResult = await loadPresetFromJson(json, validationSpecs);
@@ -193,11 +193,11 @@ describe('presetManager scenario tests', () => {
     expect(loadResult.graph).not.toBeNull();
     const graphAfterLoad = loadResult.graph!;
 
-    const blurNode = graphAfterLoad.nodes.find((n) => n.type === 'blur');
-    expect(blurNode).toBeDefined();
-    const nodeId = blurNode!.id;
-    const paramName = 'blurAmount';
-    const editedValue = 0.5;
+    const pixelizeNode = graphAfterLoad.nodes.find((n) => n.type === 'pixelize');
+    expect(pixelizeNode).toBeDefined();
+    const nodeId = pixelizeNode!.id;
+    const paramName = 'pixelizeCellsX';
+    const editedValue = 32;
 
     const undoManager = new UndoRedoManager();
     undoManager.clear();
@@ -230,10 +230,10 @@ describe('presetManager scenario tests', () => {
     );
   });
 
-  it('loads sphere preset via loadPreset and compiles without errors', async () => {
+  it('loads rorschach preset via loadPreset and compiles without errors', async () => {
     const validationSpecs = toValidationSpecs(nodeSystemSpecs);
 
-    const loadResult = await loadPreset('sphere', validationSpecs);
+    const loadResult = await loadPreset('rorschach', validationSpecs);
 
     expect(loadResult.errors, loadResult.errors.join('; ')).toHaveLength(0);
     expect(loadResult.graph).not.toBeNull();
@@ -258,57 +258,6 @@ describe('presetManager scenario tests', () => {
     expect(finalOutputId).toBeTruthy();
     expect(graph.nodes.some((n) => n.id === finalOutputId)).toBe(true);
   });
-
-  it('loads warped-drops preset via loadPreset and compiles without errors', async () => {
-    const validationSpecs = toValidationSpecs(nodeSystemSpecs);
-
-    const loadResult = await loadPreset('warped-drops', validationSpecs);
-
-    expect(loadResult.errors, loadResult.errors.join('; ')).toHaveLength(0);
-    expect(loadResult.graph).not.toBeNull();
-
-    const graph = loadResult.graph!;
-    const audioSetup = loadResult.audioSetup ?? null;
-
-    const nodeSpecsMap = new Map(nodeSystemSpecs.map((s) => [s.id, s]));
-    const compiler = new NodeShaderCompiler(nodeSpecsMap);
-
-    const compileResult = compiler.compile(graph, audioSetup);
-
-    expect(compileResult.metadata.errors, compileResult.metadata.errors.join('; ')).toHaveLength(
-      0
-    );
-    expect(typeof compileResult.shaderCode).toBe('string');
-    expect(compileResult.shaderCode.length).toBeGreaterThan(0);
-    expect(Array.isArray(compileResult.metadata.executionOrder)).toBe(true);
-    expect(compileResult.metadata.executionOrder.length).toBeGreaterThan(0);
-
-    const finalOutputId = compileResult.metadata.finalOutputNodeId;
-    expect(finalOutputId).toBeTruthy();
-    expect(graph.nodes.some((n) => n.id === finalOutputId)).toBe(true);
-  });
-
-  it.each([
-    'color-lut-demo',
-    'color-gradient-demo',
-    'note-ripple-field-demo',
-    'note-gravity-warp-demo',
-    'arrangement-patterns-showcase',
-  ])(
-    'loads %s preset via loadPreset and compiles without errors',
-    async (presetName) => {
-      const validationSpecs = toValidationSpecs(nodeSystemSpecs);
-      const loadResult = await loadPreset(presetName, validationSpecs);
-      expect(loadResult.errors, loadResult.errors.join('; ')).toHaveLength(0);
-      expect(loadResult.graph).not.toBeNull();
-
-      const compiler = new NodeShaderCompiler(new Map(nodeSystemSpecs.map((s) => [s.id, s])));
-      const compileResult = compiler.compile(loadResult.graph!, loadResult.audioSetup ?? null);
-      expect(compileResult.metadata.errors, compileResult.metadata.errors.join('; ')).toHaveLength(
-        0
-      );
-    }
-  );
 
   it('all bundled presets pass validateGraph (incl. automation hard rules)', async () => {
     const validationSpecs = toValidationSpecs(nodeSystemSpecs);

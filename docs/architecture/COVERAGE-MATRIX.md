@@ -10,7 +10,7 @@ Regenerate the full node table whenever `nodeSystemSpecs` or the WGSL allowlists
 npx tsx scripts/generate-wgsl-coverage-ledger-table.ts --write-doc
 ```
 
-Output: [`docs/implementation/webgpu-migration/wgsl-coverage-ledger.md`](../implementation/webgpu-migration/wgsl-coverage-ledger.md).  
+Output: [`docs/architecture/wgsl-coverage-ledger.md`](./wgsl-coverage-ledger.md).  
 The script reads `WGSL_SUPPORTED_NODE_TYPES` and `WGSL_WEBGPU_PASS_PLAN_NODE_TYPES` from [`src/shaders/compilation/WgslMvpCompiler.ts`](../../src/shaders/compilation/WgslMvpCompiler.ts) and must stay in sync with them (see script header comment).
 
 ## Matrix columns (how to read a row)
@@ -55,7 +55,7 @@ Strings are **diagnostic** today (not a stable enum). Grouping below maps to **W
 | **`unknown subgraph compile failure`** | Fallback when a subgraph returns unsupported without reasons | **Blocking** |
 | **Structural / graph** | `missing final-output node` (`WgslMvpCompiler`, `NodeShaderCompiler`); `could not resolve output expression` | **Blocking** |
 
-The historical ledger also lists `final-output.in is not connected` under “structural failures”; if that string is not emitted by code paths today, treat it as **documentation drift** until reintroduced or removed from [`wgsl-coverage-ledger.md`](../implementation/webgpu-migration/wgsl-coverage-ledger.md).
+The historical ledger also lists `final-output.in is not connected` under “structural failures”; if that string is not emitted by code paths today, treat it as **documentation drift** until reintroduced or removed from [`wgsl-coverage-ledger.md`](./wgsl-coverage-ledger.md).
 
 ### Future-stable codes (aspirational)
 

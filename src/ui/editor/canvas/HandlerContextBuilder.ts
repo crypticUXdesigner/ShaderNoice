@@ -245,6 +245,8 @@ export class HandlerContextBuilder {
         this.deps.renderState.markLayerDirty(layer);
       },
       hitTestPort: (screenX, screenY) => this.deps.hitTestManager.hitTestPort(screenX, screenY),
+      resolveConnectTarget: (source, screenX, screenY) =>
+        this.deps.hitTestManager.resolveConnectTarget(source, screenX, screenY),
       hitTestParameter: (screenX, screenY) => this.deps.hitTestManager.hitTestParameter(screenX, screenY),
       hitTestBezierControlPoint: (screenX, screenY) => this.deps.hitTestManager.hitTestBezierControlPoint(screenX, screenY),
       hitTestConnection: (screenX, screenY) => this.deps.hitTestManager.hitTestConnection(screenX, screenY),

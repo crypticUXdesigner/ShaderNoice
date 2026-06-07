@@ -65,6 +65,7 @@
     formatDriverBandSourceText,
     resolveDriverTargetDisplay,
   } from './driverTargetDisplay';
+  import { resolveConnectionDriverOut } from '../../../utils/driverRemap';
 
   export type { ParameterDriverKind };
 
@@ -91,6 +92,13 @@
     arrangementImportBusy?: boolean;
     onImportArrangement?: () => void;
     onClearArrangement?: () => void;
+    /** Global library browse (bottom bar): no parameter target, always overview. */
+    browseMode?: boolean;
+    /** Initial driver kind when opening in browse mode. */
+    initialKind?: ParameterDriverKind;
+    /** Fired when the user switches kind tabs in browse mode. */
+    onBrowseKindChange?: (kind: ParameterDriverKind) => void;
+    waveformService?: import('../../../runtime/waveform').WaveformService | null;
     class?: string;
   }
 
@@ -117,11 +125,21 @@
     arrangementImportBusy = false,
     onImportArrangement,
     onClearArrangement,
+    browseMode = false,
+    initialKind = 'audio',
+    onBrowseKindChange,
+    waveformService = null,
     class: className = '',
   }: Props = $props();
 
+  const hasConnectTarget = $derived(
+    !browseMode && targetNodeId !== '' && targetParameter !== ''
+  );
+
   const attachedKind = $derived(
-    resolveDriverKindForParam(graph, targetNodeId, targetParameter, audioSetup)
+    browseMode
+      ? null
+      : resolveDriverKindForParam(graph, targetNodeId, targetParameter, audioSetup)
   );
 
   let selectedKind = $state<ParameterDriverKind>('audio');
@@ -131,6 +149,7 @@
   let userPinnedOverview = $state(false);
   let lastClampedLayoutKey = $state<string | null>(null);
   const layoutMode = $derived.by((): DriverPanelLayoutMode => {
+    if (browseMode) return 'overview';
     if (!attachedKind || userPinnedOverview) return 'overview';
     return 'focused';
   });
@@ -140,23 +159,19 @@
   $effect(() => {
     if (open && !wasOpen) {
       scrollSession += 1;
-      userPinnedOverview = attachedKind == null;
+      if (browseMode) {
+        userPinnedOverview = true;
+        selectedKind = initialKind;
+      } else {
+        userPinnedOverview = attachedKind == null;
+      }
     }
     wasOpen = open;
   });
 
-  let lastAttachedKind = $state<ParameterDriverKind | null>(null);
-
   $effect(() => {
-    if (!open) {
-      lastAttachedKind = null;
-      return;
-    }
-    const current = attachedKind;
-    if (current != null && lastAttachedKind !== current) {
-      userPinnedOverview = false;
-    }
-    lastAttachedKind = current;
+    if (!open || !browseMode) return;
+    selectedKind = initialKind;
   });
 
   $effect(() => {
@@ -312,18 +327,19 @@
         focusedLiveValue = value ?? null;
         return;
       }
-      if (focusedKind === 'audio' && audioConnectionInfo) {
+      if (focusedKind === 'audio' && audioConnectionInfo && connection) {
         const am = getAudioManager?.();
         const signalId = audioConnectionInfo.connectedSignalId;
         if (signalId.startsWith('remap-') && am?.getPanelBandLiveValues) {
           const remapperId = signalId.slice(6);
           const remapper = audioSetup.remappers.find((r) => r.id === remapperId);
           if (remapper) {
+            const { outMin, outMax } = resolveConnectionDriverOut(connection);
             const live = am.getPanelBandLiveValues(remapper.bandId, {
               inMin: remapper.inMin,
               inMax: remapper.inMax,
-              outMin: remapper.outMin,
-              outMax: remapper.outMax,
+              outMin,
+              outMax,
             });
             focusedLiveValue = live?.outgoing ?? null;
             return;
@@ -342,6 +358,7 @@
     nodeSpecs,
     onSelect,
     onAudioSetupChange,
+    onGraphUpdate,
     getAudioManager,
     initialBandId: audioConnectionInfo?.initialBandId ?? undefined,
     focusRemapperId: audioConnectionInfo?.focusRemapperId ?? undefined,
@@ -352,6 +369,7 @@
     onRevealInNodeEditor,
     layoutMode: layoutModeProp,
     onNewBand: handleNewBand,
+    hasConnectTarget,
   } satisfies AudioDriverPanelProps);
 
   const animationDriverProps = $derived({
@@ -371,6 +389,9 @@
     layoutMode: layoutModeProp,
     onReturnToFocusedEdit: returnToFocusedEdit,
     hideCurveToolbar: layoutModeProp === 'focused',
+    browseMode,
+    waveformService,
+    hasConnectTarget,
   } satisfies AnimationDriverPanelProps);
 
   const midiBinding = $derived(
@@ -401,16 +422,15 @@
     },
     layoutMode: layoutModeProp,
     onRevealInNodeEditor,
-    onDriverAttached: () => {
-      userPinnedOverview = false;
-    },
     onClose: handleClose,
     onBrowseOverview: openOverview,
     arrangementImportBusy,
     onImportArrangement,
+    hasConnectTarget,
   } satisfies MidiDriverPanelProps);
 
   function kindIsDisabled(kind: ParameterDriverKind): boolean {
+    if (browseMode) return false;
     // MIDI tab stays enabled without arrangement/project data; empty state prompts Fetch project.
     if (kind === 'midi') {
       return paramSpec?.type !== 'float';
@@ -443,6 +463,7 @@
   function selectKind(kind: ParameterDriverKind) {
     if (kindIsDisabled(kind)) return;
     selectedKind = kind;
+    if (browseMode) onBrowseKindChange?.(kind);
   }
 
   function openOverview() {
@@ -565,11 +586,15 @@
       : null
   );
 
-  const ariaLabel = $derived(
-    focusedHeadlineMeta
-      ? `${focusedHeadlineMeta.label} driver for ${parameterTitle}`
-      : `Parameter drivers for ${parameterTitle}`
-  );
+  const ariaLabel = $derived.by(() => {
+    if (browseMode) {
+      return `${getParameterDriverKindMeta(selectedKind).label} driver library`;
+    }
+    if (focusedHeadlineMeta) {
+      return `${focusedHeadlineMeta.label} driver for ${parameterTitle}`;
+    }
+    return `Parameter drivers for ${parameterTitle}`;
+  });
 
   const useCompactAudio = $derived(
     layoutMode === 'focused' &&
@@ -643,7 +668,7 @@
       onclick={openOverview}
     >
       <IconSvg name="swap" variant="line" />
-      Browse
+      Swap
     </Button>
   </div>
 {/snippet}
@@ -675,6 +700,17 @@
             variant={parameterDriverKindIconVariant(focusedHeadlineMeta.id)}
           />
           <span>{focusedHeadlineMeta.label}</span>
+        </div>
+      {:else if browseMode}
+        <div
+          class="panel-headline-text driver-kind-chrome {parameterDriverKindClass(selectedKind)}"
+          title={getParameterDriverKindMeta(selectedKind).label}
+        >
+          <IconSvg
+            name={getParameterDriverKindMeta(selectedKind).icon}
+            variant={parameterDriverKindIconVariant(selectedKind)}
+          />
+          <span>{getParameterDriverKindMeta(selectedKind).label}</span>
         </div>
       {:else}
         <div
@@ -754,7 +790,7 @@
                   onclick={openOverview}
                 >
                   <IconSvg name="swap" variant="line" />
-                  Browse
+                  Swap
                 </Button>
               {/if}
               {#if layoutMode !== 'overview'}
@@ -819,6 +855,7 @@
                   {onSelect}
                   onClose={handleClose}
                   {onAudioSetupChange}
+                  {onGraphUpdate}
                   {getAudioManager}
                   connectedVirtualNodeId={connection!.sourceNodeId}
                   connectedSignalId={audioConnectionInfo.connectedSignalId}

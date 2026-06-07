@@ -70,6 +70,13 @@
     onParameterGestureCommit?: () => void;
     onParameterInputModeChanged?: (nodeId: string, paramName: string, mode: import('../../../types/nodeSpec').ParameterInputMode) => void;
     onParamDriverBypassToggle?: (nodeId: string, paramName: string, bypassed: boolean) => void;
+    onDriverTargetOutChange?: (
+      nodeId: string,
+      paramName: string,
+      patch: import('../../../utils/driverRemap').DriverTargetOutUiPatch,
+      options?: GraphUndoRecordingOptions
+    ) => void;
+    onDriverTargetOutCommit?: () => void;
     onContextMenu?: (nodeId: string, clientX: number, clientY: number) => void;
     /** Double-click node chrome outside interactive controls → Patch tool: insert this node into a cable on next click. */
     onPatchIntoDoubleClick?: (nodeId: string) => void;
@@ -104,6 +111,8 @@
     onParameterGestureCommit,
     onParameterInputModeChanged,
     onParamDriverBypassToggle,
+    onDriverTargetOutChange,
+    onDriverTargetOutCommit,
     onContextMenu,
     onPatchIntoDoubleClick,
     onPowerToggle,
@@ -235,6 +244,8 @@
     onParameterGestureCommit={onParameterGestureCommit}
     onParameterInputModeChanged={onParameterInputModeChanged ? (paramName, mode) => onParameterInputModeChanged(nodeId, paramName, mode) : undefined}
     onParamDriverBypassToggle={onParamDriverBypassToggle ? (paramName, bypassed) => onParamDriverBypassToggle(nodeId, paramName, bypassed) : undefined}
+    onDriverTargetOutChange={onDriverTargetOutChange ? (paramName, patch, options) => onDriverTargetOutChange(nodeId, paramName, patch, options) : undefined}
+    onDriverTargetOutCommit={onDriverTargetOutCommit}
   />
   {/if}
 </div>

@@ -59,6 +59,14 @@ export class ProgramCache<T> {
     }
   }
 
+  /** Remove one entry when refCount is 0 (e.g. failed link left a stale program in cache). */
+  evictKey(key: ProgramCacheKey, onEvict: (value: T) => void): void {
+    const e = this.entries.get(key);
+    if (!e || e.refCount !== 0) return;
+    onEvict(e.value);
+    this.entries.delete(key);
+  }
+
   private release(key: ProgramCacheKey, onEvict: (value: T) => void): void {
     const e = this.entries.get(key);
     if (!e) return;

@@ -306,11 +306,16 @@
 
 /* Header Port (input/output in node header) */
 --header-port-size: var(--scale-4); /* 12px visual dot */
---header-port-hit-size: 24px; /* Larger hit area for easier dragging */
+--header-port-hit-size: 24px; /* DOM grab target (min touch); visual dot unchanged */
 
 /* Parameter Port (in cell) */
 --param-port-size: var(--scale-4); /* 12px */
 --param-port-circle-size: var(--scale-5); /* 14px - visible port dot */
+--param-port-hit-size: 28px; /* DOM grab target; pair with --header-port-hit-size */
+--port-hit-radius-screen: 22px; /* Canvas fallback snap radius (header ports); screen-constant across zoom */
+--param-port-hit-radius-screen: 24px; /* Canvas fallback snap radius (param ports) */
+--connection-drag-preview-threshold-screen: 5px; /* Wire preview after this screen-space drag distance */
+--connect-magnetic-radius-screen: 24px; /* Nearest compatible port snap while connecting */
 --param-port-offset-x: var(--scale-5); /* 18px */
 --param-port-offset-y: var(--scale-5); /* 18px */
 
@@ -349,6 +354,15 @@
 --knob-arc-start: 225deg; /* Bottom-left  */
 --knob-arc-end: 315deg; /* Bottom-right */
 --knob-arc-sweep: 270deg; /* Total sweep angle (270deg arc from bottom-left to bottom-right) */
+
+/* Driver target Out range — outer arc on knob (audio/MIDI remap) */
+--knob-driver-target-offset: 10px; /* Outward from inner arc centerline */
+--knob-driver-target-stroke: 3px;
+--knob-driver-target-color: #ffffff;
+--knob-driver-target-color-inverted: #000000; /* outMin > outMax */
+--knob-driver-target-handle-length: 8px; /* Radial tick length (outward from arc) */
+--knob-driver-target-handle-stroke: 3px;
+--knob-driver-target-hit-size: 24px; /* Minimum touch target for endpoint handles */
 
 /* === INPUT / VALUE BOX PRIMITIVE === */
 --input-value-font-size: var(--text-md);
@@ -638,6 +652,17 @@
 --remap-range-slider-track-color: var(--color-gray-60);
 --remap-range-slider-input-color: var(--color-purple-90);
 --remap-range-slider-output-color: var(--color-green-90);
+/* Driver / panel Out slider: ascending range vs inverted (outMin > outMax) */
+--remap-range-slider-output-fill-color: var(--color-blue-90);
+--remap-range-slider-output-fill-color-inverted: var(--color-purple-90);
+--remap-range-slider-output-fill-color-active: var(--color-blue-130);
+--remap-range-slider-output-fill-color-inverted-active: var(--color-purple-110);
+--remap-range-slider-output-track-color: var(--color-blue-60);
+--remap-range-slider-output-track-color-inverted: var(--color-purple-60);
+--remap-range-slider-output-handle-color: var(--color-blue-110);
+--remap-range-slider-output-handle-color-inverted: var(--color-purple-100);
+--remap-range-slider-output-handle-hover-color: var(--color-blue-120);
+--remap-range-slider-output-handle-hover-color-inverted: var(--color-purple-110);
 --remap-range-connection-color: var(--color-blue-90);
 --remap-range-needle-color: #ffffff;
 --remap-range-needle-width: 3px;

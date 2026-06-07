@@ -502,6 +502,7 @@
         align-items: center;
         gap: var(--port-label-spacing);
         pointer-events: auto;
+        min-height: var(--header-port-hit-size);
 
         /* Box model */
         padding: 0;
@@ -531,6 +532,9 @@
         .dot {
           --port-color: var(--port-color-float);
           --shadow-color: var(--port-color-float);
+          --header-port-dot-hit-inset: calc(
+            (var(--param-port-circle-size) - var(--header-port-hit-size)) / 2
+          );
           /* Layout */
           position: relative;
           display: inline-flex;
@@ -545,6 +549,12 @@
           border-radius: 50%;
           flex-shrink: 0;
           border: 1px solid rgba(255, 255, 255, 0.3);
+
+          &::before {
+            content: '';
+            position: absolute;
+            inset: var(--header-port-dot-hit-inset);
+          }
 
           /* Visual */
           background: var(--port-color);

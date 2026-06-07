@@ -1,6 +1,6 @@
 # MIDI envelope config — stale runtime cache after preset/remapper edits
 
-**Status:** Open
+**Status:** Fix proposed — needs verification
 
 ## Symptom
 
@@ -74,5 +74,20 @@ return changed ? { ...graph, midiEnvelopePresets: next } : graph;
 
 - Envelopes are **JS-side uniforms**, not GLSL bake — **recompile is not required** for ADSR/range edits; this is a runtime cache + dirty-signaling gap, not a shader compile bug.
 - Reload “fixes” the symptom by resetting module state; that is a workaround, not correct behavior.
-- Likely fix direction: invalidate or rebuild cache when `midiEnvelopePresets`, `midiEnvelopeRemappers`, or resolved binding content changes; mark runtime dirty on those graph updates; optionally pass `force` when graph fingerprint changes at fixed transport time.
-- Related product gap (separate work package): **retrigger policy** — see `docs/implementation/midi-envelope-retrigger-policy-v1/_OVERVIEW.md`.
+- **Retrigger policy** (shipped): preset-level **last note / hold if higher / legato** — see **`docs/user-goals/12-parameter-drivers.md`**.
+
+## Mitigation (implemented)
+
+- **`midiEnvelopeFrameCache.ts`** — Rebuild binding cache when `midiEnvelopePresets` or `midiEnvelopeRemappers` array refs change (not only snapshot/bindings); reset `lastTransportTime` so eval runs at fixed playhead.
+- **`midiEnvelopeDriverConfig.ts`** — `midiEnvelopeDriverConfigChanged(old, new)` for preset/remapper/binding ref diffs.
+- **`RuntimeManager.ts`** — On position-only `setGraph`, if MIDI driver config refs changed: `invalidateMidiEnvelopeFrameCache()` + `markDirty('midi-envelope-config')` (no shader recompile).
+- **Tests:** `midiEnvelopeFrameCache.test.ts`, `midiEnvelopeDriverConfig.test.ts`.
+
+## Verification (human)
+
+1. Open a project with arrangement snapshot; attach MIDI envelope to a float param; **pause** inside a note.
+2. Drag **Release** (or **Attack**) in the ADSR editor — live shape needle and driven parameter should update immediately without scrub/play/reload.
+3. Change **Out min / Out max** on a remapper — live output on the card should track the new range immediately.
+4. Canvas preview at fixed playhead should match the panel after each edit.
+
+Automated: `npx vitest run src/utils/midiEnvelopeFrameCache.test.ts src/utils/midiEnvelopeDriverConfig.test.ts`

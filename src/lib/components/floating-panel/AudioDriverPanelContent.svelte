@@ -17,15 +17,21 @@
     updateAudioBand,
     addAudioRemapper,
     updateAudioRemapper,
+    updateConnectionDriverOut,
     removeAudioBand,
     removeAudioRemapper,
     createDuplicateRemapperEntry,
     generateUUID,
   } from '../../../data-model';
-  import { getVirtualNodeId } from '../../../utils/virtualNodes';
+  import { getSignalIdFromVirtualNodeId, getVirtualNodeId } from '../../../utils/virtualNodes';
   import { getRemapperParameterConnections } from '../../../utils/getRemapperParameterConnections';
-  import { resolveDriverConnectionTargetDisplay } from './driverTargetDisplay';
   import { confirmDeleteDriverAsset } from '../../../utils/confirmDriverAssetDelete';
+  import {
+    applyDriverTargetRange,
+    DRIVER_REMAP_DEFAULT_IN,
+    connectionDriverOutPatchFromUi,
+    resolveConnectionDriverOut,
+  } from '../../../utils/driverRemap';
   import { subscribeParameterValueTick } from '../../stores/parameterValueTickStore';
   import type { Action } from 'svelte/action';
 
@@ -39,6 +45,7 @@
     audioSetup,
     onSelect,
     onAudioSetupChange,
+    onGraphUpdate,
     getAudioManager,
     initialBandId,
     focusRemapperId,
@@ -46,17 +53,65 @@
     registerDeleteHandler,
     onRevealInNodeEditor,
     onNewBand,
+    hasConnectTarget = true,
   }: AudioDriverPanelProps = $props();
 
   let activeNavBandId = $state<string | typeof ALL_BANDS | null>(null);
+  let selectNewestBandOnAdd = $state(false);
   let sectionRefs = $state<Map<string, HTMLElement>>(new Map());
   let remapperRefs = $state<Map<string, HTMLElement>>(new Map());
   let didInitialScroll = $state(false);
 
   let spectrumDataByBand = $state<Map<string, { frequencyData: Uint8Array; fftSize: number; sampleRate: number }>>(new Map());
-  let liveValuesByRemapper = $state<Map<string, { incoming: number | null; outgoing: number | null }>>(new Map());
+  let liveValuesByRemapper = $state<Map<string, { incoming: number | null; gated: number | null }>>(new Map());
 
   const LIVE_UPDATE_INTERVAL_MS = 50;
+
+  const targetParamSpec = $derived.by(() => {
+    const node = graph.nodes.find((n) => n.id === targetNodeId);
+    if (!node) return undefined;
+    return nodeSpecs.get(node.type)?.parameters?.[targetParameter];
+  });
+
+  const driverRemapParamMin = $derived(
+    typeof targetParamSpec?.min === 'number' && Number.isFinite(targetParamSpec.min)
+      ? targetParamSpec.min
+      : undefined
+  );
+  const driverRemapParamMax = $derived(
+    typeof targetParamSpec?.max === 'number' && Number.isFinite(targetParamSpec.max)
+      ? targetParamSpec.max
+      : undefined
+  );
+  const driverRemapParamStep = $derived(
+    typeof targetParamSpec?.step === 'number' && Number.isFinite(targetParamSpec.step)
+      ? targetParamSpec.step
+      : undefined
+  );
+  const driverRemapParamType = $derived(
+    targetParamSpec?.type === 'int' || targetParamSpec?.type === 'float'
+      ? targetParamSpec.type
+      : undefined
+  );
+
+  const focusedConnection = $derived.by(() => {
+    const conn =
+      (connectionId
+        ? graph.connections.find((c) => c.id === connectionId)
+        : graph.connections.find(
+            (c) =>
+              !c.disabled &&
+              c.targetNodeId === targetNodeId &&
+              c.targetParameter === targetParameter
+          )) ?? null;
+    if (!conn) return null;
+    const signalId = getSignalIdFromVirtualNodeId(conn.sourceNodeId);
+    return signalId.startsWith('remap-') ? conn : null;
+  });
+
+  const focusedConnectionOut = $derived(
+    focusedConnection ? resolveConnectionDriverOut(focusedConnection) : { outMin: 0, outMax: 1 }
+  );
 
   const bands = $derived(audioSetup.bands);
   const remappers = $derived(audioSetup.remappers);
@@ -78,18 +133,25 @@
     if (typeof activeNavBandId === 'string') {
       return bands.filter((b) => b.id === activeNavBandId);
     }
-    return bands.length > 0 ? [bands[0]!] : [];
+    return navBands;
   });
 
   $effect(() => {
     const list = bands;
+    if (selectNewestBandOnAdd && list.length > 0) {
+      selectNewestBandOnAdd = false;
+      const newBandId = list[0]!.id;
+      activeNavBandId = newBandId;
+      queueMicrotask(() => scrollToBand(newBandId));
+      return;
+    }
     if (activeNavBandId === ALL_BANDS) return;
     if (typeof activeNavBandId === 'string' && list.some((b) => b.id === activeNavBandId)) return;
     if (list.length === 0) {
       activeNavBandId = null;
       return;
     }
-    activeNavBandId = list[0]!.id;
+    activeNavBandId = ALL_BANDS;
   });
 
   $effect(() => {
@@ -98,7 +160,7 @@
     if (!am || typeof am.getAnalyzerSpectrumData !== 'function') return;
     let lastUpdateTime = 0;
     const specMap = new Map<string, { frequencyData: Uint8Array; fftSize: number; sampleRate: number }>();
-    const liveMap = new Map<string, { incoming: number | null; outgoing: number | null }>();
+    const liveMap = new Map<string, { incoming: number | null; gated: number | null }>();
     const unsub = subscribeParameterValueTick(() => {
       specMap.clear();
       liveMap.clear();
@@ -109,10 +171,12 @@
           const live = am.getPanelBandLiveValues?.(band.id, {
             inMin: remap.inMin,
             inMax: remap.inMax,
-            outMin: remap.outMin,
-            outMax: remap.outMax,
+            outMin: 0,
+            outMax: 1,
           });
-          if (live) liveMap.set(remap.id, live);
+          if (live) {
+            liveMap.set(remap.id, { incoming: live.incoming, gated: live.outgoing });
+          }
         }
       }
       const now = performance.now();
@@ -130,20 +194,21 @@
     const remapperId = focusRemapperId;
     const bandId = initialBandId;
     if (remapperId) {
-      const remapper = remappers.find((r) => r.id === remapperId);
-      if (remapper) {
-        activeNavBandId = remapper.bandId;
-        queueMicrotask(() => scrollToRemapper(remapperId));
-        didInitialScroll = true;
-        return;
-      }
+      queueMicrotask(() => scrollToRemapper(remapperId));
+      didInitialScroll = true;
+      return;
     }
     if (bandId && bands.some((b) => b.id === bandId)) {
-      activeNavBandId = bandId;
       queueMicrotask(() => scrollToBand(bandId));
       didInitialScroll = true;
     }
   });
+
+  function handleNewBandClick() {
+    if (!canCreateBand) return;
+    selectNewestBandOnAdd = true;
+    onNewBand?.();
+  }
 
   function scrollToBand(bandId: string) {
     sectionRefs.get(bandId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -170,12 +235,21 @@
       id: `remap-${generateUUID()}`,
       name: `Remap ${bandRemappers.length + 1}`,
       bandId,
-      inMin: 0,
-      inMax: 1,
-      outMin: 0,
-      outMax: 1,
+      inMin: DRIVER_REMAP_DEFAULT_IN.inMin,
+      inMax: DRIVER_REMAP_DEFAULT_IN.inMax,
     };
     onAudioSetupChange?.(addAudioRemapper(audioSetup, newRemapper));
+  }
+
+  function handleFocusedTargetOutChange(patch: { outMin?: number; outMax?: number }) {
+    if (!focusedConnection?.id || !onGraphUpdate) return;
+    onGraphUpdate(
+      updateConnectionDriverOut(
+        graph,
+        focusedConnection.id,
+        connectionDriverOutPatchFromUi(patch)
+      )
+    );
   }
 
   function handleRemapperChange(remapperId: string, updater: (r: AudioRemapperEntry) => AudioRemapperEntry) {
@@ -205,6 +279,17 @@
     return focusRemapperId === remapperId;
   }
 
+  function targetOutLiveForRemapper(remapperId: string): number | null {
+    if (!hasConnectTarget || focusRemapperId !== remapperId) return null;
+    const gated = liveValuesByRemapper.get(remapperId)?.gated;
+    if (gated == null) return null;
+    return applyDriverTargetRange(
+      gated,
+      focusedConnectionOut.outMin,
+      focusedConnectionOut.outMax
+    );
+  }
+
   function tryDeleteRemapper(remapperId: string): boolean {
     const connectionCount = getRemapperParameterConnections(graph, remapperId, nodeSpecs).length;
     if (!confirmDeleteDriverAsset({ assetKind: 'remapper', connectionCount })) {
@@ -221,7 +306,7 @@
     if (next === audioSetup) return;
     onAudioSetupChange?.(next);
     const remaining = next.bands;
-    activeNavBandId = remaining.find((b) => b.id !== deletedId)?.id ?? remaining[0]?.id ?? null;
+    activeNavBandId = remaining.length > 0 ? ALL_BANDS : null;
   }
 
   const INPUT_LIKE_SELECTOR = 'input, textarea, select, [contenteditable="true"]';
@@ -313,7 +398,7 @@
       disabled={!canCreateBand}
       title={canCreateBand ? 'New' : 'Set a primary audio source first'}
       aria-label={canCreateBand ? 'New' : 'Set a primary audio source first'}
-      onclick={() => onNewBand?.()}
+      onclick={handleNewBandClick}
     >
       <IconSvg name="plus" variant="line" />
       New
@@ -325,7 +410,7 @@
         class:is-active={activeNavBandId === ALL_BANDS}
         onclick={() => selectNavBand(ALL_BANDS)}
       >
-        All bands
+        All drivers
       </button>
       {#each navBands as band (band.id)}
         <button
@@ -361,7 +446,7 @@
             disabled={!canCreateBand}
             title={canCreateBand ? 'New' : 'Set a primary audio source first'}
             aria-label={canCreateBand ? 'New' : 'Set a primary audio source first'}
-            onclick={() => onNewBand?.()}
+            onclick={handleNewBandClick}
           >
             <IconSvg name="plus" variant="line" />
             New
@@ -393,7 +478,7 @@
                 onAudioSetupChange?.(removeAudioBand(audioSetup, band.id));
                 if (activeNavBandId === band.id) {
                   const remaining = bands.filter((b) => b.id !== band.id);
-                  activeNavBandId = remaining[0]?.id ?? null;
+                  activeNavBandId = remaining.length > 0 ? ALL_BANDS : null;
                 }
               }}
             >
@@ -440,31 +525,48 @@
           </div>
 
           {#if bandRemappers.length === 0}
-            <p class="remappers-empty">No remaps yet. Add one, then connect it to this parameter.</p>
+            <p class="remappers-empty">
+              {hasConnectTarget
+                ? 'No remaps yet. Add one, then connect it to this parameter.'
+                : 'No remaps yet. Add one, then connect it from a parameter port.'}
+            </p>
           {:else}
             <div class="remappers-list" role="list" aria-label="Remaps for {band.name}">
               {#each bandRemappers as remapper (remapper.id)}
                 {@const connected = isRemapperConnectedToTarget(remapper.id)}
-                {@const connectionTargets = getRemapperParameterConnections(graph, remapper.id, nodeSpecs)
-                  .map((c) => resolveDriverConnectionTargetDisplay(graph, nodeSpecs, c.nodeId, c.paramName))
-                  .filter((t): t is NonNullable<typeof t> => t != null)}
                 <div use:setRemapperRef={remapper.id}>
                   <RemapperCard
                     remapper={remapper}
                     bandName={band.name}
-                    isConnectedToTarget={connected}
-                    liveValues={liveValuesByRemapper.get(remapper.id) ?? null}
-                    onConnect={connected ? undefined : () => handleConnectRemapper(remapper.id)}
-                    onDisconnect={connected ? handleDisconnect : undefined}
+                    liveValues={(() => {
+                      const live = liveValuesByRemapper.get(remapper.id);
+                      return live
+                        ? {
+                            incoming: live.incoming,
+                            outgoing: connected ? targetOutLiveForRemapper(remapper.id) : null,
+                          }
+                        : null;
+                    })()}
+                    controlsLayout="driver-focused"
+                    remapSections={connected && hasConnectTarget ? 'both' : 'gateOnly'}
+                    targetOutMin={focusedConnectionOut.outMin}
+                    targetOutMax={focusedConnectionOut.outMax}
+                    paramMin={connected ? driverRemapParamMin : undefined}
+                    paramMax={connected ? driverRemapParamMax : undefined}
+                    paramStep={connected ? driverRemapParamStep : undefined}
+                    paramType={connected ? driverRemapParamType : undefined}
+                    onTargetOutChange={connected ? handleFocusedTargetOutChange : undefined}
+                    onConnect={
+                      hasConnectTarget && !connected
+                        ? () => handleConnectRemapper(remapper.id)
+                        : undefined
+                    }
+                    onDisconnect={hasConnectTarget && connected ? handleDisconnect : undefined}
                     onDelete={() => {
                       tryDeleteRemapper(remapper.id);
                     }}
                     onDuplicate={() => handleDuplicateRemapper(remapper)}
                     onRemapperChange={(updater) => handleRemapperChange(remapper.id, updater)}
-                    {connectionTargets}
-                    activeTargetNodeId={targetNodeId}
-                    activeTargetParamName={targetParameter}
-                    onRevealParameter={onRevealInNodeEditor}
                   />
                 </div>
               {/each}

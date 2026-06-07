@@ -259,6 +259,16 @@
 --layout-message-warning-color: var(--color-yellow-120);
 --layout-message-color: var(--color-blue-110);
 
+/* Sys-warn HUD (splash boot log, export advisory) — sci-fi frame; warn is accent only */
+--sys-warn-hud-bg: var(--color-cyan-gray-40);
+--sys-warn-hud-border: var(--color-cyan-gray-70);
+--sys-warn-hud-frame: var(--color-cyan-90);
+--sys-warn-hud-color: var(--color-cyan-gray-120);
+--sys-warn-hud-muted: var(--color-cyan-gray-100);
+--sys-warn-hud-accent: var(--color-cyan-100);
+--sys-warn-hud-signal: var(--color-cyan-110);
+--sys-warn-hud-warn: var(--color-red-orange-100);
+
 /* === BOTTOM BAR TOKENS === */
 --bottom-bar-height: 80px;
 --bottom-bar-padding-x: 16px;

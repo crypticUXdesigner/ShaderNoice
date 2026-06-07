@@ -50,10 +50,9 @@ export interface AudioRemapperEntry {
   id: string;
   name: string;
   bandId: string;
+  /** Normalized input gate (0–1 space) shared by all targets on this remapper. */
   inMin: number;
   inMax: number;
-  outMin: number;
-  outMax: number;
 }
 
 /**

@@ -10,7 +10,11 @@
   import ParameterCell from './ParameterCell.svelte';
   import type { ParamPortState } from './ParamPort.svelte';
   import type { IconName } from '../../../../utils/icons';
-  import { getParamPortConnectionState } from '../../../../utils/paramPortAudioState';
+  import {
+    getParamPortConnectionState,
+    resolveParamPortDriverCellDisplay,
+    type ParamPortDriverCellDisplay,
+  } from '../../../../utils/paramPortAudioState';
   import {
     computeEffectiveParameterValue,
     getParameterInputValue,
@@ -20,6 +24,11 @@
   import { automationLaneHasEvaluableRegions } from '../../../../utils/automationEvaluator';
   import { getParamDriverBypassState } from '../../../../utils/paramDriverBypass';
   import { resolveDriverKindForParam } from '../../../../utils/resolveDriverKindForParam';
+  import { resolveParamDriverTargetOut, type ParamDriverTargetOut } from '../../../../utils/resolveParamDriverTargetOut';
+  import {
+    isAudioVirtualDriverConnection,
+    resolveParameterInputMode,
+  } from '../../../../utils/resolveParameterInputMode';
   import { hasMidiEnvelopeBindingForParam } from '../../../../data-model/immutableUpdatesMidiEnvelope';
   import { subscribeParameterValueTick } from '../../../stores/parameterValueTickStore';
   import type { NodeGraph } from '../../../../data-model/types';
@@ -67,6 +76,10 @@
       useConfigForInput: boolean;
       /** Stored parameter value (config / base). Display may be effective when wired; inline edit uses the same domain as drag (effective) unless {@link useConfigForInput}. */
       configValue: number;
+      /** Per-port driver target Out when audio remap or MIDI binding is attached. */
+      driverTargetOut: ParamDriverTargetOut | null;
+      /** True when param driver bypass is active (dims outer target arc). */
+      driverBypassed: boolean;
     }]>;
   }
 
@@ -114,6 +127,10 @@
 
   const driverBypassState = $derived(getParamDriverBypassState(graph, nodeId, paramName));
 
+  const driverTargetOut = $derived(
+    resolveParamDriverTargetOut(graph, audioSetup, nodeId, paramName)
+  );
+
   const attachedDriverKind = $derived(
     resolveDriverKindForParam(graph, nodeId, paramName, audioSetup)
   );
@@ -123,9 +140,11 @@
   const supportsAnimation = $derived(paramSpec?.supportsAnimation !== false);
   const portState: ParamPortState = $derived(connectionInfo.state);
   const signalName = $derived(connectionInfo.signalName);
-  const showModeButton = $derived(connectionInfo.state !== 'default');
+  /** Graph wires keep full mode cycle; audio virtual driver uses override by default. */
+  const showModeButton = $derived(connectionInfo.state === 'graph-connected');
   const modeButtonIcon = $derived(MODE_TO_ICON[inputMode] ?? 'equal');
   let liveValue = $state(0);
+  let driverCell = $state<ParamPortDriverCellDisplay | null>(null);
   let effectiveValue = $state<number | null>(null);
   /** Incremented every frame when connected so displayValue re-runs and knob shows live value. */
   let tickCount = $state(0);
@@ -158,6 +177,7 @@
     const hasMidi = hasMidiEnvelopeBindingForParam(g, nodeId, paramName);
     if (info.state === 'default' && !hasLane && !hasMidi) {
       effectiveValue = null;
+      driverCell = null;
       return;
     }
     const spec = specs.get(n.type)?.parameters?.[paramName];
@@ -173,6 +193,12 @@
 
     return subscribeParameterValueTick(() => {
       const currentTime = getTimelineCurrentTime?.() ?? 0;
+      driverCell = resolveParamPortDriverCellDisplay(nodeId, paramName, g, setup, {
+        nodeSpecs: specs,
+        audioManager: am ?? undefined,
+        transportTime: currentTime,
+        snapshot: setup.arrangementSnapshot,
+      });
       const { value: automationVal } = evaluateAutomationSignalBindingForParam(
         n,
         paramName,
@@ -198,8 +224,19 @@
       if (info.state === 'audio-connected' && am && !connectionBypassed) {
         const raw = getParameterInputValue(nodeId, paramName, g, specs, am) ?? null;
         if (raw !== null && typeof raw === 'number' && isFinite(raw)) {
-          liveValue = Math.max(0, Math.min(1, raw));
-          effectiveValue = applyInputMode(config, raw, inputMode);
+          const audioConn = g.connections.find(
+            (c) =>
+              !c.disabled &&
+              c.targetNodeId === nodeId &&
+              c.targetParameter === paramName
+          );
+          const effectiveMode = resolveParameterInputMode(n, paramName, spec, audioConn);
+          liveValue = driverCell?.meterLevel ?? 0;
+          if (audioConn && isAudioVirtualDriverConnection(audioConn)) {
+            effectiveValue = raw;
+          } else {
+            effectiveValue = applyInputMode(config, raw, effectiveMode);
+          }
         } else {
           effectiveValue = config;
         }
@@ -233,9 +270,10 @@
       : null
   );
   const useConfigForInput = $derived(
-    connectionInfo.state !== 'default' &&
+    driverBypassState.bypassed ||
+    (connectionInfo.state !== 'default' &&
     inputMode === 'multiply' &&
-    (inputValue === null || (typeof inputValue === 'number' && Math.abs(inputValue) < 1e-10))
+    (inputValue === null || (typeof inputValue === 'number' && Math.abs(inputValue) < 1e-10)))
   );
   /** When connected or has evaluable automation lane, depend on tickCount so display updates when playhead moves. */
   const displayValue = $derived.by(() => {
@@ -243,7 +281,7 @@
       const _ = tickCount;
       void _;
     }
-    return useConfigForInput ? configValue : (effectiveValue ?? configValue);
+    return (driverBypassState.bypassed || useConfigForInput) ? configValue : (effectiveValue ?? configValue);
   });
 
   function handleModeClick() {
@@ -271,6 +309,7 @@
   {paramName}
   portState={portState}
   signalName={signalName}
+  {driverCell}
   attachedDriverKind={attachedDriverKind}
   liveValue={liveValue}
   supportsAudio={supportsAudio}
@@ -283,5 +322,12 @@
   {disabled}
   class={className}
 >
-  {@render children?.({ effectiveValue, displayValue, useConfigForInput, configValue })}
+  {@render children?.({
+    effectiveValue,
+    displayValue,
+    useConfigForInput,
+    configValue,
+    driverTargetOut,
+    driverBypassed: driverBypassState.bypassed,
+  })}
 </ParameterCell>

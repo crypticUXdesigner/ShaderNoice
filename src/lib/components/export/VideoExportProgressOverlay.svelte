@@ -1,6 +1,7 @@
 <script lang="ts">
   import { type Readable } from 'svelte/store';
-  import { Button, Message } from '../ui';
+  import { Button } from '../ui';
+  import ExportFocusSysWarn from './ExportFocusSysWarn.svelte';
 
   interface Props {
     progress: Readable<{ current: number; total: number }>;
@@ -80,10 +81,12 @@
     <div class="title">Exporting video…</div>
     <div class="text">Frame {progressValue.current} / {progressValue.total}</div>
     <div class="text secondary">Time remaining: {remainingText}</div>
-    {#snippet importantHeading()}Keep this tab focused{/snippet}
-    <Message inline variant="info" heading={importantHeading}>
-      Keep this browser tab in focus. If you switch tabs or minimize the window, export can become very slow and audio may go out of sync.
-    </Message>
+    <ExportFocusSysWarn
+      active={true}
+      progressPercent={
+        progressValue.total > 0 ? progressValue.current / progressValue.total : 0
+      }
+    />
     <div class="actions">
       <Button variant="secondary" size="md" onclick={onCancel}>Cancel</Button>
     </div>

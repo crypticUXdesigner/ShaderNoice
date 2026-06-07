@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { NodeGraph } from './types';
 import {
   migrateLegacyStripeParameters,
+  migrateStripesWaveScaleMerge,
   migrateUnifiedStripesPattern,
   migrateWavePatternsTypeRename
 } from './stripesPatternUnificationMigration';
@@ -84,6 +85,37 @@ describe('migrateLegacyStripeParameters', () => {
   it('soft sharpness maps to sine-like wave type', () => {
     const p = migrateLegacyStripeParameters({ stripesSharpness: 0.2, stripesFrequency: 4 });
     expect(p.waveType).toBe(0);
+  });
+});
+
+describe('migrateStripesWaveScaleMerge', () => {
+  it('folds waveScale into waveFrequency and adds waveThickness', () => {
+    const graph: NodeGraph = {
+      id: 'g',
+      name: 't',
+      version: '2.0',
+      nodes: [
+        {
+          id: 'st',
+          type: 'stripes',
+          position: { x: 0, y: 0 },
+          parameters: {
+            waveScale: 2.0,
+            waveFrequency: 6.0,
+            waveAmplitude: 1.0,
+            waveType: 0,
+          },
+          parameterInputModes: { waveScale: 'multiply' },
+        },
+      ],
+      connections: [],
+    };
+    const g = migrateStripesWaveScaleMerge(graph);
+    const p = g.nodes[0]?.parameters as Record<string, number>;
+    expect(p.waveFrequency).toBeCloseTo(12);
+    expect(p.waveThickness).toBeCloseTo(1);
+    expect(p.waveScale).toBeUndefined();
+    expect(g.nodes[0]?.parameterInputModes?.waveFrequency).toBe('multiply');
   });
 });
 

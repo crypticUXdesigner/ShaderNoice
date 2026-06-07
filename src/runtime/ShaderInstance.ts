@@ -129,82 +129,21 @@ export class ShaderInstance implements Disposable {
   private createProgram(compilationResult: CompilationResult): void {
     const cacheKey = compilationResult.shaderCode;
     const cache = getProgramCache(this.gl);
-    const cached = cache.acquire(
-      cacheKey,
-      () => {
-        const ext = this.gl.getExtension('KHR_parallel_shader_compile') as
-          | { COMPLETION_STATUS_KHR: number }
-          | null;
+    const onEvictCachedProgram = (entry: CachedProgram): void => {
+      this.gl.deleteProgram(entry.program);
+      this.gl.deleteShader(entry.vertexShader);
+      this.gl.deleteShader(entry.fragmentShader);
+    };
+    const createCachedProgram = (): CachedProgram => this.buildCachedProgram(compilationResult);
 
-        // Create vertex shader
-        const vertexShader = this.createShader(this.gl.VERTEX_SHADER, BASE_VERTEX_SHADER);
-        if (!vertexShader) {
-          throw new Error('Failed to create vertex shader');
-        }
+    let cached = cache.acquire(cacheKey, createCachedProgram, onEvictCachedProgram);
 
-        // Create fragment shader
-        const fragmentError = this.createShaderAndCaptureError(
-          this.gl.FRAGMENT_SHADER,
-          compilationResult.shaderCode
-        );
-        const fragmentShader = fragmentError.shader;
-        if (!fragmentShader) {
-          this.gl.deleteShader(vertexShader);
-          throw new ShaderCompilationError(
-            'Fragment shader compile failed',
-            fragmentError.infoLog || 'Unknown error',
-            compilationResult.shaderCode
-          );
-        }
-
-        const program = this.gl.createProgram();
-        if (!program) {
-          this.gl.deleteShader(vertexShader);
-          this.gl.deleteShader(fragmentShader);
-          throw new Error('Failed to create WebGL program');
-        }
-
-        this.gl.attachShader(program, vertexShader);
-        this.gl.attachShader(program, fragmentShader);
-        previewPerformanceMark(PreviewPerfMark.compileMainThreadLinkStart);
-        this.gl.linkProgram(program);
-        previewPerformanceMark(PreviewPerfMark.compileMainThreadLinkEnd);
-
-        // If the extension is available and compilation isn't complete yet, avoid blocking LINK_STATUS query.
-        const completionReady =
-          ext === null ? true : Boolean(this.gl.getProgramParameter(program, ext.COMPLETION_STATUS_KHR));
-
-        if (completionReady) {
-          const ok = Boolean(this.gl.getProgramParameter(program, this.gl.LINK_STATUS));
-          if (!ok) {
-            const error = this.gl.getProgramInfoLog(program);
-            this.gl.deleteProgram(program);
-            this.gl.deleteShader(vertexShader);
-            this.gl.deleteShader(fragmentShader);
-            throw new ShaderCompilationError(
-              'Shader program link failed',
-              error || 'Unknown error',
-              compilationResult.shaderCode
-            );
-          }
-        }
-
-        return {
-          program,
-          vertexShader,
-          fragmentShader,
-          status: completionReady ? 'linked' : 'pending',
-          linkStatusChecked: completionReady,
-          linkErrorLog: null,
-        };
-      },
-      (entry) => {
-        // Eviction cleanup (only called when refCount === 0)
-        this.gl.deleteProgram(entry.program);
-        this.gl.deleteShader(entry.vertexShader);
-        this.gl.deleteShader(entry.fragmentShader);
-      }
-    );
+    // Never reuse a failed link entry — a later apply with the same shader source must relink.
+    if (!cached.created && cached.value.status === 'failed') {
+      cached.release();
+      cache.evictKey(cacheKey, onEvictCachedProgram);
+      cached = cache.acquire(cacheKey, createCachedProgram, onEvictCachedProgram);
+    }
 
     // Parallel link: block (export) or throw pending (preview) so the UI thread is not spin-waiting.
     if (cached.value.status === 'pending') {
@@ -250,6 +189,71 @@ export class ShaderInstance implements Disposable {
     this.vertexShader = null;
     this.fragmentShader = null;
     return;
+  }
+
+  private buildCachedProgram(compilationResult: CompilationResult): CachedProgram {
+    const ext = this.gl.getExtension('KHR_parallel_shader_compile') as
+      | { COMPLETION_STATUS_KHR: number }
+      | null;
+
+    const vertexShader = this.createShader(this.gl.VERTEX_SHADER, BASE_VERTEX_SHADER);
+    if (!vertexShader) {
+      throw new Error('Failed to create vertex shader');
+    }
+
+    const fragmentError = this.createShaderAndCaptureError(
+      this.gl.FRAGMENT_SHADER,
+      compilationResult.shaderCode
+    );
+    const fragmentShader = fragmentError.shader;
+    if (!fragmentShader) {
+      this.gl.deleteShader(vertexShader);
+      throw new ShaderCompilationError(
+        'Fragment shader compile failed',
+        fragmentError.infoLog || 'Unknown error',
+        compilationResult.shaderCode
+      );
+    }
+
+    const program = this.gl.createProgram();
+    if (!program) {
+      this.gl.deleteShader(vertexShader);
+      this.gl.deleteShader(fragmentShader);
+      throw new Error('Failed to create WebGL program');
+    }
+
+    this.gl.attachShader(program, vertexShader);
+    this.gl.attachShader(program, fragmentShader);
+    previewPerformanceMark(PreviewPerfMark.compileMainThreadLinkStart);
+    this.gl.linkProgram(program);
+    previewPerformanceMark(PreviewPerfMark.compileMainThreadLinkEnd);
+
+    const completionReady =
+      ext === null ? true : Boolean(this.gl.getProgramParameter(program, ext.COMPLETION_STATUS_KHR));
+
+    if (completionReady) {
+      const ok = Boolean(this.gl.getProgramParameter(program, this.gl.LINK_STATUS));
+      if (!ok) {
+        const error = this.gl.getProgramInfoLog(program);
+        this.gl.deleteProgram(program);
+        this.gl.deleteShader(vertexShader);
+        this.gl.deleteShader(fragmentShader);
+        throw new ShaderCompilationError(
+          'Shader program link failed',
+          error || 'Unknown error',
+          compilationResult.shaderCode
+        );
+      }
+    }
+
+    return {
+      program,
+      vertexShader,
+      fragmentShader,
+      status: completionReady ? 'linked' : 'pending',
+      linkStatusChecked: completionReady,
+      linkErrorLog: null,
+    };
   }
   
   /**

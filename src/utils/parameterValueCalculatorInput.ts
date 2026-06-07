@@ -16,6 +16,7 @@ import {
   getSignalIdFromVirtualNodeId,
   getVirtualNodeId,
 } from './virtualNodes';
+import { applyConnectionRemapperOut } from './driverRemap';
 import {
   evaluateMixedWaveSignalPreview,
   getShaderTimeSeconds,
@@ -198,9 +199,9 @@ export function getInputValue(
         0,
       ) as SignalBinding<number>;
       const value = evaluateAudioSignalBinding(binding, audioManager);
-      return value !== null && typeof value === 'number' && !isNaN(value)
-        ? value
-        : null;
+      if (value === null || typeof value !== 'number' || isNaN(value)) return null;
+      // Remapper uniforms are gated 0–1; per-target Out lives on the connection (task 02A).
+      return applyConnectionRemapperOut(connection, value, signalId);
     }
     return null;
   }

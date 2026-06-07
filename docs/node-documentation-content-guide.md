@@ -9,6 +9,7 @@ This guide defines how to write and edit user-facing node documentation in `src/
 - **Trigger:** One node selected → Help button or right‑click → “Read Guide”.
 - **UI:** Floating Guide panel (draggable) with:
   - **Headline** — icon (from node spec), **title**, **tagline**
+  - **Hook** — optional actionable one-liner (when `hook` is set; rendered prominently in Guide)
   - **Setup example** — optional mini graph (when `setupExampleGraph` is set)
   - **Description** — main body text
   - **Inputs** — collapsible list: port name/label, type pill, description, optional “suggested” nodes
@@ -37,7 +38,8 @@ This guide defines how to write and edit user-facing node documentation in `src/
 | **title** | Headline (h2) | Short display name (e.g. “Noise”, “Output”). Can match or slightly rephrase the node’s display name. |
 | **titleType** | Logic (e.g. “Used by”) | Use `"node"` for node docs. Use `"type"` only for port-type help (e.g. `type:float`). |
 | **tagline** | Headline subtitle | One short sentence: what the node is for and what you get (e.g. “Creates a random-looking pattern from coordinates…”). |
-| **description** | Main body | 1–3 sentences: what it does, main parameters, and a concrete “connect to X then Y” so the user can get a visible result. |
+| **hook** | Hook callout (optional) | One actionable sentence: what to do first (e.g. “Connect UV → Noise → Output to see a pattern.”). **Tagline** = what it is; **hook** = what to do first. |
+| **description** | Main body | 1–3 sentences: what it does and how to wire it. Default **≤280 characters**; if longer than **400**, move detail into **examples** or **advanced**. |
 | **inputs** | Inputs section | Array of port objects (see § Ports). Omit or `[]` if no inputs. |
 | **outputs** | Outputs section | Array of port objects (see § Ports). Omit or `[]` if no outputs. |
 | **parameters** | Controls section | Array of `{ name, description }` (see § Parameters). Omit or `[]` if no controls. |
@@ -65,12 +67,16 @@ Each port object can have:
 
 ## Parameters (Controls) — JSON shape
 
+**When required:** Include a **Controls** section only when the node body exposes **≥1 parameter** in the UI (`parameterLayout` / `autoGenerateLayout` — same path as `NodeBody`). Port-only nodes (no on-body knobs) omit **parameters**; **inputs**, **outputs**, and **examples** suffice.
+
 Each parameter object has:
 
-- **name** (required) — Must match the parameter name in the node spec (e.g. “Scale”, “Mode”, “Octaves”).
+- **name** (required) — Must match the **UI label** from `ParameterSpec.label` (e.g. “Scale”, “Mode”, “Octaves”), not the internal spec key.
 - **description** (required) — What the control does and how it affects the result. Include the “visual effect” in this single description (e.g. “Higher = larger blobs; lower = finer grain.”).
 
-One entry per control; order can follow the spec or a logical reading order.
+One entry per **layout-exposed** control; order can follow the layout or a logical reading order. Do not document parameters hidden from the node body.
+
+**Audit:** `npm run audit:node-docs` compares doc **parameters** to layout-exposed labels (see `scripts/nodeDocAuditLib.ts`).
 
 ---
 
@@ -105,7 +111,8 @@ Use short, stable `id`s (e.g. `a`, `b`, `c`). Every `type` must exist in the nod
 
 ## Examples (the `examples` array)
 
-- Provide **2–3 short bullets** per node in the `examples` array.
+- **Required** when the node has **≥2 layout-exposed controls** or **≥2 inputs**: provide **≥2** short bullets in `examples`.
+- Otherwise optional but encouraged: **2–3 short bullets** per node when they add value.
 - Each bullet is **one concrete use case** in plain language (e.g. “Combine two patterns with different opacity,” “Animate a mask over time,” “Drive a pattern from UV and feed it to Color Map”).
 - **Not** a full tutorial sentence—enough to spark a next step. The user should be able to try the idea immediately.
 - Vary examples by node type so similar nodes (e.g. Add vs Multiply) don’t repeat the same bullets.
@@ -138,22 +145,31 @@ Use short, stable `id`s (e.g. `a`, `b`, `c`). Every `type` must exist in the nod
 
 ---
 
+## Length and formatting
+
+- **Description:** aim for **≤280 characters**; content longer than **400** should move to **examples** or **advanced**, not stay in the main body.
+- **Plain text only** in JSON strings — no markdown (`**bold**`, backticks, etc.) until the Guide renders markdown.
+- **Jargon:** on first use in an entry, add a **one-line parenthetical** (e.g. “SDF (signed distance function): distance to a shape”, “FBM (fractal Brownian motion): stacked noise octaves”, “LUT (lookup table): remaps values through a color ramp”).
+
 ## Do not
 
-- **Do not** shorten or remove an existing description or tagline when improving an entry. Only add or refine.
-- **Do not** introduce new JSON keys. Use only the existing HelpContent shape (e.g. `examples`, `advanced`, `parameters`, etc.).
-- **Do not** use jargon (e.g. “FBM”, “SDF”, “raymarch”) without a **one-line explanation** in the same entry (e.g. “SDF (signed distance function): a value that encodes distance to a shape”).
+- **Do not** shorten or remove an existing description or tagline when improving an entry. Only add or refine (split overflow into **examples** / **advanced** instead).
+- **Do not** add a **Controls** section for port-only nodes with no layout-exposed parameters.
+- **Do not** use jargon (e.g. “FBM”, “SDF”, “raymarch”, “LUT”) without a **one-line explanation** in the same entry (see **Length and formatting** above).
 
 ---
 
 ## Checklist for a new or updated node doc
 
 - [ ] Entry key is `node:<nodeTypeId>` and matches the registry.
-- [ ] **title**, **titleType** (`"node"`), **tagline**, **description** are set and concise.
+- [ ] **title**, **titleType** (`"node"`), **tagline**, **description** are set; **description ≤280 chars** (or ≤400 with overflow in **examples** / **advanced**).
+- [ ] **hook** (optional): one actionable “do this first” sentence when it helps progression.
 - [ ] **inputs** / **outputs**: each port has `name`, `type`, `description`; names match the spec; optional `suggestedSources` / `suggestedTargets` where helpful.
-- [ ] **parameters**: each control has `name` and `description`; names match the spec.
+- [ ] **parameters**: only if layout exposes ≥1 control; each entry uses **UI label** + **description**; labels match `NodeBody` / audit (`npm run audit:node-docs`).
+- [ ] **examples**: **≥2 bullets** when ≥2 exposed controls or ≥2 inputs; otherwise optional.
 - [ ] **setupExampleGraph** (if used): valid nodes + connections; all node types in registry.
-- [ ] **examples** / **advanced** / **relatedItems** optional but useful where they add value.
+- [ ] **advanced** / **relatedItems** optional but useful where they add value.
+- [ ] Plain text only (no markdown in strings); jargon glossed on first use.
 - [ ] No `icon`, `category`, `whatYouSee`, or `quickExample` (text) in the entry; parameters use only `name` and `description`.
 
 ---

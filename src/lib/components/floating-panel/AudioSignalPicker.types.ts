@@ -49,10 +49,12 @@ export interface AudioDriverPanelProps {
   nodeSpecs: Map<string, NodeSpec>;
   onSelect: (signal: SignalSelectPayload) => void;
   onAudioSetupChange: (setup: AudioSetup) => void;
+  /** Update graph for per-target driver Out on virtual remap connections. */
+  onGraphUpdate?: (graph: NodeGraph) => void;
   getAudioManager?: () => IAudioManager | null;
   /** Pre-select / scroll to this band section when opening. */
   initialBandId?: string | null;
-  /** Connected remapper id for scroll-to and connected-row chrome. */
+  /** Remapper id for scroll-to on open. */
   focusRemapperId?: string | null;
   connectionId?: string | null;
   registerDeleteHandler?: (handler: (() => void) | null) => void;
@@ -60,6 +62,8 @@ export interface AudioDriverPanelProps {
   layoutMode?: DriverPanelLayoutMode;
   /** Same handler as shell toolbar “New band” (empty-state primary CTA). */
   onNewBand?: () => void;
+  /** When false, hide Connect / Disconnect actions (global library browse). */
+  hasConnectTarget?: boolean;
 }
 
 /** Waveform fetcher for curve editor backgrounds (matches TimelineCurveEditor). */
@@ -84,7 +88,7 @@ export interface MidiDriverPanelProps {
   layoutMode?: DriverPanelLayoutMode;
   /** Pre-select / scroll to this envelope preset section when opening. */
   initialPresetId?: string | null;
-  /** Connected remapper id for scroll-to and connected-row chrome. */
+  /** Remapper id for scroll-to on open. */
   focusRemapperId?: string | null;
   /** Overview: notify parent when the selected envelope preset in the nav list changes. */
   onSelectedPresetChange?: (presetId: string | null) => void;
@@ -101,6 +105,8 @@ export interface MidiDriverPanelProps {
   /** Fetch studio project arrangement (empty state when no snapshot yet). */
   arrangementImportBusy?: boolean;
   onImportArrangement?: () => void;
+  /** When false, hide Connect actions (global library browse). */
+  hasConnectTarget?: boolean;
 }
 
 /** Props for animation driver panel content (parameter-drivers-v1 02B). */
@@ -124,6 +130,11 @@ export interface AnimationDriverPanelProps {
   compactAdvancedOpen?: boolean;
   /** Focused driver: hide Bezier/Advanced row inside the curve editor. */
   hideCurveToolbar?: boolean;
+  /** Global browse: show multi-lane timeline instead of a single-port curve editor. */
+  browseMode?: boolean;
+  waveformService?: import('../../../runtime/waveform').WaveformService | null;
+  /** When false, hide Add animation driver (global library browse). */
+  hasConnectTarget?: boolean;
 }
 
 /** Props passed to the compact slot (02B). */
@@ -140,6 +151,8 @@ export interface CompactSlotProps {
   onClose: () => void;
   /** Called when band or remapper config is edited; 02B uses for persistence. */
   onAudioSetupChange: (setup: AudioSetup) => void;
+  /** Update graph for per-target driver Out on virtual remap connections. */
+  onGraphUpdate?: (graph: NodeGraph) => void;
   /** Virtual node id of the connected audio signal (e.g. audio-signal:band-xyz-raw). */
   connectedVirtualNodeId: string;
   /** Signal id (e.g. band-{id}-raw, remap-{id}) so 02B can resolve band/remapper. */

@@ -23,6 +23,7 @@
   import { getRemapperParameterConnections } from '../../../utils/getRemapperParameterConnections';
   import { resolveDriverConnectionTargetDisplay } from './driverTargetDisplay';
   import { confirmDeleteDriverAsset } from '../../../utils/confirmDriverAssetDelete';
+  import { DRIVER_REMAP_DEFAULT_IN } from '../../../utils/driverRemap';
   import { subscribeParameterValueTick } from '../../stores/parameterValueTickStore';
   import type { Action } from 'svelte/action';
 
@@ -54,7 +55,7 @@
   let selectionEcho = $state<string | null>(null);
 
   let spectrumDataByBand = $state<Map<string, { frequencyData: Uint8Array; fftSize: number; sampleRate: number }>>(new Map());
-  let liveValuesByRemapper = $state<Map<string, { incoming: number | null; outgoing: number | null }>>(new Map());
+  let liveValuesByRemapper = $state<Map<string, { incoming: number | null; gated: number | null }>>(new Map());
 
   /** Throttle live updates to ~20 fps to avoid driving Svelte reactivity at 60 fps. */
   const LIVE_UPDATE_INTERVAL_MS = 50;
@@ -142,7 +143,7 @@
     }
     let lastUpdateTime = 0;
     const specMap = new Map<string, { frequencyData: Uint8Array; fftSize: number; sampleRate: number }>();
-    const liveMap = new Map<string, { incoming: number | null; outgoing: number | null }>();
+    const liveMap = new Map<string, { incoming: number | null; gated: number | null }>();
     const unsub = subscribeParameterValueTick(() => {
       specMap.clear();
       liveMap.clear();
@@ -153,10 +154,12 @@
           const live = am.getPanelBandLiveValues?.(band.id, {
             inMin: remap.inMin,
             inMax: remap.inMax,
-            outMin: remap.outMin,
-            outMax: remap.outMax,
+            outMin: 0,
+            outMax: 1,
           });
-          if (live) liveMap.set(remap.id, live);
+          if (live) {
+            liveMap.set(remap.id, { incoming: live.incoming, gated: live.outgoing });
+          }
         }
       }
       const now = performance.now();
@@ -201,10 +204,8 @@
       id: `remap-${generateUUID()}`,
       name: `Remap ${selectedBandRemappers.length + 1}`,
       bandId: selectedBandId,
-      inMin: 0,
-      inMax: 1,
-      outMin: 0,
-      outMax: 1,
+      inMin: DRIVER_REMAP_DEFAULT_IN.inMin,
+      inMax: DRIVER_REMAP_DEFAULT_IN.inMax,
     };
     onAudioSetupChange?.(addAudioRemapper(audioSetup, newRemapper));
   }
@@ -425,21 +426,18 @@
       {:else}
         <div class="cards scrollbar-styled" role="list" aria-label="Remaps">
           {#each selectedBandRemappers as remapper (remapper.id)}
-            {@const connectionTargets = getRemapperParameterConnections(graph, remapper.id, nodeSpecs)
-              .map((c) => resolveDriverConnectionTargetDisplay(graph, nodeSpecs, c.nodeId, c.paramName))
-              .filter((t): t is NonNullable<typeof t> => t != null)}
             <RemapperCard
               remapper={remapper}
               bandName={bands.find((b) => b.id === remapper.bandId)?.name ?? 'Band'}
-              liveValues={liveValuesByRemapper.get(remapper.id) ?? null}
+              liveValues={(() => {
+                const live = liveValuesByRemapper.get(remapper.id);
+                return live ? { incoming: live.incoming, outgoing: null } : null;
+              })()}
+              remapSections="gateOnly"
               onConnect={browseOnly ? undefined : () => handleConnectRemapper(remapper.id)}
               onDelete={() => tryDeleteRemapper(remapper.id)}
               onDuplicate={() => handleDuplicateRemapper(remapper)}
               onRemapperChange={(updater) => handleRemapperChange(remapper.id, updater)}
-              {connectionTargets}
-              activeTargetNodeId={targetNodeId}
-              activeTargetParamName={targetParameter}
-              onRevealParameter={onRevealInNodeEditor}
             />
           {/each}
         </div>

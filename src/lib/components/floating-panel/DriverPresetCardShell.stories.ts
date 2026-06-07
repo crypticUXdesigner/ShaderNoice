@@ -14,7 +14,7 @@ const meta = {
 
 export default meta;
 
-/** Default, selected, connected, and embedded surfaces. */
+/** Default, selected, disconnect-action, and embedded surfaces. */
 export const SurfaceVariants: StoryObj<typeof meta> = {
   render: () => ({
     Component: DriverPresetCardShellShowcase,

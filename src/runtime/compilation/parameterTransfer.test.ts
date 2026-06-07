@@ -50,7 +50,6 @@ describe('transferParametersFromGraph (MVP audio remap fixtures)', () => {
     transferParametersFromGraph(graph, instance);
 
     expect(instance.setParameter).toHaveBeenCalledWith('n-stetra-ab', 'iterations', 3);
-    expect(instance.setParameter).toHaveBeenCalledWith('n-stetra-ab', 'scale', 2.0);
     expect(instance.setParameter).toHaveBeenCalledWith('n-blur-stab', 'blurAmount', 0.0);
     expect(instance.setParameter).toHaveBeenCalledWith('n-blur-stab', 'blurRadius', 6.0);
   });
@@ -62,7 +61,6 @@ describe('transferParametersFromGraph (MVP audio remap fixtures)', () => {
     transferParametersFromGraph(graph, instance);
 
     expect(instance.setParameter).toHaveBeenCalledWith('n-stetra-gb', 'iterations', 3);
-    expect(instance.setParameter).toHaveBeenCalledWith('n-stetra-gb', 'scale', 2.0);
     expect(instance.setParameter).toHaveBeenCalledWith('n-glow-stgb', 'glowThreshold', 0.45);
     expect(instance.setParameter).toHaveBeenCalledWith('n-glow-stgb', 'glowIntensity', 1.4);
   });
@@ -74,7 +72,6 @@ describe('transferParametersFromGraph (MVP audio remap fixtures)', () => {
     transferParametersFromGraph(graph, instance);
 
     expect(instance.setParameter).toHaveBeenCalledWith('n-stetra-bk', 'iterations', 3);
-    expect(instance.setParameter).toHaveBeenCalledWith('n-stetra-bk', 'scale', 2.0);
     expect(instance.setParameter).toHaveBeenCalledWith('n-bokeh-stbk', 'bokehThreshold', 0.35);
     expect(instance.setParameter).toHaveBeenCalledWith('n-bokeh-stbk', 'bokehRadius', 14.0);
   });
@@ -86,7 +83,6 @@ describe('transferParametersFromGraph (MVP audio remap fixtures)', () => {
     transferParametersFromGraph(graph, instance);
 
     expect(instance.setParameter).toHaveBeenCalledWith('n-stetra-cr', 'iterations', 3);
-    expect(instance.setParameter).toHaveBeenCalledWith('n-stetra-cr', 'scale', 2.0);
     expect(instance.setParameter).toHaveBeenCalledWith('n-crep-stcr', 'intensity', 1.4);
     expect(instance.setParameter).toHaveBeenCalledWith('n-crep-stcr', 'rayCount', 16);
   });

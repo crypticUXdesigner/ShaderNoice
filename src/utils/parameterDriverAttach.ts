@@ -7,13 +7,23 @@
  */
 
 import type { NodeGraph, Connection } from '../data-model/types';
-import { removeConnection } from '../data-model/immutableUpdates';
+import { removeConnection, updateConnectionDriverOut, updateNodeParameterInputMode } from '../data-model/immutableUpdates';
 import { removeAutomationLane } from '../data-model/immutableUpdatesAutomation';
-import { unbindMidiEnvelopeBindingForParam } from '../data-model/immutableUpdatesMidiEnvelope';
-import { isVirtualNodeId } from './virtualNodes';
+import {
+  findMidiEnvelopeBindingForParam,
+  unbindMidiEnvelopeBindingForParam,
+  updateMidiEnvelopeBindingOut,
+} from '../data-model/immutableUpdatesMidiEnvelope';
+import { updateRemapper as updateAudioRemapper } from '../data-model/audioSetupUpdates';
+import { getSignalIdFromVirtualNodeId, isVirtualNodeId } from './virtualNodes';
 import type { AttachedDriverKind } from './resolveDriverKindForParam';
 import { resolveDriverKindForParam } from './resolveDriverKindForParam';
 import type { AudioSetup } from '../data-model/audioSetupTypes';
+import type { ParameterSpec } from '../types/nodeSpec';
+import {
+  defaultDriverRemapOutForParam,
+  DRIVER_REMAP_DEFAULT_IN,
+} from './driverRemap';
 
 export function findAudioDriverConnection(
   graph: NodeGraph,
@@ -89,6 +99,76 @@ export function prepareGraphForAnimationDriverAttach(
   let next = detachAudioDriverForParam(graph, nodeId, paramName);
   next = detachMidiDriverForParam(next, nodeId, paramName);
   return next;
+}
+
+/**
+ * After a new audio virtual-wire connection: default input mode to override (when unset)
+ * and apply param-scoped Out on the connection for remapper signals (gate stays on remapper).
+ */
+export function applyAudioDriverVirtualWireAttachEffects(
+  graph: NodeGraph,
+  audioSetup: AudioSetup,
+  sourceVirtualNodeId: string,
+  targetNodeId: string,
+  targetParameter: string,
+  paramSpec: ParameterSpec | undefined
+): { graph: NodeGraph; audioSetup: AudioSetup } {
+  if (!isVirtualNodeId(sourceVirtualNodeId) || !targetParameter) {
+    return { graph, audioSetup };
+  }
+
+  let nextGraph = graph;
+  const targetNode = graph.nodes.find((n) => n.id === targetNodeId);
+  if (targetNode) {
+    nextGraph = updateNodeParameterInputMode(nextGraph, targetNodeId, targetParameter, 'override');
+  }
+
+  const { outMin, outMax } = defaultDriverRemapOutForParam(paramSpec);
+  const connection = nextGraph.connections.find(
+    (c) =>
+      c.sourceNodeId === sourceVirtualNodeId &&
+      c.targetNodeId === targetNodeId &&
+      c.targetParameter === targetParameter
+  );
+  if (connection) {
+    nextGraph = updateConnectionDriverOut(nextGraph, connection.id, {
+      driverOutMin: outMin,
+      driverOutMax: outMax,
+    });
+  }
+
+  const signalId = getSignalIdFromVirtualNodeId(sourceVirtualNodeId);
+  let nextSetup = audioSetup;
+
+  if (signalId.startsWith('remap-')) {
+    const remapperId = signalId.slice(6);
+    const existing = audioSetup.remappers.find((r) => r.id === remapperId);
+    if (existing && (existing.inMin == null || existing.inMax == null)) {
+      nextSetup = updateAudioRemapper(nextSetup, remapperId, (r) => ({
+        ...r,
+        inMin: r.inMin ?? DRIVER_REMAP_DEFAULT_IN.inMin,
+        inMax: r.inMax ?? DRIVER_REMAP_DEFAULT_IN.inMax,
+      }));
+    }
+  }
+
+  return { graph: nextGraph, audioSetup: nextSetup };
+}
+
+/** Apply param-scoped Out on the binding when attaching a MIDI remapper to a parameter port. */
+export function applyMidiRemapperConnectDefaults(
+  graph: NodeGraph,
+  remapperId: string,
+  nodeId: string,
+  paramName: string,
+  paramSpec: ParameterSpec | undefined
+): NodeGraph {
+  const { outMin, outMax } = defaultDriverRemapOutForParam(paramSpec);
+  const binding = findMidiEnvelopeBindingForParam(graph, nodeId, paramName);
+  if (binding?.remapperId === remapperId) {
+    return updateMidiEnvelopeBindingOut(graph, binding.id, { outMin, outMax });
+  }
+  return graph;
 }
 
 /** Strip conflicting audio + animation drivers before attaching MIDI on `(nodeId, paramName)`. */

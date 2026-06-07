@@ -48,7 +48,7 @@ export function defaultRemapperIdForBand(bandId: string): string {
   return `${BAND_REMAP_SIGNAL_PREFIX}${bandId}`;
 }
 
-/** Default remapper row for a band (same shape as migration adds). */
+/** Default remapper row for a band (same shape as migration adds). Out lives on connections. */
 export function defaultRemapperEntryForBand(band: AudioBandEntry): AudioRemapperEntry {
   return {
     id: defaultRemapperIdForBand(band.id),
@@ -56,8 +56,6 @@ export function defaultRemapperEntryForBand(band: AudioBandEntry): AudioRemapper
     bandId: band.id,
     inMin: band.remapInMin ?? 0,
     inMax: band.remapInMax ?? 1,
-    outMin: band.remapOutMin ?? 0,
-    outMax: band.remapOutMax ?? 1,
   };
 }
 

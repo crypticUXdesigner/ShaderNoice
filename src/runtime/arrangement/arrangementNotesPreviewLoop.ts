@@ -14,6 +14,7 @@ import {
 import { getArrangementNotesBakeCache } from '../../audiotool/arrangement/arrangementNotesBakeCache';
 import { filterNotesForNode } from '../../shaders/arrangement/packArrangementNotesForGlsl';
 import type { PreviewProgramInstance } from '../types';
+import type { ArrangementLoopUniformUpdate } from './arrangementPatternPreviewLoop';
 
 /** Matches `arrangement-notes` `windowSeconds` NodeSpec max. */
 const MAX_WINDOW_SECONDS = 100;
@@ -33,26 +34,29 @@ function bakedNotesForNode(node: NodeInstance, snapshot: NonNullable<AudioSetup[
   return getArrangementNotesBakeCache(node.id) ?? filterNotesForNode(snapshot, node).notes;
 }
 
-export function applyArrangementNotesLoopUniforms(args: {
+/** Collect per-frame `noteLoopStart` / `noteLoopEnd` for arrangement-notes (preview + export). */
+export function collectArrangementNotesLoopUniformUpdates(args: {
   graph: NodeGraph | null | undefined;
-  shaderInstance: PreviewProgramInstance | null | undefined;
   timelineTime: number;
   audioSetup?: AudioSetup | null;
-}): void {
-  const { graph, shaderInstance, timelineTime, audioSetup } = args;
-  if (!graph?.nodes?.length || !shaderInstance || !Number.isFinite(timelineTime)) {
-    return;
+}): ArrangementLoopUniformUpdate[] {
+  const { graph, timelineTime, audioSetup } = args;
+  if (!graph?.nodes?.length || !Number.isFinite(timelineTime)) {
+    return [];
   }
 
   const snapshot = audioSetup?.arrangementSnapshot;
+  const updates: ArrangementLoopUniformUpdate[] = [];
 
   for (const node of graph.nodes) {
     if (node.type !== 'arrangement-notes') continue;
 
     const baked = snapshot ? bakedNotesForNode(node, snapshot) : getArrangementNotesBakeCache(node.id);
     if (!baked?.length) {
-      shaderInstance.setParameter(node.id, 'noteLoopStart', 0);
-      shaderInstance.setParameter(node.id, 'noteLoopEnd', 0);
+      updates.push(
+        { nodeId: node.id, paramName: 'noteLoopStart', value: 0 },
+        { nodeId: node.id, paramName: 'noteLoopEnd', value: 0 }
+      );
       continue;
     }
 
@@ -69,7 +73,25 @@ export function applyArrangementNotesLoopUniforms(args: {
       timelineTime,
       loopBudget
     );
-    shaderInstance.setParameter(node.id, 'noteLoopStart', start);
-    shaderInstance.setParameter(node.id, 'noteLoopEnd', end);
+    updates.push(
+      { nodeId: node.id, paramName: 'noteLoopStart', value: start },
+      { nodeId: node.id, paramName: 'noteLoopEnd', value: end }
+    );
+  }
+
+  return updates;
+}
+
+export function applyArrangementNotesLoopUniforms(args: {
+  graph: NodeGraph | null | undefined;
+  shaderInstance: PreviewProgramInstance | null | undefined;
+  timelineTime: number;
+  audioSetup?: AudioSetup | null;
+}): void {
+  const { graph, shaderInstance, timelineTime, audioSetup } = args;
+  if (!shaderInstance) return;
+
+  for (const u of collectArrangementNotesLoopUniformUpdates({ graph, timelineTime, audioSetup })) {
+    shaderInstance.setParameter(u.nodeId, u.paramName, u.value);
   }
 }

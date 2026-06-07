@@ -5,6 +5,7 @@
 
 import { InteractionType } from '../../../interactions/InteractionTypes';
 import { RenderLayer } from '../../rendering/RenderState';
+import type { ConnectSource } from '../connectTargetResolver';
 import type { MouseEventHandlerDependencies } from './MouseEventHandler';
 import type { MouseEventMoveContext } from './MouseEventHandlerTypes';
 
@@ -54,21 +55,19 @@ export function completeConnectionOnMouseUp(ctx: MouseEventMoveContext, e: Mouse
     return;
   }
 
-  const portHitAtRelease = ctx.deps.hitTestManager.hitTestPort(e.clientX, e.clientY);
-  const validDirection = (p: { isOutput: boolean }) =>
-    (startIsOutput && !p.isOutput) || (!startIsOutput && p.isOutput);
-  const portHitAtLastMove = ctx.deps.hitTestManager.hitTestPort(conn.connectionMouseX, conn.connectionMouseY);
+  const source: ConnectSource = {
+    nodeId: startNodeId,
+    port: startPort,
+    isOutput: startIsOutput,
+    parameter: conn.connectionStartParameter,
+  };
 
   const targetPort =
-    portHitAtRelease && portHitAtRelease.nodeId !== startNodeId && validDirection(portHitAtRelease)
-      ? portHitAtRelease
-      : conn.hoveredPort && conn.hoveredPort.nodeId !== startNodeId && validDirection(conn.hoveredPort)
-        ? conn.hoveredPort
-        : portHitAtLastMove &&
-            portHitAtLastMove.nodeId !== startNodeId &&
-            validDirection(portHitAtLastMove)
-          ? portHitAtLastMove
-          : null;
+    ctx.deps.hitTestManager.resolveConnectTarget(source, e.clientX, e.clientY) ??
+    (conn.hoveredPort && conn.hoveredPort.nodeId !== startNodeId
+      ? conn.hoveredPort
+      : null) ??
+    ctx.deps.hitTestManager.resolveConnectTarget(source, conn.connectionMouseX, conn.connectionMouseY);
 
   if (targetPort) {
     const onConnectionCreated = ctx.deps.getOnConnectionCreated?.() ?? ctx.deps.onConnectionCreated;

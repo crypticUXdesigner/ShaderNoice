@@ -418,6 +418,31 @@ export function setConnectionDisabled(
   return { ...graph, connections };
 }
 
+/** Update per-target driver Out on an audio virtual remap → parameter connection. */
+export function updateConnectionDriverOut(
+  graph: NodeGraph,
+  connectionId: string,
+  patch: Partial<Pick<Connection, 'driverOutMin' | 'driverOutMax'>>
+): NodeGraph {
+  const index = graph.connections.findIndex((c) => c.id === connectionId);
+  if (index === -1) return graph;
+  const prev = graph.connections[index];
+  const next = {
+    ...prev,
+    ...(patch.driverOutMin !== undefined ? { driverOutMin: patch.driverOutMin } : {}),
+    ...(patch.driverOutMax !== undefined ? { driverOutMax: patch.driverOutMax } : {}),
+  };
+  if (
+    next.driverOutMin === prev.driverOutMin &&
+    next.driverOutMax === prev.driverOutMax
+  ) {
+    return graph;
+  }
+  const connections = [...graph.connections];
+  connections[index] = next;
+  return { ...graph, connections };
+}
+
 /**
  * Removes connections that match a predicate, returning a new graph instance.
  * Useful for removing connections to/from a specific port or parameter.
@@ -591,6 +616,7 @@ export {
   addMidiEnvelopeBinding,
   updateMidiEnvelopePreset,
   updateMidiEnvelopeRemapper,
+  updateMidiEnvelopeBindingOut,
   updateMidiEnvelopeBinding,
   removeMidiEnvelopeBinding,
   removeMidiEnvelopePreset,

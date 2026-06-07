@@ -14,7 +14,7 @@ Free stickies can be **dragged** on the canvas. Users can **attach** a sticky to
 
 ### In
 
-- **Drag free sticky:** pointerdown on sticky drag handle → update `position` with `recordUndo: false` during move, `recordUndoSnapshot` on pointerup (same gesture pattern as parameters per `undo-history-gestures`).
+- **Drag free sticky:** pointerdown on sticky drag handle → update `position` with `recordUndo: false` during move, `recordUndoSnapshot` on pointerup (same gesture pattern as parameters — `graphStore` `recordUndo` / `recordUndoSnapshot`; see `.cursor/rules/data-model/undo-history.mdc`).
 - **Attach:**
   - Editor/menu action: **Attach to node** when exactly one node selected → set `attachedNodeId` + compute `offset` from current world position minus node.position
   - Optional v1: drop sticky onto node body (hit test node id under cursor on pointerup)—if too heavy, menu-only attach is enough if documented in Completion

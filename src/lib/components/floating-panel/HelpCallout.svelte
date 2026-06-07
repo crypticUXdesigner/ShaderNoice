@@ -3,6 +3,7 @@
    * Floating panel that shows contextual node help / docs (e.g. from "Read Guide" or Help button).
    * Draggable popover with header (icon + "Guide" + close); body rendered by HelpCalloutContent.
    */
+  import { tick } from 'svelte';
   import { Popover, Button, IconSvg } from '../ui';
   import type { HelpContent } from '../../../utils/ContextualHelpManager';
   import type { NodeSpec } from '../../../types/nodeSpec';
@@ -23,6 +24,8 @@
     /** Node type id when help is for a node (e.g. "noise"); used to resolve spec for port labels. */
     helpNodeType?: string;
     nodeSpecs?: Map<string, NodeSpec>;
+    /** Opens the guide for another node type from related/suggested chips. */
+    onOpenNodeHelp?: (nodeType: string) => void;
     onClose?: () => void;
     /** When the user drags the panel, call with new center (x, y). Enables draggable panel. */
     onPositionChange?: (x: number, y: number) => void;
@@ -37,6 +40,7 @@
     helpMode = 'node',
     helpNodeType,
     nodeSpecs = new Map(),
+    onOpenNodeHelp,
     onClose,
     onPositionChange,
   }: Props = $props();
@@ -48,8 +52,19 @@
   const headerLabel = $derived(helpMode === 'overview' ? 'Overview' : 'Guide');
   const dialogAriaLabel = $derived(helpMode === 'overview' ? 'Help overview' : 'Node guide');
 
+  let scrollBodyEl = $state<HTMLElement | null>(null);
+
   let dragStart = $state<{ centerX: number; centerY: number; mouseX: number; mouseY: number } | null>(null);
   const DRAG_IGNORE_SELECTOR = 'button, input, select, textarea, a, [contenteditable="true"]';
+
+  /** Scroll back to top when swapping between node guides. */
+  $effect(() => {
+    helpNodeType;
+    content;
+    void tick().then(() => {
+      if (scrollBodyEl) scrollBodyEl.scrollTop = 0;
+    });
+  });
 
   function startDrag(e: MouseEvent) {
     if (!onPositionChange) return;
@@ -105,6 +120,20 @@
   });
 </script>
 
+{#snippet guideBody()}
+  <div
+    class="help-callout-panel-body frame-elevated"
+    class:help-callout-overview={helpMode === 'overview'}
+    bind:this={scrollBodyEl}
+  >
+    {#if helpMode === 'overview'}
+      <HelpOverviewContent />
+    {:else if content}
+      <HelpCalloutContent {content} {helpNodeType} {nodeSpecs} {onOpenNodeHelp} />
+    {/if}
+  </div>
+{/snippet}
+
 {#if isCenter}
   <FloatingPanel
     open={visible}
@@ -124,16 +153,7 @@
     {/snippet}
 
     {#snippet children()}
-      <div
-        class="help-callout-panel-body frame-elevated"
-        class:help-callout-overview={helpMode === 'overview'}
-      >
-        {#if helpMode === 'overview'}
-          <HelpOverviewContent />
-        {:else if content}
-          <HelpCalloutContent {content} {helpNodeType} {nodeSpecs} />
-        {/if}
-      </div>
+      {@render guideBody()}
     {/snippet}
   </FloatingPanel>
 {:else}
@@ -156,48 +176,39 @@
       onkeydown={handleKeydown}
       onmousedown={onPositionChange ? startDrag : undefined}
     >
-        <header class="picker-header">
-          <div class="picker-header-left">
-            <IconSvg name="book-open-text" variant="filled" />
-            <span class="guide-label">{headerLabel}</span>
-          </div>
-          {#if onPositionChange}
-            <div
-              class="picker-drag-indicator"
-              role="button"
-              tabindex="0"
-              aria-label="Drag to move panel"
-              title="Drag to move panel"
-              onmousedown={startDrag}
-            >
-              <IconSvg name="grip-horizontal" variant="line" />
-            </div>
-          {/if}
-          <div class="picker-header-right">
-            <Button
-              variant="ghost"
-              size="sm"
-              mode="both"
-              onclick={() => onClose?.()}
-              aria-label="Close help"
-            >
-              Close
-              <IconSvg name="x" variant="line" />
-            </Button>
-          </div>
-        </header>
-
-        <div
-          class="help-callout-panel-body frame-elevated"
-          class:help-callout-overview={helpMode === 'overview'}
-        >
-          {#if helpMode === 'overview'}
-            <HelpOverviewContent />
-          {:else if content}
-            <HelpCalloutContent {content} {helpNodeType} {nodeSpecs} />
-          {/if}
+      <header class="picker-header">
+        <div class="picker-header-left">
+          <IconSvg name="book-open-text" variant="filled" />
+          <span class="guide-label">{headerLabel}</span>
         </div>
-      </div>
+        {#if onPositionChange}
+          <div
+            class="picker-drag-indicator"
+            role="button"
+            tabindex="0"
+            aria-label="Drag to move panel"
+            title="Drag to move panel"
+            onmousedown={startDrag}
+          >
+            <IconSvg name="grip-horizontal" variant="line" />
+          </div>
+        {/if}
+        <div class="picker-header-right">
+          <Button
+            variant="ghost"
+            size="sm"
+            mode="both"
+            onclick={() => onClose?.()}
+            aria-label="Close help"
+          >
+            Close
+            <IconSvg name="x" variant="line" />
+          </Button>
+        </div>
+      </header>
+
+      {@render guideBody()}
+    </div>
   </Popover>
 {/if}
 

@@ -17,6 +17,8 @@
     addConnectionWithValidation,
     insertNodeIntoConnection,
     applyArrangementNotesDefaultTrackFilterToNode,
+    updateConnectionDriverOut,
+    updateMidiEnvelopeBindingOut,
     type AddConnectionWithValidationResult,
     type NodeSpecification,
     type InsertNodeIntoConnectionErrorCode,
@@ -30,7 +32,10 @@
   import { appToastStore } from '../../stores/appToastStore';
   import { firstUnsupportedWebGpuMvpNodeType } from '../../utils/webGpuMvpNodeSupport';
   import { getVirtualNodeIdsFromAudioSetup, isVirtualNodeId } from '../../../utils/virtualNodes';
-  import { prepareGraphForAudioDriverAttach } from '../../../utils/parameterDriverAttach';
+  import {
+  applyAudioDriverVirtualWireAttachEffects,
+  prepareGraphForAudioDriverAttach,
+} from '../../../utils/parameterDriverAttach';
   import { hasPaletteNodeMime, readPaletteNodeType } from '../../../utils/paletteNodeDrag';
   import DomNodeLayer from './DomNodeLayer.svelte';
   import AddNodePicker from './AddNodePicker.svelte';
@@ -40,6 +45,11 @@
   } from './NodeEditorCanvasWrapper.types';
   import { syncCanvasAfterParameterStoreUpdateThenRuntime } from './parameterChangeSync';
   import { coerceParameterValue } from '../../../data-model/utils';
+  import {
+    connectionDriverOutPatchFromUi,
+    type DriverTargetOutUiPatch,
+  } from '../../../utils/driverRemap';
+  import { resolveParamDriverTargetOut } from '../../../utils/resolveParamDriverTargetOut';
 
   interface Props {
     nodeSpecs: NodeSpec[];
@@ -245,7 +255,10 @@
     };
   }
 
-  function applyAddConnectionResult(result: AddConnectionWithValidationResult): void {
+  function applyAddConnectionResult(
+    result: AddConnectionWithValidationResult,
+    added?: Pick<Connection, 'sourceNodeId' | 'targetNodeId' | 'targetParameter'>
+  ): void {
     if (result.errors.length > 0) {
       appToastStore.addToast({
         variant: 'error',
@@ -258,7 +271,28 @@
     if (result.replacedConnectionId) {
       callbacks.onConnectionRemoved?.(result.replacedConnectionId);
     }
-    graphStore.setGraph(result.graph);
+    let nextGraph = result.graph;
+    let nextAudioSetup = graphStore.audioSetup;
+    if (added?.targetParameter && isVirtualNodeId(added.sourceNodeId)) {
+      const targetNode = result.graph.nodes.find((n) => n.id === added.targetNodeId);
+      const paramSpec = targetNode
+        ? nodeSpecs.find((s) => s.id === targetNode.type)?.parameters?.[added.targetParameter]
+        : undefined;
+      const effects = applyAudioDriverVirtualWireAttachEffects(
+        result.graph,
+        graphStore.audioSetup,
+        added.sourceNodeId,
+        added.targetNodeId,
+        added.targetParameter,
+        paramSpec
+      );
+      nextGraph = effects.graph;
+      nextAudioSetup = effects.audioSetup;
+    }
+    graphStore.setGraph(nextGraph);
+    if (nextAudioSetup !== graphStore.audioSetup) {
+      graphStore.setAudioSetup(nextAudioSetup);
+    }
     notifyGraphChanged();
   }
 
@@ -545,7 +579,7 @@
         };
         const result = addConnectionWithValidation(graphStore.graph, conn, validationSpecs, optionsForNewConnection());
         if (canvasInstance) syncViewStateFromCanvas(canvasInstance);
-        applyAddConnectionResult(result);
+        applyAddConnectionResult(result, conn);
       } else if (payload.type === 'audio' && payload.virtualNodeId != null) {
         const workingGraph = prepareGraphForAudioDriverAttach(
           graphStore.graph,
@@ -562,7 +596,7 @@
         };
         const result = addConnectionWithValidation(workingGraph, conn, validationSpecs, optionsForNewConnection());
         if (canvasInstance) syncViewStateFromCanvas(canvasInstance);
-        applyAddConnectionResult(result);
+        applyAddConnectionResult(result, conn);
       } else if (payload.type === 'disconnect' && payload.connectionId != null) {
         if (canvasInstance) syncViewStateFromCanvas(canvasInstance);
         graphStore.removeConnection(payload.connectionId);
@@ -638,6 +672,37 @@
         callbacks.onParameterChanged?.(nodeId, 'trackFilterList', trackFilterList, graphStore.graph),
       notifyGraphChanged,
     });
+  }
+
+  function handleDriverTargetOutChange(
+    nodeId: string,
+    paramName: string,
+    patch: DriverTargetOutUiPatch,
+    canvas: NodeEditorCanvas | null,
+    options?: GraphUndoRecordingOptions
+  ): void {
+    const target = resolveParamDriverTargetOut(
+      graphStore.graph,
+      graphStore.audioSetup,
+      nodeId,
+      paramName
+    );
+    if (!target) return;
+
+    const nextGraph =
+      target.kind === 'audio'
+        ? updateConnectionDriverOut(
+            graphStore.graph,
+            target.connectionId,
+            connectionDriverOutPatchFromUi(patch)
+          )
+        : updateMidiEnvelopeBindingOut(graphStore.graph, target.bindingId, patch);
+
+    if (canvas) syncViewStateFromCanvas(canvas);
+    graphStore.setGraph(nextGraph, options);
+    notifyGraphChanged();
+    canvas?.setGraph?.(graphStore.graph, { preserveViewState: true });
+    canvas?.requestRender?.();
   }
 
   // View state sync from canvas (for DOM layer transform)
@@ -846,7 +911,7 @@
         };
         const result = addConnectionWithValidation(workingGraph, conn, validationSpecs, optionsForNewConnection());
         syncViewStateFromCanvas(canvas);
-        applyAddConnectionResult(result);
+        applyAddConnectionResult(result, conn);
       },
       onConnectionSelected: () => {},
       onNodeDeleted: (nodeId) => {
@@ -1192,6 +1257,10 @@
       canvasInstance?.setGraph?.(graphStore.graph, { preserveViewState: true });
       canvasInstance?.requestRender?.();
     }}
+    onDriverTargetOutChange={(nodeId, paramName, patch, options) => {
+      handleDriverTargetOutChange(nodeId, paramName, patch, canvasInstance, options);
+    }}
+    onDriverTargetOutCommit={() => graphStore.recordUndoSnapshot()}
   />
 
   <AddNodePicker

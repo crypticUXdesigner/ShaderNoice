@@ -13,6 +13,8 @@ import type { ShaderCompiler, CompilationResult } from '../runtime/types';
 import { ShaderInstance } from '../runtime/ShaderInstance';
 import type { FrameAudioState } from './OfflineAudioProvider';
 import { isRuntimeOnlyParameter } from '../utils/runtimeOnlyParams';
+import { isParameterUniformSuppressedByConnection } from '../utils/resolveParameterInputMode';
+import { refreshExportArrangementBakeCaches } from './refreshExportArrangementBakeCaches';
 
 export interface ExportRenderPathConfig {
   /** Export width in pixels */
@@ -111,6 +113,8 @@ function createExportRenderPathImpl(
     throw new Error(`Shader compilation failed: ${compilationResult.metadata.errors.join('; ')}`);
   }
 
+  refreshExportArrangementBakeCaches(graph, audioSetup);
+
   const shaderInstance = new ShaderInstance(glContext, compilationResult);
   shaderInstance.setResolution(width, height);
 
@@ -185,10 +189,7 @@ function transferParametersFromGraph(graph: NodeGraph, shaderInstance: ShaderIns
         continue;
       }
 
-      const isConnected = graph.connections.some(
-        (c) => c.targetNodeId === node.id && c.targetParameter === paramName
-      );
-      if (isConnected && node.parameterInputModes?.[paramName] === 'override') {
+      if (isParameterUniformSuppressedByConnection(graph, node, paramName)) {
         continue;
       }
 

@@ -35,8 +35,8 @@ export function migrateLegacyStripeParameters(
   else if (sharpness <= 0.06) waveType = 3;
 
   return {
-    waveScale: 1.0,
     waveFrequency: coerceNumber(parameters.stripesFrequency, 5.0),
+    waveThickness: 1.0,
     waveAmplitude: 1.0,
     waveType,
     waveDirection: coerceNumber(parameters.stripesAngle, 0.0),
@@ -53,6 +53,8 @@ function mapLegacyStripeAutomationParam(paramName: string): string | undefined {
     case 'stripesAngle':
       return 'waveDirection';
     case 'stripesFrequency':
+      return 'waveFrequency';
+    case 'waveScale':
       return 'waveFrequency';
     case 'stripesIntensity':
       return 'waveIntensity';
@@ -183,10 +185,53 @@ export function migrateLegacyFractStripeNodes(graph: NodeGraph): NodeGraph {
   };
 }
 
+/** Fold removed waveScale into waveFrequency; ensure waveThickness default. */
+export function migrateStripesWaveScaleMerge(graph: NodeGraph): NodeGraph {
+  const nodes: NodeInstance[] = graph.nodes.map((n) => {
+    if (n.type !== 'stripes' || !n.parameters) return n;
+
+    const scale = coerceNumber(n.parameters.waveScale, 1.0);
+    const hasScale = typeof n.parameters.waveScale === 'number';
+    const hasThickness = typeof n.parameters.waveThickness === 'number';
+    if (!hasScale && hasThickness) return n;
+
+    const frequency = coerceNumber(n.parameters.waveFrequency, 5.0);
+    const nextParameters: Record<string, ParameterValue> = { ...n.parameters };
+
+    if (hasScale) {
+      nextParameters.waveFrequency = frequency * scale;
+      delete nextParameters.waveScale;
+    }
+    if (!hasThickness) {
+      nextParameters.waveThickness = 1.0;
+    }
+
+    const nextModes = n.parameterInputModes ? { ...n.parameterInputModes } : undefined;
+    if (nextModes && nextModes.waveScale !== undefined) {
+      const scaleMode = nextModes.waveScale;
+      delete nextModes.waveScale;
+      if (nextModes.waveFrequency === undefined) {
+        nextModes.waveFrequency = scaleMode;
+      }
+    }
+
+    return {
+      ...n,
+      parameters: nextParameters,
+      ...(nextModes !== undefined ? { parameterInputModes: nextModes } : {})
+    };
+  });
+
+  const nodesChanged = nodes.some((n, i) => n !== graph.nodes[i]);
+  if (!nodesChanged) return graph;
+  return { ...graph, nodes };
+}
+
 /** Ordered pipeline: strip sunbeams, rename wave-patterns, remap legacy fract stripes params. */
 export function migrateUnifiedStripesPattern(graph: NodeGraph): NodeGraph {
   let g = migrateSunbeamsRemoval(graph);
   g = migrateWavePatternsTypeRename(g);
   g = migrateLegacyFractStripeNodes(g);
+  g = migrateStripesWaveScaleMerge(g);
   return g;
 }

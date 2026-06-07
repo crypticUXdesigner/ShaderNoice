@@ -7,17 +7,22 @@
   import RemapperCard from '../audio/RemapperCard.svelte';
   import type { CompactSlotProps } from './AudioSignalPicker.types';
   import type { AudioBandEntry, AudioRemapperEntry } from '../../../data-model/audioSetupTypes';
-  import { updateAudioBand, updateAudioRemapper } from '../../../data-model';
+  import {
+    updateAudioBand,
+    updateAudioRemapper,
+    updateConnectionDriverOut,
+  } from '../../../data-model';
   import { subscribeParameterValueTick } from '../../stores/parameterValueTickStore';
-  import DriverConnectionTargetTags from './DriverConnectionTargetTags.svelte';
   import DriverFocusedHeader from './DriverFocusedHeader.svelte';
   import {
     formatDriverBandSourceText,
-    resolveDriverConnectionTargetDisplay,
     resolveDriverTargetDisplay,
   } from './driverTargetDisplay';
-  import { getRemapperParameterConnections } from '../../../utils/getRemapperParameterConnections';
-  import { getVirtualNodeId } from '../../../utils/virtualNodes';
+  import {
+    applyDriverTargetRange,
+    connectionDriverOutPatchFromUi,
+    resolveConnectionDriverOut,
+  } from '../../../utils/driverRemap';
 
   let {
     parameterTitle,
@@ -26,6 +31,7 @@
     audioSetup,
     onSelect: _onSelect,
     onAudioSetupChange,
+    onGraphUpdate,
     connectedSignalId,
     getAudioManager,
     onRevealInNodeEditor,
@@ -34,12 +40,12 @@
     targetParameter,
     triggerElement: _triggerElement,
     connectedVirtualNodeId: _connectedVirtualNodeId,
-    connectionId: _connectionId,
+    connectionId,
     onClose: _onClose,
   }: CompactSlotProps = $props();
 
   let spectrumDataByBand = $state<Map<string, { frequencyData: Uint8Array; fftSize: number; sampleRate: number }>>(new Map());
-  let liveValuesByRemapper = $state<Map<string, { incoming: number | null; outgoing: number | null }>>(new Map());
+  let liveValuesByRemapper = $state<Map<string, { incoming: number | null; gated: number | null }>>(new Map());
 
   const LIVE_UPDATE_INTERVAL_MS = 50;
 
@@ -49,7 +55,7 @@
     if (!am || typeof am.getAnalyzerSpectrumData !== 'function') return;
     let lastUpdateTime = 0;
     const specMap = new Map<string, { frequencyData: Uint8Array; fftSize: number; sampleRate: number }>();
-    const liveMap = new Map<string, { incoming: number | null; outgoing: number | null }>();
+    const liveMap = new Map<string, { incoming: number | null; gated: number | null }>();
     return subscribeParameterValueTick(() => {
       specMap.clear();
       liveMap.clear();
@@ -60,10 +66,12 @@
           const live = am.getPanelBandLiveValues?.(band.id, {
             inMin: remap.inMin,
             inMax: remap.inMax,
-            outMin: remap.outMin,
-            outMax: remap.outMax,
+            outMin: 0,
+            outMax: 1,
           });
-          if (live) liveMap.set(remap.id, live);
+          if (live) {
+            liveMap.set(remap.id, { incoming: live.incoming, gated: live.outgoing });
+          }
         }
       }
       const now = performance.now();
@@ -105,33 +113,66 @@
     onAudioSetupChange(updateAudioRemapper(audioSetup, remapperId, updater));
   }
 
-  const connectionTargets = $derived.by(() => {
-    if (resolved.kind === 'remapper') {
-      return getRemapperParameterConnections(graph, resolved.remapper.id, nodeSpecs)
-        .map((c) => resolveDriverConnectionTargetDisplay(graph, nodeSpecs, c.nodeId, c.paramName))
-        .filter((t): t is NonNullable<typeof t> => t != null);
-    }
-    if (resolved.kind === 'band') {
-      const virtualNodeId = getVirtualNodeId(`band-${resolved.band.id}-raw`);
-      const targets = [];
-      for (const conn of graph.connections) {
-        if (conn.sourceNodeId !== virtualNodeId || !conn.targetParameter) continue;
-        const display = resolveDriverConnectionTargetDisplay(
-          graph,
-          nodeSpecs,
-          conn.targetNodeId,
-          conn.targetParameter
-        );
-        if (display) targets.push(display);
-      }
-      return targets.sort((a, b) => a.paramLabel.localeCompare(b.paramLabel));
-    }
-    return [];
-  });
-
   const targetDisplay = $derived(
     resolveDriverTargetDisplay(graph, nodeSpecs, targetNodeId, targetParameter)
   );
+
+  const targetParamSpec = $derived.by(() => {
+    const node = graph.nodes.find((n) => n.id === targetNodeId);
+    if (!node) return undefined;
+    return nodeSpecs.get(node.type)?.parameters?.[targetParameter];
+  });
+
+  const driverRemapParamMin = $derived(
+    typeof targetParamSpec?.min === 'number' && Number.isFinite(targetParamSpec.min)
+      ? targetParamSpec.min
+      : undefined
+  );
+  const driverRemapParamMax = $derived(
+    typeof targetParamSpec?.max === 'number' && Number.isFinite(targetParamSpec.max)
+      ? targetParamSpec.max
+      : undefined
+  );
+  const driverRemapParamStep = $derived(
+    typeof targetParamSpec?.step === 'number' && Number.isFinite(targetParamSpec.step)
+      ? targetParamSpec.step
+      : undefined
+  );
+  const driverRemapParamType = $derived(
+    targetParamSpec?.type === 'int' || targetParamSpec?.type === 'float'
+      ? targetParamSpec.type
+      : undefined
+  );
+
+  const focusedConnection = $derived(
+    graph.connections.find((c) => c.id === connectionId) ?? null
+  );
+
+  const focusedConnectionOut = $derived(
+    focusedConnection ? resolveConnectionDriverOut(focusedConnection) : { outMin: 0, outMax: 1 }
+  );
+
+  const focusedTargetOutLive = $derived.by(() => {
+    if (resolved.kind !== 'remapper') return null;
+    const gated = liveValuesByRemapper.get(resolved.remapper.id)?.gated;
+    if (gated == null) return null;
+    return applyDriverTargetRange(
+      gated,
+      focusedConnectionOut.outMin,
+      focusedConnectionOut.outMax
+    );
+  });
+
+  function handleFocusedTargetOutChange(patch: { outMin?: number; outMax?: number }) {
+    if (!focusedConnection?.id || !onGraphUpdate) return;
+    onGraphUpdate(
+      updateConnectionDriverOut(
+        graph,
+        focusedConnection.id,
+        connectionDriverOutPatchFromUi(patch)
+      )
+    );
+  }
 </script>
 
 <div class="audio-driver-compact">
@@ -174,13 +215,6 @@
             handleBandChange(bandId, (b) => ({ ...b, fftSize: Math.max(256, Math.min(8192, Math.round(v / 256) * 256)) }))}
         />
       </div>
-
-      <DriverConnectionTargetTags
-        targets={connectionTargets}
-        activeNodeId={targetNodeId}
-        activeParamName={targetParameter}
-        onReveal={onRevealInNodeEditor}
-      />
     </div>
   {:else if resolved.kind === 'remapper'}
     {@const remapper = resolved.remapper}
@@ -191,7 +225,7 @@
       {#if targetDisplay}
         <DriverFocusedHeader
           target={targetDisplay}
-          liveValue={live?.outgoing ?? null}
+          liveValue={focusedTargetOutLive}
           embedded
           onReveal={onRevealInNodeEditor}
         >
@@ -235,13 +269,24 @@
         <RemapperCard
           remapper={remapper}
           bandName={band.name}
-          isConnectedToTarget={true}
-          liveValues={live ?? null}
+          liveValues={
+            live
+              ? {
+                  incoming: live.incoming,
+                  outgoing: focusedConnection ? focusedTargetOutLive : null,
+                }
+              : null
+          }
+          controlsLayout="driver-focused"
+          remapSections={focusedConnection ? 'both' : 'gateOnly'}
+          targetOutMin={focusedConnectionOut.outMin}
+          targetOutMax={focusedConnectionOut.outMax}
+          paramMin={driverRemapParamMin}
+          paramMax={driverRemapParamMax}
+          paramStep={driverRemapParamStep}
+          paramType={driverRemapParamType}
+          onTargetOutChange={handleFocusedTargetOutChange}
           onRemapperChange={(updater) => handleRemapperChange(remapperId, updater)}
-          {connectionTargets}
-          activeTargetNodeId={targetNodeId}
-          activeTargetParamName={targetParameter}
-          onRevealParameter={onRevealInNodeEditor}
         />
       </div>
     </div>

@@ -11,6 +11,7 @@ import {
   emitCurveEvalGlsl
 } from './MainCodeGeneratorOutput';
 import { generateNodeCode, type NodeCodeContext } from './MainCodeGeneratorNodeCode';
+import { computeUpstreamReachableNodeIds } from './computeUpstreamReachableNodeIds';
 
 /**
  * Generates main shader code and assembles the final shader.
@@ -80,9 +81,17 @@ export class MainCodeGenerator {
     structNameMap: Map<string, Map<string, string>> = new Map(),
     effectiveNodeSpecsById?: Map<string, NodeSpec>
   ): { variableDeclarations: string; mainCode: string; genericRaymarcherSdfFunctions: string } {
-    // Per-node Power: restrict variable declarations to nodes still in `executionOrder` so
-    // bypassed nodes contribute no dead `vec3 node_x_y = vec3(0.0);` declarations.
-    const activeNodeIds = new Set(executionOrder);
+    const finalOutputNode = findFinalOutputNodeImpl(graph, executionOrder, this.nodeSpecs);
+    const reachableNodeIds =
+      finalOutputNode != null
+        ? computeUpstreamReachableNodeIds(graph, finalOutputNode.id)
+        : null;
+
+    // Per-node Power: restrict to nodes in `executionOrder`. Reachability: skip nodes not upstream
+    // of final-output (parity with WebGPU) so unwired arrangement/pattern nodes emit no main code.
+    const activeNodeIds = new Set(
+      executionOrder.filter((id) => reachableNodeIds == null || reachableNodeIds.has(id))
+    );
     const { variableDeclarations: declLines } = buildVariableDeclarations(
       graph,
       this.nodeSpecs,
@@ -97,6 +106,7 @@ export class MainCodeGenerator {
     const nodeCodeCtx = this.getNodeCodeContext(variableNames, executionOrder, effectiveNodeSpecsById);
 
     for (const nodeId of executionOrder) {
+      if (!activeNodeIds.has(nodeId)) continue;
       const node = graph.nodes.find(n => n.id === nodeId);
       if (!node) continue;
 

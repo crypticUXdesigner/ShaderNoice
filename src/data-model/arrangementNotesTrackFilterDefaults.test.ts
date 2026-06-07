@@ -24,13 +24,13 @@ function graphWith(node: NodeInstance): NodeGraph {
 }
 
 describe('arrangementNotesTrackFilterDefaults', () => {
-  it('arrangementNotesNeedsDefaultTrackFilter is true for mode 0 and empty subset', () => {
+  it('arrangementNotesNeedsDefaultTrackFilter is true only for legacy mode 0', () => {
     expect(arrangementNotesNeedsDefaultTrackFilter(notesNode({ trackFilterMode: 0 }))).toBe(true);
     expect(
       arrangementNotesNeedsDefaultTrackFilter(
         notesNode({ trackFilterMode: 1, trackFilterList: '' })
       )
-    ).toBe(true);
+    ).toBe(false);
     expect(
       arrangementNotesNeedsDefaultTrackFilter(
         notesNode({ trackFilterMode: 1, trackFilterList: 'track-note-1' })
@@ -38,13 +38,18 @@ describe('arrangementNotesTrackFilterDefaults', () => {
     ).toBe(false);
   });
 
-  it('applyArrangementNotesDefaultTrackFilterToGraph sets one track from snapshot', () => {
+  it('applyArrangementNotesDefaultTrackFilterToGraph migrates mode 0 to empty subset', () => {
     const out = applyArrangementNotesDefaultTrackFilterToGraph(
       graphWith(notesNode({ trackFilterMode: 0 })),
       snapshot
     );
     expect(out.nodes[0]?.parameters.trackFilterMode).toBe(1);
-    expect(out.nodes[0]?.parameters.trackFilterList).toBe('track-note-1');
+    expect(out.nodes[0]?.parameters.trackFilterList).toBe('');
+  });
+
+  it('does not change a node that already has zero tracks selected', () => {
+    const graph = graphWith(notesNode({ trackFilterMode: 1, trackFilterList: '' }));
+    expect(applyArrangementNotesDefaultTrackFilterToGraph(graph, snapshot)).toBe(graph);
   });
 
   it('does not override an explicit single-track filter', () => {

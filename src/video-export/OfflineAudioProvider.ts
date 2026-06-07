@@ -10,6 +10,7 @@
 import type { AudioSetup } from '../data-model/audioSetupTypes';
 import type { AudioBandMode } from '../data-model/audioSetupTypes';
 import { extractFrequencyBands01Into } from '../runtime/audio/extractFrequencyBands01';
+import { clampToStoredChannelBounds, remapOutputClampBounds } from '../runtime/audio/remapValue';
 
 // --- Types (API for 02B / 03) ---
 
@@ -74,8 +75,8 @@ export interface OfflineAudioProviderConfig {
   onCacheBuildProgress01?: (progress01: number) => void;
   /** Band configs from audioSetup (filtered by primary file) */
   analyzerConfigs: AnalyzerConfig[];
-  /** Remapper configs from audioSetup */
-  remapperConfigs: Array<{ id: string; bandId: string; inMin: number; inMax: number; outMin: number; outMax: number }>;
+  /** Gate-only remapper config; remapperOut channels store gated 0–1 (Out applied per connection at read). */
+  remapperConfigs: Array<{ id: string; bandId: string; inMin: number; inMax: number }>;
 }
 
 // --- Offline FFT (radix-2, real input → magnitude spectrum 0–255) ---
@@ -555,6 +556,10 @@ export class OfflineAudioProvider {
       const remapCount = Math.max(analyzer.bandRemap.length, 1);
       for (let i = 0; i < remapCount; i++) {
         const remapParamName = remapCount === 1 ? 'remap' : `remap${i}`;
+        const remapCfg = analyzer.bandRemap[i] ?? analyzer.bandRemap[0];
+        const outMin = remapCfg?.outMin ?? 0;
+        const outMax = remapCfg?.outMax ?? 1;
+        const outBounds = remapOutputClampBounds(outMin, outMax);
         channels.push({
           uniformKey: `${analyzer.nodeId}.${remapParamName}`,
           kind: 'remap',
@@ -562,14 +567,14 @@ export class OfflineAudioProvider {
           nodeId: analyzer.nodeId,
           paramName: remapParamName,
           index: i,
-          min: 0,
-          max: 1,
-          defaultValue: 0,
+          min: outBounds.min,
+          max: outBounds.max,
+          defaultValue: outMin,
         });
       }
     }
 
-    // Remapper virtual nodes.
+    // Remapper virtual nodes — gated 0–1 (per-target Out applied at param read / shader compile).
     for (const remap of config.remapperConfigs) {
       channels.push({
         uniformKey: `remap-${remap.id}.out`,
@@ -709,16 +714,15 @@ export class OfflineAudioProvider {
         const remapCfg = this.config.remapperConfigs.find((r) => r.id === remapperId);
         if (remapCfg) {
           const bandRaw = analyzerSmoothedById.get(remapCfg.bandId)?.[0] ?? 0;
-          const { inMin, inMax, outMin, outMax } = remapCfg;
+          const { inMin, inMax } = remapCfg;
           const range = inMax - inMin;
           const normalized = range !== 0 ? (bandRaw - inMin) / range : 0;
           const clamped = Math.max(0, Math.min(1, normalized));
-          v = outMin + clamped * (outMax - outMin);
+          v = clamped;
         }
       }
 
-      if (ch.min !== undefined) v = Math.max(ch.min, v);
-      if (ch.max !== undefined) v = Math.min(ch.max, v);
+      v = clampToStoredChannelBounds(v, ch.min, ch.max);
       values[base + j] = v;
     }
   }
@@ -767,8 +771,7 @@ export class OfflineAudioProvider {
     for (let j = 0; j < channels.length; j++) {
       const ch = channels[j]!;
       let v = sampled[j] ?? (ch.defaultValue ?? 0);
-      if (ch.min !== undefined) v = Math.max(ch.min, v);
-      if (ch.max !== undefined) v = Math.min(ch.max, v);
+      v = clampToStoredChannelBounds(v, ch.min, ch.max);
       updates[j] = { nodeId: ch.nodeId, paramName: ch.paramName, value: v };
     }
     return updates;
@@ -914,8 +917,6 @@ export function buildOfflineAudioAnalysisConfigs(
       bandId: r.bandId,
       inMin: r.inMin,
       inMax: r.inMax,
-      outMin: r.outMin,
-      outMax: r.outMax,
     }));
 
   return { analyzerConfigs, remapperConfigs };

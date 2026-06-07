@@ -8,8 +8,9 @@
  * **Model (remappers-v1):** One envelope preset (tracks + ADSR) has many remappers (output range);
  * bindings reference `remapperId`. Many bindings may share one remapper.
  *
- * **Runtime policy (v1):** monophonic last-note-wins — the most recent note-on among selected
- * tracks retriggers the ADSR; see `evaluateMidiEnvelopeAtTime` in `midiEnvelopeEvaluator.ts`.
+ * **Runtime policy (v1):** monophonic contour per preset via optional `retriggerPolicy` on
+ * {@link MidiEnvelopePreset} (`lastNoteWins` default, `holdIfHigher`, `legato`); see
+ * `evaluateMidiEnvelopePresetLevelAtTime` in `midiEnvelopeEvaluator.ts`.
  * **Track filter:** `trackIds` must list explicit tracks; empty means no notes are listened to.
  *
  * **Curves (v1):** optional per-phase presets (`attackCurve`, `decayCurve`, `releaseCurve`).
@@ -19,6 +20,29 @@
 import type { EnvelopeCurve } from '../utils/envelopeEasing';
 
 export type { EnvelopeCurve };
+
+/** Note-on overlap behavior for a MIDI track set (preset-level). */
+export type MidiEnvelopeRetriggerPolicy = 'lastNoteWins' | 'holdIfHigher' | 'legato';
+
+export const MIDI_ENVELOPE_RETRIGGER_POLICIES: readonly MidiEnvelopeRetriggerPolicy[] = [
+  'lastNoteWins',
+  'holdIfHigher',
+  'legato',
+] as const;
+
+export function isMidiEnvelopeRetriggerPolicy(value: unknown): value is MidiEnvelopeRetriggerPolicy {
+  return (
+    typeof value === 'string' &&
+    (MIDI_ENVELOPE_RETRIGGER_POLICIES as readonly string[]).includes(value)
+  );
+}
+
+/** Default when `retriggerPolicy` is omitted on a preset (backward compatible). */
+export function resolveMidiEnvelopeRetriggerPolicy(
+  policy: MidiEnvelopeRetriggerPolicy | undefined
+): MidiEnvelopeRetriggerPolicy {
+  return policy ?? 'lastNoteWins';
+}
 
 export interface MidiEnvelopeAdsr {
   /** Seconds from note-on to peak (0 → peak). */
@@ -49,14 +73,21 @@ export interface MidiEnvelopeDefinition {
   velocityToPeak?: boolean;
 }
 
-/** Target output range for a preset — parameters connect via bindings on the remapper. */
+/** Normalized input gate defaults (missing on load → these values). */
+export const DEFAULT_MIDI_ENVELOPE_REMAPPER_INPUT = {
+  inMin: 0,
+  inMax: 1,
+} as const;
+
+/** Shared input gate for a preset remapper — output range lives on each binding. */
 export interface MidiEnvelopeRemapper {
   id: string;
   /** Optional display label in overview lists. */
   name?: string;
   envelopePresetId: string;
-  outMin: number;
-  outMax: number;
+  /** Normalized gate on envelope shape (0–1) before per-target output range. */
+  inMin: number;
+  inMax: number;
 }
 
 /** Shared envelope preset (library entry). */
@@ -67,6 +98,10 @@ export interface MidiEnvelopePreset {
   /** Arrangement track ids to listen for note-ons; empty = none (silent until tracks are added). */
   trackIds: string[];
   envelope: MidiEnvelopeDefinition;
+  /**
+   * How overlapping note-ons retrigger ADSR. Omitted or invalid on load → `lastNoteWins`.
+   */
+  retriggerPolicy?: MidiEnvelopeRetriggerPolicy;
 }
 
 /** One remapper bound to a parameter port (many bindings may share the same `remapperId`). */
@@ -75,6 +110,9 @@ export interface MidiEnvelopeBinding {
   remapperId: string;
   nodeId: string;
   paramName: string;
+  /** Target output range in parameter units (required when bound to a port). */
+  outMin: number;
+  outMax: number;
   /**
    * Optional. When true, binding is kept but ignored by JS-side envelope evaluation (driver bypass).
    */
@@ -93,7 +131,12 @@ export interface LegacyMidiEnvelopeBindingWithPresetId {
 /** Binding merged with preset + remapper for evaluation and UI editing. */
 export interface ResolvedMidiEnvelopeBinding extends MidiEnvelopeBinding {
   trackIds: string[];
-  envelope: MidiEnvelopeDefinition & { outMin: number; outMax: number };
+  envelope: MidiEnvelopeDefinition & {
+    inMin: number;
+    inMax: number;
+    outMin: number;
+    outMax: number;
+  };
 }
 
 /** Pre–task-08 inline binding shape (migrated on deserialize). */

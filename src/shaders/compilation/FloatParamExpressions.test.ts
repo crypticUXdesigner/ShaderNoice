@@ -364,8 +364,92 @@ describe('buildFloatParamExpressions', () => {
       escapeIdentity
     );
 
-    expect(expressions.gain).toBe('clamp((' + audioUniformName + '), 0.0, 1.0)');
+    expect(expressions.gain).toBe(audioUniformName);
     expect(expressions.__hasInputConnections).toBe(true);
+  });
+
+  it('bakes per-target Out for two params on the same remapper', () => {
+    const nodeSpecs = buildTestNodeSpecs();
+    const strengthTarget = {
+      id: 'n-strength',
+      type: 'test-target',
+      position: { x: 0, y: 0 },
+      parameters: { gain: 0.5 },
+      parameterInputModes: { gain: 'override' as const },
+    };
+    const opacityTarget = {
+      id: 'n-opacity',
+      type: 'test-target',
+      position: { x: 0, y: 0 },
+      parameters: { gain: 0.5 },
+      parameterInputModes: { gain: 'override' as const },
+    };
+    const virtualNodeId = 'audio-signal:remap-shared';
+    const audioUniformName = 'uAudioRemapSharedOut';
+    const uniformNames = new Map<string, string>([[virtualNodeId, audioUniformName]]);
+    const variableNames = new Map<string, Map<string, string>>();
+
+    const graphStrength: NodeGraph = {
+      id: 'graph-strength',
+      name: 'Strength',
+      version: '2.0',
+      nodes: [strengthTarget],
+      connections: [
+        {
+          id: 'c-strength',
+          sourceNodeId: virtualNodeId,
+          sourcePort: 'out',
+          targetNodeId: strengthTarget.id,
+          targetParameter: 'gain',
+          driverOutMin: 0,
+          driverOutMax: 1.6,
+        },
+      ],
+    };
+    const graphOpacity: NodeGraph = {
+      id: 'graph-opacity',
+      name: 'Opacity',
+      version: '2.0',
+      nodes: [opacityTarget],
+      connections: [
+        {
+          id: 'c-opacity',
+          sourceNodeId: virtualNodeId,
+          sourcePort: 'out',
+          targetNodeId: opacityTarget.id,
+          targetParameter: 'gain',
+          driverOutMin: 0,
+          driverOutMax: 100,
+        },
+      ],
+    };
+
+    const strengthExprs = buildFloatParamExpressions(
+      strengthTarget,
+      nodeSpecs.get('test-target')!,
+      graphStrength,
+      [strengthTarget.id],
+      uniformNames,
+      variableNames,
+      nodeSpecs,
+      (configValue, inputValue, mode) => `(${configValue}) ${mode} (${inputValue})`,
+      escapeIdentity
+    );
+    const opacityExprs = buildFloatParamExpressions(
+      opacityTarget,
+      nodeSpecs.get('test-target')!,
+      graphOpacity,
+      [opacityTarget.id],
+      uniformNames,
+      variableNames,
+      nodeSpecs,
+      (configValue, inputValue, mode) => `(${configValue}) ${mode} (${inputValue})`,
+      escapeIdentity
+    );
+
+    expect(strengthExprs.gain).toBe(`((${audioUniformName}) * 1.6 + 0.0)`);
+    expect(opacityExprs.gain).toBe(`((${audioUniformName}) * 100.0 + 0.0)`);
+    expect(strengthExprs.gain).not.toBe(opacityExprs.gain);
   });
 });
 

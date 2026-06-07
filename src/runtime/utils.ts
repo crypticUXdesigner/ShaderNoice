@@ -97,7 +97,7 @@ export function hashGraph(graph: import('../data-model/types').NodeGraph): strin
   const connections = graph.connections
     .map(
       (c) =>
-        `${c.sourceNodeId}:${c.sourcePort}->${c.targetNodeId}:${c.targetPort ?? ''}:${c.targetParameter ?? ''}:${c.disabled ? '1' : '0'}`
+        `${c.sourceNodeId}:${c.sourcePort}->${c.targetNodeId}:${c.targetPort ?? ''}:${c.targetParameter ?? ''}:${c.disabled ? '1' : '0'}:${c.driverOutMin ?? ''}:${c.driverOutMax ?? ''}`
     )
     .sort()
     .join(',');

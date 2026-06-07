@@ -73,7 +73,7 @@ describe('paramDriverBypass', () => {
         },
       ],
       midiEnvelopeRemappers: [
-        { id: 'remapper-preset-1', envelopePresetId: 'preset-1', outMin: 0, outMax: 1 },
+        { id: 'remapper-preset-1', envelopePresetId: 'preset-1', inMin: 0, inMax: 1, outMin: 0, outMax: 1 },
       ],
       midiEnvelopeBindings: [
         {
@@ -188,7 +188,7 @@ describe('paramDriverBypass', () => {
         },
       ],
       midiEnvelopeRemappers: [
-        { id: 'remapper-preset-1', envelopePresetId: 'preset-1', outMin: 0, outMax: 1 },
+        { id: 'remapper-preset-1', envelopePresetId: 'preset-1', inMin: 0, inMax: 1, outMin: 0, outMax: 1 },
       ],
       midiEnvelopeBindings: [
         {

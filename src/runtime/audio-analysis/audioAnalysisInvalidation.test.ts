@@ -147,14 +147,12 @@ describe('audioAnalysisInvalidation', () => {
           bandId: 'band-a',
           inMin: 0,
           inMax: 1,
-          outMin: 0,
-          outMax: 1,
         },
       ],
     };
     const next: AudioSetup = {
       ...prev,
-      remappers: [{ ...prev.remappers[0]!, outMax: 0.5 }],
+      remappers: [{ ...prev.remappers[0]!, inMax: 0.5 }],
     };
     expect(classifyAudioSetupChange(prev, next, FILE_A)).toBe('remapper');
     expect(classifyAudioSetupChange(prev, next, FILE_B)).toBe('none');

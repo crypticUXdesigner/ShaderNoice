@@ -85,7 +85,7 @@ let graphChangedListener: ((g: NodeGraph, options?: GraphChangedOptions) => void
 /** Invoked when leaving patch tool so chrome (e.g. toasts) can clean up. Set by App; keep out of the store graph layer. */
 let patchToolExitListener: (() => void) | null = null;
 
-export type SetGraphOptions = {
+export type SetGraphOptions = GraphUndoRecordingOptions & {
   /** When true, `graphChangedListener` is not invoked (e.g. undo/redo restoring a snapshot). */
   skipGraphChangedListener?: boolean;
 };
@@ -101,7 +101,7 @@ const viewState = $derived<GraphViewState>(graph.viewState ?? defaultViewState);
 function setGraphAction(newGraph: NodeGraph, options?: SetGraphOptions): void {
   graph = newGraph;
   if (!options?.skipGraphChangedListener) {
-    graphChangedListener?.(graph);
+    graphChangedListener?.(graph, { recordUndo: options?.recordUndo });
   }
 }
 

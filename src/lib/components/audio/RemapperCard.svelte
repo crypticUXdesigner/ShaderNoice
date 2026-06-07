@@ -1,11 +1,12 @@
 <script lang="ts">
   /**
    * RemapperCard - Single remap card in the audio signal picker.
-   * Shows remap name (with band prefix), range editor, and Connect action.
+   * Shows remap name (with band prefix), driver remap section, and Connect action.
    */
-  import { Button, IconSvg, EditableLabel, RemapRangeEditor } from '../ui';
-  import DriverConnectionTargetTags from '../floating-panel/DriverConnectionTargetTags.svelte';
-  import type { DriverConnectionTargetDisplay } from '../floating-panel/driverTargetDisplay';
+  import { Button, IconSvg, EditableLabel } from '../ui';
+  import DriverRemapSection, {
+    type DriverRemapSections,
+  } from '../floating-panel/DriverRemapSection.svelte';
   import type { AudioRemapperEntry } from '../../../data-model/audioSetupTypes';
 
   interface LiveValues {
@@ -16,39 +17,56 @@
   interface Props {
     remapper: AudioRemapperEntry;
     bandName?: string;
-    isConnectedToTarget?: boolean;
     liveValues?: LiveValues | null;
     onConnect?: () => void;
     onDisconnect?: () => void;
     onDelete?: () => void;
     onDuplicate?: () => void;
     onRemapperChange?: (updater: (r: AudioRemapperEntry) => AudioRemapperEntry) => void;
-    connectionTargets?: DriverConnectionTargetDisplay[];
-    activeTargetNodeId?: string;
-    activeTargetParamName?: string;
-    onRevealParameter?: (nodeId: string, paramName: string) => void;
+    /** Per-target Out when `remapSections` includes the target block. */
+    targetOutMin?: number;
+    targetOutMax?: number;
+    onTargetOutChange?: (patch: { outMin?: number; outMax?: number }) => void;
+    paramMin?: number;
+    paramMax?: number;
+    paramStep?: number;
+    paramType?: 'float' | 'int';
+    controlsLayout?: 'default' | 'driver-focused';
+    remapSections?: DriverRemapSections;
   }
 
   let {
     remapper,
     bandName = 'Band',
-    isConnectedToTarget = false,
     liveValues = null,
     onConnect,
     onDisconnect,
     onDelete,
     onDuplicate,
     onRemapperChange,
-    connectionTargets = [],
-    activeTargetNodeId,
-    activeTargetParamName,
-    onRevealParameter,
+    targetOutMin = 0,
+    targetOutMax = 1,
+    onTargetOutChange,
+    paramMin,
+    paramMax,
+    paramStep,
+    paramType,
+    controlsLayout = 'default',
+    remapSections,
   }: Props = $props();
+
+  const effectiveSections = $derived(
+    remapSections ?? (controlsLayout === 'driver-focused' ? 'gateOnly' : 'both')
+  );
+
+  function handleMatchParameter() {
+    if (paramMin == null || paramMax == null) return;
+    onTargetOutChange?.({ outMin: paramMin, outMax: paramMax });
+  }
 </script>
 
 <div
   class="remapper-card panel-card"
-  class:connected={isConnectedToTarget}
   role="group"
   aria-label={`Remap: ${remapper.name || remapper.id}`}
 >
@@ -118,7 +136,7 @@
           aria-label={`Delete remap: ${remapper.name || remapper.id}`}
           onclick={(e) => {
             e.stopPropagation();
-            onDelete?.();
+            onDelete();
           }}
         >
           <IconSvg name="trash" variant="line" />
@@ -127,23 +145,41 @@
     </div>
   </div>
   <div class="editor-wrap">
-    <RemapRangeEditor
+    <DriverRemapSection
       inMin={remapper.inMin}
       inMax={remapper.inMax}
-      outMin={remapper.outMin}
-      outMax={remapper.outMax}
+      outMin={targetOutMin}
+      outMax={targetOutMax}
       liveInValue={liveValues?.incoming ?? null}
       liveOutValue={liveValues?.outgoing ?? null}
-      onChange={(payload) => onRemapperChange?.((r) => ({ ...r, ...payload }))}
+      {paramMin}
+      {paramMax}
+      {paramStep}
+      {paramType}
+      {controlsLayout}
+      sections={effectiveSections}
+      matchParameterRange={
+        effectiveSections !== 'gateOnly' && paramMin != null && paramMax != null
+          ? handleMatchParameter
+          : undefined
+      }
+      onChange={(payload) => {
+        if (payload.inMin !== undefined || payload.inMax !== undefined) {
+          onRemapperChange?.((r) => ({
+            ...r,
+            ...(payload.inMin !== undefined ? { inMin: payload.inMin } : {}),
+            ...(payload.inMax !== undefined ? { inMax: payload.inMax } : {}),
+          }));
+        }
+        if (payload.outMin !== undefined || payload.outMax !== undefined) {
+          onTargetOutChange?.({
+            ...(payload.outMin !== undefined ? { outMin: payload.outMin } : {}),
+            ...(payload.outMax !== undefined ? { outMax: payload.outMax } : {}),
+          });
+        }
+      }}
     />
   </div>
-  <DriverConnectionTargetTags
-    targets={connectionTargets}
-    activeNodeId={activeTargetNodeId}
-    activeParamName={activeTargetParamName}
-    onReveal={onRevealParameter}
-    sectionLabel="Targets"
-  />
 </div>
 
 <style>
@@ -160,11 +196,6 @@
     &:hover,
     &:active {
       border-color: var(--panel-card-border);
-    }
-
-    &.connected {
-      outline: 1px solid var(--color-blue-90);
-      outline-offset: -1px;
     }
 
     .header {

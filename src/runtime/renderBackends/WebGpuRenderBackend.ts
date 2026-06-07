@@ -368,6 +368,8 @@ export class WebGpuRenderBackend implements IRenderBackend {
   private readonly layout: PreviewFrameLayoutHost;
   private webgpu: WebGpuInitState = { status: 'pending' };
   private pipeline: WebGpuPipelineState | null = null;
+  /** Previous single-pass pipeline kept alive until apply succeeds ({@link finalizeWebGpuProgramSwap}). */
+  private pipelinePendingDispose: WebGpuPipelineState | null = null;
   private program: PreviewProgramInstance | null = null;
   private frameGraphSmoke: FrameGraphSmokeState | null = null;
   private computeSmoke: ComputeSmokeState | null = null;
@@ -452,6 +454,10 @@ export class WebGpuRenderBackend implements IRenderBackend {
 
   destroy(): void {
     this.clearWebGpuPassPlanRuntimeState();
+    if (this.pipelinePendingDispose) {
+      this.disposePipelineState(this.pipelinePendingDispose);
+      this.pipelinePendingDispose = null;
+    }
     if (this.pipeline) {
       this.disposePipelineState(this.pipeline);
       this.pipeline = null;
@@ -484,6 +490,38 @@ export class WebGpuRenderBackend implements IRenderBackend {
     } catch {
       // ignore
     }
+  }
+
+  /**
+   * Release the superseded pipeline after a successful compile apply + first render.
+   * {@link setWebGpuProgram} defers disposal so a failed apply can roll back.
+   */
+  public finalizeWebGpuProgramSwap(): void {
+    if (!this.pipelinePendingDispose) return;
+    this.disposePipelineState(this.pipelinePendingDispose);
+    this.pipelinePendingDispose = null;
+  }
+
+  /**
+   * Restore the previous live pipeline when apply fails after {@link setWebGpuProgram}.
+   */
+  public rollbackWebGpuProgramSwap(): void {
+    const failed = this.pipeline;
+    const restore = this.pipelinePendingDispose;
+    this.pipelinePendingDispose = null;
+
+    if (restore) {
+      this.pipeline = restore;
+      this.program = new WebGpuPreviewProgram(restore);
+    } else {
+      this.pipeline = null;
+      this.program = null;
+    }
+
+    if (failed && failed !== restore) {
+      this.disposePipelineState(failed);
+    }
+    this.markDirty('webgpu.program.rollback');
   }
 
   private async initWebGpu(canvas: HTMLCanvasElement): Promise<void> {
@@ -1481,8 +1519,9 @@ export class WebGpuRenderBackend implements IRenderBackend {
         destroyed: false
       };
 
-      // Task 12: ensure old GPU buffers don’t accumulate across recompiles.
-      if (this.pipeline) this.disposePipelineState(this.pipeline);
+      // Defer disposing the previous pipeline until apply + first render succeed
+      // (CompilationManager calls finalizeWebGpuProgramSwap / rollbackWebGpuProgramSwap).
+      this.pipelinePendingDispose = this.pipeline;
       this.pipeline = state;
       this.activePassPlan = null;
       this.program = new WebGpuPreviewProgram(state);

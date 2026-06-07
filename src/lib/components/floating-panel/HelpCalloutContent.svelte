@@ -3,7 +3,7 @@
    * Scrollable body of the help callout: headline (icon + title + tagline), description, ports, parameters, examples, related.
    * Used by HelpCallout; receives content and nodeSpecs from ContextualHelpManager.
    */
-  import { NodeIconSvg, PanelSection } from '../ui';
+  import { PanelSection } from '../ui';
   import SetupExample from './SetupExample.svelte';
   import {
     resolveRelatedItems,
@@ -11,8 +11,10 @@
     type HelpContent,
   } from '../../../utils/ContextualHelpManager';
   import type { NodeSpec } from '../../../types/nodeSpec';
-  import { getNodeIcon, isRedundantOutputLabel } from '../../../utils/nodeSpecUtils';
+  import { isRedundantOutputLabel } from '../../../utils/nodeSpecUtils';
   import { getCategorySlug, getSubGroupSlug } from '../../../utils/cssTokens';
+  import GuideHook from './GuideHook.svelte';
+  import GuideNodeChip from './GuideNodeChip.svelte';
   import HelpCalloutHeadline from './HelpCalloutHeadline.svelte';
   import HelpCalloutPortsSection from './HelpCalloutPortsSection.svelte';
   import HelpCalloutParametersSection from './HelpCalloutParametersSection.svelte';
@@ -22,9 +24,11 @@
     /** Node type id when help is for a node (e.g. "noise"); used to resolve spec for port labels. */
     helpNodeType?: string;
     nodeSpecs: Map<string, NodeSpec>;
+    /** Opens the guide for another node type (related chips and port suggestions). */
+    onOpenNodeHelp?: (nodeType: string) => void;
   }
 
-  let { content, helpNodeType, nodeSpecs }: Props = $props();
+  let { content, helpNodeType, nodeSpecs, onOpenNodeHelp }: Props = $props();
 
   const usedByNodes = $derived.by(() => {
     if (content.titleType !== 'type' || nodeSpecs.size === 0) return [];
@@ -85,6 +89,10 @@
     />
   {/if}
 
+  {#if content.hook?.trim()}
+    <GuideHook hook={content.hook} />
+  {/if}
+
   {#if canShowSetupExample && content.setupExampleGraph}
     <SetupExample graph={content.setupExampleGraph} {nodeSpecs} />
   {/if}
@@ -101,6 +109,7 @@
       <HelpCalloutPortsSection
         ports={enrichedInputs}
         {nodeSpecs}
+        {onOpenNodeHelp}
         getSuggestions={(port) => port.suggestedSources}
       />
     </PanelSection>
@@ -116,6 +125,7 @@
       <HelpCalloutPortsSection
         ports={enrichedOutputs}
         {nodeSpecs}
+        {onOpenNodeHelp}
         getSuggestions={(port) => port.suggestedTargets}
       />
     </PanelSection>
@@ -157,11 +167,8 @@
     <div class="related">
       <div class="label">Used by:</div>
       <div class="items">
-        {#each usedByNodes.slice(0, 12) as nodeSpec}
-          <div class="item" title={nodeSpec.displayName}>
-            <NodeIconSvg identifier={getNodeIcon(nodeSpec)} />
-            <span class="name">{nodeSpec.displayName}</span>
-          </div>
+        {#each usedByNodes.slice(0, 12) as nodeSpec (nodeSpec.id)}
+          <GuideNodeChip {nodeSpec} />
         {/each}
       </div>
     </div>
@@ -171,11 +178,8 @@
     <div class="related">
       <div class="label">Related:</div>
       <div class="items">
-        {#each relatedResolved.nodes.slice(0, 8) as nodeSpec}
-          <div class="item" title={nodeSpec.displayName}>
-            <NodeIconSvg identifier={getNodeIcon(nodeSpec)} />
-            <span class="name">{nodeSpec.displayName}</span>
-          </div>
+        {#each relatedResolved.nodes.slice(0, 8) as nodeSpec (nodeSpec.id)}
+          <GuideNodeChip {nodeSpec} onOpen={onOpenNodeHelp} />
         {/each}
       </div>
     </div>
@@ -227,31 +231,6 @@
       display: flex;
       flex-wrap: wrap;
       gap: var(--pd-xs);
-    }
-
-    .related .item {
-      display: flex;
-      align-items: center;
-      gap: var(--pd-sm);
-      padding: var(--pd-xs) var(--pd-sm);
-      border-radius: var(--radius-sm);
-      background: var(--ghost-bg);
-      color: var(--ghost-print);
-      cursor: default;
-      transition:
-        background var(--motion-effects-fast-duration) var(--motion-effects-fast-easing),
-        color var(--motion-effects-fast-duration) var(--motion-effects-fast-easing);
-    }
-
-    .related .item:hover {
-      background: var(--secondary-bg-hover);
-      color: var(--secondary-print-hover);
-    }
-
-    .related .item .name {
-      font-size: var(--text-sm);
-      color: currentColor;
-      white-space: nowrap;
     }
 
     .examples {

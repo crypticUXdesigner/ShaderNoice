@@ -4,7 +4,7 @@
 
 ## Background
 
-**ShaderNoice** is a node-based shader editor: users wire **nodes** on a canvas; a **preview** panel shows the live image driven by a compiled GPU program (**shader**). **Color LUT** and **Color Gradient** are new **Blend** nodes (package `color-lut-gradient`) that colorize a scalar or a spatial ramp. Connecting a wire between nodes changes the graph and triggers a **preview recompile**.
+**ShaderNoice** is a node-based shader editor: users wire **nodes** on a canvas; a **preview** panel shows the live image driven by a compiled GPU program (**shader**). **Color LUT** and **Color Gradient** are **Blend** nodes (`color-lut`, `color-gradient`) that colorize a scalar or a spatial ramp. Connecting a wire between nodes changes the graph and triggers a **preview recompile**.
 
 ## Symptom
 
@@ -95,7 +95,7 @@ wire added → onGraphStructureChange → recompile()
 
 ## Recommended fixes (priority)
 
-1. **LUT delivery:** Stop inlining all 12 presets in every graph—options: **1D texture** + `texture()` sample; **compile-time bake** of the selected preset only (`emitLutGlslFunctions(presetIndex)` from node parameters); or **atlas + uniform** with documented size budget (see `docs/implementation/color-lut-gradient/01-shared-lut-ramp-module-color-lut-gradient.md`).
+1. **LUT delivery:** Stop inlining all 12 presets in every graph—options: **1D texture** + `texture()` sample; **compile-time bake** of the selected preset only (`emitLutGlslFunctions(presetIndex)` from node parameters); or **atlas + uniform** with documented size budget (see `src/shaders/colorRamps/`, `src/shaders/nodes/color-lut.ts`).
 2. **Preview compile:** Move WebGL **compile/link** off the critical path or show **timeout / cancel** if apply exceeds N seconds; ensure failures always call `recordCompileFailed()` and surface `ErrorHandler` (user saw no logs on hang).
 3. **`WEBGL_PROGRAM_PENDING`:** Cap `scheduleApplyRetry` attempts; clear or update toast on prolonged pending.
 4. **Regression tests:** Assert compiled fragment contains `cr_sample_lut(int preset, float t)` and non-zero `cr_lut_tables[9216]`; optional perf budget test for shader char count.
@@ -111,5 +111,5 @@ Presets: `color-lut-demo.json` (Turbo preset) exercises the same node chain.
 
 ## Related
 
-- Implementation package: `docs/implementation/color-lut-gradient/_OVERVIEW.md`
+- Shipped nodes: `src/shaders/nodes/color-lut.ts`, `color-gradient.ts`; ramp module `src/shaders/colorRamps/`
 - Prior compile error in chat: GLSL overload / `vec3` assignment on `cr_sample_lut` call

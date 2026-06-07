@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Action } from 'svelte/action';
-  import { Button, Input, Message, ModalDialog, RangeSlider, Tag } from '../ui';
+  import { Button, Input, ModalDialog, RangeSlider, Tag } from '../ui';
+  import ExportFocusSysWarn from './ExportFocusSysWarn.svelte';
   import Toggle from '../node/parameters/Toggle.svelte';
   import { type Readable } from 'svelte/store';
 
@@ -71,6 +72,8 @@
     onConfirm?: (config: VideoExportConfirmPayload) => void;
     getPrimaryAudio?: () => { nodeId: string; buffer: AudioBuffer } | null;
     progress?: Readable<ProgressValue>;
+    /** True once the native save picker has resolved and the user can see the progress advisory. */
+    destinationReady?: Readable<boolean>;
     onCancelExport?: () => void;
   }
 
@@ -80,6 +83,7 @@
     onConfirm,
     getPrimaryAudio = () => null,
     progress,
+    destinationReady,
     onCancelExport,
   }: Props = $props();
 
@@ -108,6 +112,7 @@
   let rangeEndSeconds = $state(DEFAULT_DURATION);
 
   let progressValue = $state<ProgressValue>({ current: 0, total: 0 });
+  let destinationReadyValue = $state(false);
 
   function formatCountdown(totalSeconds: number): string {
     if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '—';
@@ -323,6 +328,20 @@
   }
 
   $effect(() => {
+    if (!destinationReady) return;
+    const unsub = destinationReady.subscribe((ready) => {
+      destinationReadyValue = ready;
+    });
+    return unsub;
+  });
+
+  $effect(() => {
+    if (step !== 'progress') {
+      destinationReadyValue = false;
+    }
+  });
+
+  $effect(() => {
     if (step !== 'progress') {
       progressValue = { current: 0, total: 0 };
       speed = { startMs: null, lastMs: null, lastFrame: 0, emaFps: null };
@@ -507,10 +526,11 @@
         </div>
       </div>
     </div>
-    {#snippet importantHeading()}Keep this tab focused{/snippet}
-    <Message inline variant="info" heading={importantHeading} class="focus-message" hideIcon={true}>
-      Keep this browser tab in focus. If you switch tabs or minimize the window, export can become very slow and audio may go out of sync.
-    </Message>
+    <ExportFocusSysWarn
+      class="export-focus-warn"
+      active={destinationReadyValue}
+      progressPercent={progressPercent}
+    />
     {/if}
 
   {#if step === 'config'}
@@ -771,6 +791,11 @@
       gap: var(--pd-md);
     }
 
+    :global(.modal-dialog-body.export-progress-panel .modal-dialog-body-scroll) {
+      scrollbar-gutter: auto;
+      overflow: hidden;
+    }
+
     .settingRow {
       display: grid;
       grid-template-columns: minmax(0, 90px) minmax(0, 1fr);
@@ -963,6 +988,11 @@
       min-height: 0;
     }
 
+    :global(.export-focus-warn) {
+      max-width: none;
+      width: 100%;
+    }
+
     .progress-meta {
       display: grid;
       grid-template-columns: minmax(0, 1fr) max-content;
@@ -1077,9 +1107,6 @@
       font-size: 10px;
     }
 
-    :global(.message.focus-message) {
-      opacity: 0.9;
-    }
   }
 
   /* Smaller modal for progress step */

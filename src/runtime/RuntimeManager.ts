@@ -35,7 +35,11 @@ import { applyArrangementNotesLoopUniforms } from './arrangement/arrangementNote
 import { applyArrangementPatternOnsetLoopUniforms } from './arrangement/arrangementPatternPreviewLoop';
 import { applyMidiEnvelopeUniformUpdates } from './midiEnvelopeUniformUpdates';
 import { resolveWebGpuPreviewDependencyMaskForClock } from './webGpuPreviewDependencyClock';
-import { hasActiveMidiEnvelopeBindings } from '../utils/midiEnvelopeFrameCache';
+import { midiEnvelopeDriverConfigChanged } from '../utils/midiEnvelopeDriverConfig';
+import {
+  hasActiveMidiEnvelopeBindings,
+  invalidateMidiEnvelopeFrameCache,
+} from '../utils/midiEnvelopeFrameCache';
 
 /** Callback when playlist advances (e.g. on track end or next); app updates store and calls setAudioSetup + playPrimary. */
 export type OnPlaylistAdvance = (nextState: { currentIndex: number }) => void;
@@ -203,6 +207,7 @@ export class RuntimeManager implements Disposable {
       });
     }
     this.timeManager.markDirty(this.renderer, 'compilation');
+    this.renderIfDirty();
   }
 
   /**
@@ -280,6 +285,18 @@ export class RuntimeManager implements Disposable {
     this.currentGraph = graph;
     if (!onlyPositionsChanged) {
       this.applyGraphStructureChange(oldGraph, graph);
+    } else if (midiEnvelopeDriverConfigChanged(oldGraph, graph)) {
+      invalidateMidiEnvelopeFrameCache();
+      this.markDirty('midi-envelope-config');
+      // Binding disconnect is a position-only graph change; push restores static uniforms
+      // immediately (MIDI pass is skipped when no bindings remain).
+      const shaderInstance = this.compilationManager.getShaderInstance();
+      if (shaderInstance) {
+        const timelineTime =
+          this.getTimelineState()?.currentTime ?? shaderInstance.getTimelineTime();
+        this.pushMidiEnvelopeUniforms(shaderInstance, timelineTime, true);
+        this.renderIfDirty();
+      }
     }
   }
 

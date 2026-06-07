@@ -65,8 +65,10 @@ describe('MIDI envelope serialization', () => {
     )!;
     expect(preset.trackIds).toEqual(['track-a']);
     expect(preset.envelope).not.toHaveProperty('outMin');
-    expect(remapper.outMin).toBe(0.2);
-    expect(remapper.outMax).toBe(0.9);
+    expect(remapper.inMin).toBe(0);
+    expect(remapper.inMax).toBe(1);
+    expect(b.outMin).toBe(0.2);
+    expect(b.outMax).toBe(0.9);
     expect(preset.envelope.velocityToPeak).toBe(false);
   });
 

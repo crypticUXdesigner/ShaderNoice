@@ -156,15 +156,20 @@
 
 <style>
   .param-port {
+    --param-port-hit-inset: calc(
+      (var(--param-port-circle-size) - var(--param-port-hit-size)) / 2
+    );
+
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: var(--pd-xs);
     padding: 0;
-    width: var(--param-port-circle-size);
-    height: var(--param-port-circle-size);
-    min-width: var(--param-port-circle-size);
-    min-height: var(--param-port-circle-size);
+    width: var(--param-port-hit-size);
+    height: var(--param-port-hit-size);
+    min-width: var(--param-port-hit-size);
+    min-height: var(--param-port-hit-size);
+    margin: var(--param-port-hit-inset);
     border: none;
     background: transparent;
     cursor: default;

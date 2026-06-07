@@ -6,7 +6,7 @@ export const stripesNodeSpec: NodeSpec = {
   category: 'Patterns',
   displayName: 'Stripes',
   description:
-    'Directional sine, cosine, square, or triangle waves on UVs — angle, density, waveshape, and timing',
+    'Directional sine, cosine, square, or triangle waves on UVs — spacing, band width, waveshape, angle, and timing',
   icon: 'columns-plus-right',
   inputs: [
     {
@@ -29,21 +29,21 @@ export const stripesNodeSpec: NodeSpec = {
     }
   ],
   parameters: {
-    waveScale: {
-      type: 'float',
-      default: 1.0,
-      min: 0.1,
-      max: 10.0,
-      step: 0.01,
-      label: 'Scale'
-    },
     waveFrequency: {
       type: 'float',
       default: 5.0,
       min: 0.1,
-      max: 50.0,
+      max: 500.0,
       step: 0.1,
       label: 'Frequency'
+    },
+    waveThickness: {
+      type: 'float',
+      default: 1.0,
+      min: 0.0,
+      max: 1.0,
+      step: 0.01,
+      label: 'Width'
     },
     waveAmplitude: {
       type: 'float',
@@ -115,7 +115,7 @@ export const stripesNodeSpec: NodeSpec = {
     {
       id: 'stripes-shape',
       label: 'Stripe / wave shape',
-      parameters: ['waveScale', 'waveFrequency', 'waveAmplitude', 'waveType', 'waveDirection', 'waveIntensity'],
+      parameters: ['waveFrequency', 'waveThickness', 'waveAmplitude', 'waveType', 'waveDirection', 'waveIntensity'],
       collapsible: true,
       defaultCollapsed: false
     },
@@ -131,7 +131,7 @@ export const stripesNodeSpec: NodeSpec = {
     elements: [
       {
         type: 'grid',
-        parameters: ['waveScale', 'waveFrequency', 'waveAmplitude', 'waveType', 'waveDirection', 'waveIntensity'],
+        parameters: ['waveFrequency', 'waveThickness', 'waveAmplitude', 'waveType', 'waveDirection', 'waveIntensity'],
         layout: { columns: 'auto' }
       },
       {
@@ -143,7 +143,7 @@ export const stripesNodeSpec: NodeSpec = {
     ]
   },
   functions: `
-float wavePattern(vec2 p, float frequency, float amplitude, float phase, int waveType) {
+float wavePattern(vec2 p, float frequency, float amplitude, float thickness, float phase, int waveType) {
   float value = 0.0;
 
   if (waveType == 0) {
@@ -156,7 +156,15 @@ float wavePattern(vec2 p, float frequency, float amplitude, float phase, int wav
     value = abs(mod(p.x * frequency + phase, 2.0) - 1.0) * amplitude * 2.0 - amplitude;
   }
 
-  return value * 0.5 + 0.5;
+  float wave01 = value * 0.5 + 0.5;
+
+  if (thickness >= 0.999) {
+    return wave01;
+  }
+
+  float threshold = 1.0 - thickness;
+  float edge = 0.5 * (1.0 - thickness);
+  return smoothstep(threshold - edge, threshold + edge, wave01);
 }
 
 vec2 rotateStripe(vec2 p, float angle) {
@@ -172,9 +180,10 @@ vec2 rotateStripe(vec2 p, float angle) {
   vec2 waveRotatedP = rotateStripe($input.in, $param.waveDirection * 3.14159 / 180.0);
 
   float waveVal = wavePattern(
-    waveRotatedP * $param.waveScale,
+    waveRotatedP,
     $param.waveFrequency,
     $param.waveAmplitude,
+    $param.waveThickness,
     wavePhase,
     $param.waveType
   );

@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/svelte-vite';
 import type { AudioRemapperEntry } from '../../../data-model/audioSetupTypes';
-import type { DriverConnectionTargetDisplay } from '../floating-panel/driverTargetDisplay';
 import Component from './RemapperCard.svelte';
 
 const mockRemapper: AudioRemapperEntry = {
@@ -9,30 +8,6 @@ const mockRemapper: AudioRemapperEntry = {
   bandId: 'story-band',
   inMin: 0,
   inMax: 1,
-  outMin: 0,
-  outMax: 1,
-};
-
-const targetAmount: DriverConnectionTargetDisplay = {
-  nodeId: 'node-1',
-  paramName: 'amount',
-  paramLabel: 'Amount',
-  nodeLabel: 'Color Gradient',
-  nodeIconIdentifier: 'gradient',
-  categorySlug: 'color',
-  subgroupSlug: '',
-  fullTitle: 'Color Gradient · Amount',
-};
-
-const targetScale: DriverConnectionTargetDisplay = {
-  nodeId: 'node-2',
-  paramName: 'scale',
-  paramLabel: 'Scale',
-  nodeLabel: 'Sphere',
-  nodeIconIdentifier: 'sphere',
-  categorySlug: 'geometry',
-  subgroupSlug: '',
-  fullTitle: 'Sphere · Scale',
 };
 
 const meta = {
@@ -61,27 +36,29 @@ export const WithDuplicate: Story = {
   },
 };
 
-export const OneTarget: Story = {
+export const DriverFocusedGateAndTarget: Story = {
   args: {
     remapper: mockRemapper,
-    isConnectedToTarget: true,
-    connectionTargets: [targetAmount],
-    activeTargetNodeId: 'node-other',
-    activeTargetParamName: 'mix',
+    controlsLayout: 'driver-focused',
+    remapSections: 'both',
+    targetOutMin: 0,
+    targetOutMax: 1.6,
+    paramMin: 0,
+    paramMax: 1.6,
+    liveValues: { incoming: 0.55, outgoing: 0.88 },
     onDisconnect: () => {},
-    onRevealParameter: () => {},
+    onTargetOutChange: () => {},
     onDelete: () => {},
   },
 };
 
-export const MultipleTargetsActiveHighlighted: Story = {
+export const DriverFocusedGateOnly: Story = {
   args: {
     remapper: mockRemapper,
-    connectionTargets: [targetAmount, targetScale],
-    activeTargetNodeId: 'node-1',
-    activeTargetParamName: 'amount',
+    controlsLayout: 'driver-focused',
+    remapSections: 'gateOnly',
+    liveValues: { incoming: 0.55, outgoing: null },
     onConnect: () => {},
-    onRevealParameter: () => {},
     onDelete: () => {},
   },
 };

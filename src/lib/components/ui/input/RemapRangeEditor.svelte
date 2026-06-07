@@ -22,6 +22,12 @@
     class?: string;
     /** `driver-focused`: compact slider row for parameter driver panel. */
     controlsLayout?: 'default' | 'driver-focused';
+    /** When false, only the input gate sliders and In Min/Max fields are shown. */
+    showOutputRange?: boolean;
+    /** When false with `showOutputRange`, only Out sliders and Out Min/Max fields are shown. */
+    showInputRange?: boolean;
+    /** ValueInput decimal places for min/max fields (default 3). */
+    decimals?: number;
     onChange?: (payload: {
       inMin: number;
       inMax: number;
@@ -45,11 +51,19 @@
     liveOutValue,
     class: className = '',
     controlsLayout = 'default',
+    showOutputRange = true,
+    showInputRange = true,
+    decimals = 3,
     onChange,
     onCommit,
   }: Props = $props();
 
   const isDriverFocused = $derived(controlsLayout === 'driver-focused');
+  const isInOnly = $derived(!showOutputRange);
+  const isOutOnly = $derived(showOutputRange && !showInputRange);
+  const outSliderOrientation = $derived(
+    isOutOnly && isDriverFocused ? 'horizontal' : 'vertical'
+  );
 
   const range = $derived(max - min || 1);
   const inMinNorm = $derived(Math.max(0, Math.min(1, (inMin - min) / range)));
@@ -178,12 +192,16 @@
       ? Math.max(0, Math.min(1, (liveOutClamped - min) / range))
       : null
   );
+  const liveOutX = $derived(liveOutNorm);
   const liveInY = $derived(liveInNorm != null ? 1 - liveInNorm : null);
   const liveOutY = $derived(liveOutNorm != null ? 1 - liveOutNorm : null);
 
   const showNeedles = $derived(
-    liveInValue != null || liveOutValue != null
+    (showInputRange && liveInValue != null) || (showOutputRange && liveOutValue != null)
   );
+
+  /** Out min/max may be inverted (outMin > outMax); slider fill color reflects ascending vs reversed. */
+  const outRangeInverted = $derived(outMin > outMax);
 
   const gradientId = `remap-gradient-${crypto.randomUUID()}`;
 </script>
@@ -191,23 +209,27 @@
 <div
   class="remap-range-editor {className}"
   class:is-driver-focused={isDriverFocused}
+  class:is-in-only={isInOnly}
+  class:is-out-only={isOutOnly}
   data-disabled={disabled || undefined}
 >
   <div class="slider-row display-graph">
     <div class="sliders">
+      {#if showInputRange}
       <div class="column in">
         <VerticalRangeSlider
           min={min}
           max={max}
           lowValue={Math.min(inMin, inMax)}
           highValue={Math.max(inMin, inMax)}
+          orientation={isInOnly ? 'horizontal' : 'vertical'}
           {step}
           {disabled}
           onChange={handleInChange}
           onCommit={() => onCommit?.()}
           class="remap-slider remap-slider-in"
         />
-        {#if showNeedles && liveInY != null}
+        {#if showNeedles && liveInY != null && !isInOnly}
           <div class="needle-overlay">
             <svg class="needle-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
               <line
@@ -221,93 +243,108 @@
               />
             </svg>
           </div>
-        {/if}
-      </div>
-
-      <div class="connection">
-        <svg
-          class="connection-svg"
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-        >
-          <defs>
-            <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stop-color="var(--remap-range-slider-input-color)" />
-              <stop offset="100%" stop-color="var(--remap-range-slider-output-color)" />
-            </linearGradient>
-          </defs>
-          <!-- Gradient fill: left = input right edge, right = output left edge; corners aligned to slider min/max -->
-          <polygon
-            fill="url(#{gradientId})"
-            fill-opacity="0.3"
-            points="0,{inputTopDy} 100,{outputTopDy} 100,{outputBottomDy} 0,{inputBottomDy}"
-          />
-          <!-- Dashed lines: input top-right → output top-left, input bottom-right → output bottom-left -->
-          <line
-            x1="0"
-            y1={inputTopDy}
-            x2="100"
-            y2={outputTopDy}
-            stroke="var(--remap-range-connection-color)"
-            stroke-width="0.5"
-            stroke-dasharray="6 2"
-            stroke-opacity="0.5"
-            fill="none"
-          />
-          <line
-            x1="0"
-            y1={inputBottomDy}
-            x2="100"
-            y2={outputBottomDy}
-            stroke="var(--remap-range-connection-color)"
-            stroke-width="0.5"
-            stroke-dasharray="6 2"
-            stroke-opacity="0.5"
-            fill="none"
-          />
-        </svg>
-      </div>
-
-      <div class="column out">
-        <VerticalRangeSlider
-          min={min}
-          max={max}
-          lowValue={outMin}
-          highValue={outMax}
-          allowInverted
-          {step}
-          {disabled}
-          onChange={handleOutChange}
-          onCommit={() => onCommit?.()}
-          class="remap-slider remap-slider-out"
-        />
-        {#if showNeedles && liveOutY != null}
-          <div class="needle-overlay">
-            <svg class="needle-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <line
-                x1="0"
-                y1={liveOutY * 100}
-                x2="100"
-                y2={liveOutY * 100}
-                stroke="var(--remap-range-needle-color)"
-                stroke-width="1"
-                stroke-linecap="round"
-              />
-            </svg>
+        {:else if showNeedles && liveInNorm != null && isInOnly}
+          <div class="needle-overlay needle-overlay-horizontal" aria-hidden="true">
+            <div class="live-needle" style="left: {liveInNorm * 100}%"></div>
           </div>
         {/if}
       </div>
+      {/if}
+
+      {#if showOutputRange && showInputRange}
+        <div class="connection">
+          <svg
+            class="connection-svg"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+          >
+            <defs>
+              <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stop-color="var(--remap-range-slider-input-color)" />
+                <stop offset="100%" stop-color="var(--remap-range-slider-output-color)" />
+              </linearGradient>
+            </defs>
+            <!-- Gradient fill: left = input right edge, right = output left edge; corners aligned to slider min/max -->
+            <polygon
+              fill="url(#{gradientId})"
+              fill-opacity="0.3"
+              points="0,{inputTopDy} 100,{outputTopDy} 100,{outputBottomDy} 0,{inputBottomDy}"
+            />
+            <!-- Dashed lines: input top-right → output top-left, input bottom-right → output bottom-left -->
+            <line
+              x1="0"
+              y1={inputTopDy}
+              x2="100"
+              y2={outputTopDy}
+              stroke="var(--remap-range-connection-color)"
+              stroke-width="0.5"
+              stroke-dasharray="6 2"
+              stroke-opacity="0.5"
+              fill="none"
+            />
+            <line
+              x1="0"
+              y1={inputBottomDy}
+              x2="100"
+              y2={outputBottomDy}
+              stroke="var(--remap-range-connection-color)"
+              stroke-width="0.5"
+              stroke-dasharray="6 2"
+              stroke-opacity="0.5"
+              fill="none"
+            />
+          </svg>
+        </div>
+      {/if}
+
+      {#if showOutputRange}
+        <div class="column out">
+          <VerticalRangeSlider
+            min={min}
+            max={max}
+            lowValue={outMin}
+            highValue={outMax}
+            allowInverted
+            orientation={outSliderOrientation}
+            {step}
+            {disabled}
+            onChange={handleOutChange}
+            onCommit={() => onCommit?.()}
+            class="remap-slider remap-slider-out{outRangeInverted ? ' is-inverted' : ''}"
+          />
+          {#if showNeedles && liveOutY != null && outSliderOrientation === 'vertical'}
+            <div class="needle-overlay">
+              <svg class="needle-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <line
+                  x1="0"
+                  y1={liveOutY * 100}
+                  x2="100"
+                  y2={liveOutY * 100}
+                  stroke="var(--remap-range-needle-color)"
+                  stroke-width="1"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </div>
+          {:else if showNeedles && liveOutNorm != null && outSliderOrientation === 'horizontal'}
+            <div class="needle-overlay needle-overlay-horizontal" aria-hidden="true">
+              <div class="live-needle" style="left: {liveOutNorm * 100}%"></div>
+            </div>
+          {/if}
+        </div>
+      {/if}
     </div>
   </div>
 
   <div class="controls-grid" role="presentation">
+    {#if showInputRange}
     <div class="control">
       <ValueInput
         value={inMin}
         min={min}
         max={max}
         step={step}
-        decimals={3}
+        {decimals}
         size="sm"
         {disabled}
         onChange={handleInMinChange}
@@ -321,7 +358,7 @@
         min={min}
         max={max}
         step={step}
-        decimals={3}
+        {decimals}
         size="sm"
         {disabled}
         onChange={handleInMaxChange}
@@ -329,34 +366,37 @@
       />
       <span class="label">In Max</span>
     </div>
-    <div class="control">
-      <ValueInput
-        value={outMin}
-        min={min}
-        max={max}
-        step={step}
-        decimals={3}
-        size="sm"
-        {disabled}
-        onChange={handleOutMinChange}
-        onCommit={() => onCommit?.()}
-      />
-      <span class="label">Out Min</span>
-    </div>
-    <div class="control">
-      <ValueInput
-        value={outMax}
-        min={min}
-        max={max}
-        step={step}
-        decimals={3}
-        size="sm"
-        {disabled}
-        onChange={handleOutMaxChange}
-        onCommit={() => onCommit?.()}
-      />
-      <span class="label">Out Max</span>
-    </div>
+    {/if}
+    {#if showOutputRange}
+      <div class="control">
+        <ValueInput
+          value={outMin}
+          min={min}
+          max={max}
+          step={step}
+          {decimals}
+          size="sm"
+          {disabled}
+          onChange={handleOutMinChange}
+          onCommit={() => onCommit?.()}
+        />
+        <span class="label">Out Min</span>
+      </div>
+      <div class="control">
+        <ValueInput
+          value={outMax}
+          min={min}
+          max={max}
+          step={step}
+          {decimals}
+          size="sm"
+          {disabled}
+          onChange={handleOutMaxChange}
+          onCommit={() => onCommit?.()}
+        />
+        <span class="label">Out Max</span>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -383,6 +423,28 @@
         min-height: 72px;
         max-height: 120px;
         flex: 0 0 auto;
+      }
+
+      &.is-in-only {
+        --remap-range-slider-row-height: 32px;
+        --remap-range-slider-track-height: 32px;
+
+        .slider-row {
+          aspect-ratio: auto;
+          min-height: var(--remap-range-slider-row-height);
+          max-height: none;
+        }
+      }
+
+      &.is-out-only {
+        --remap-range-slider-row-height: 32px;
+        --remap-range-slider-track-height: 32px;
+
+        .slider-row {
+          aspect-ratio: auto;
+          min-height: var(--remap-range-slider-row-height);
+          max-height: none;
+        }
       }
     }
     /* Narrower sliders; connection aligns to slider corners */
@@ -471,11 +533,19 @@
     }
 
     :global(.remap-slider-out) {
-      --remap-range-slider-input-color: var(--color-blue-90);
-      --remap-range-slider-input-color-active: var(--color-blue-130);
-      --remap-range-slider-track-color: var(--color-blue-60);
-      --range-editor-handle-bg: var(--color-blue-110);
-      --range-editor-handle-hover-bg: var(--color-blue-120);
+      --remap-range-slider-input-color: var(--remap-range-slider-output-fill-color);
+      --remap-range-slider-input-color-active: var(--remap-range-slider-output-fill-color-active);
+      --remap-range-slider-track-color: var(--remap-range-slider-output-track-color);
+      --range-editor-handle-bg: var(--remap-range-slider-output-handle-color);
+      --range-editor-handle-hover-bg: var(--remap-range-slider-output-handle-hover-color);
+    }
+
+    :global(.remap-slider-out.is-inverted) {
+      --remap-range-slider-input-color: var(--remap-range-slider-output-fill-color-inverted);
+      --remap-range-slider-input-color-active: var(--remap-range-slider-output-fill-color-inverted-active);
+      --remap-range-slider-track-color: var(--remap-range-slider-output-track-color-inverted);
+      --range-editor-handle-bg: var(--remap-range-slider-output-handle-color-inverted);
+      --range-editor-handle-hover-bg: var(--remap-range-slider-output-handle-hover-color-inverted);
     }
 
     :global(.remap-slider-out .fill) {
@@ -484,6 +554,14 @@
 
     :global(.remap-slider-out .handle:active::before) {
       background: var(--remap-range-slider-input-color-active);
+    }
+
+    :global(.remap-slider-out:not(.is-inverted) .handle:focus-visible::before) {
+      box-shadow: 0 0 0 2px var(--color-blue-90);
+    }
+
+    :global(.remap-slider-out.is-inverted .handle:focus-visible::before) {
+      box-shadow: 0 0 0 2px var(--color-purple-90);
     }
 
     /* Match slider/track min-height to row so remap editor is compact */
@@ -497,6 +575,117 @@
       grid-template-columns: repeat(4, minmax(0, 1fr));
       column-gap: var(--pd-sm);
       width: 100%;
+    }
+
+    &.is-in-only {
+      --remap-range-slider-row-height: 32px;
+      --remap-range-slider-track-height: 32px;
+
+      .slider-row {
+        flex: 0 0 auto;
+        min-height: var(--remap-range-slider-row-height);
+      }
+
+      .slider-row .sliders {
+        justify-content: stretch;
+      }
+
+      .slider-row .sliders .column.in {
+        width: 100%;
+        flex: 1;
+        height: var(--remap-range-slider-row-height);
+      }
+
+      & :global(.vertical-range-slider),
+      & :global(.vertical-range-slider .track) {
+        min-height: 0;
+      }
+
+      & :global(.vertical-range-slider[data-orientation='horizontal']) {
+        min-height: var(--remap-range-slider-row-height);
+        height: var(--remap-range-slider-row-height);
+        align-items: stretch;
+      }
+
+      & :global(.vertical-range-slider[data-orientation='horizontal'] .track) {
+        height: 100%;
+      }
+
+      .needle-overlay-horizontal {
+        .live-needle {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          width: var(--remap-range-needle-width);
+          margin-left: calc(var(--remap-range-needle-width) / -2);
+          background: var(--remap-range-needle-color);
+          border-radius: 1px;
+        }
+      }
+
+      .controls-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    &.is-out-only {
+      --remap-range-slider-row-height: 80px;
+      --remap-range-slider-track-height: 32px;
+
+      .slider-row {
+        flex: 0 0 auto;
+        min-height: var(--remap-range-slider-row-height);
+      }
+
+      .slider-row .sliders {
+        justify-content: stretch;
+      }
+
+      .slider-row .sliders .column.out {
+        width: 100%;
+        flex: 1;
+        min-height: var(--remap-range-slider-row-height);
+      }
+
+      &.is-driver-focused {
+        --remap-range-slider-row-height: 32px;
+
+        .slider-row .sliders .column.out {
+          height: var(--remap-range-slider-row-height);
+          min-height: var(--remap-range-slider-row-height);
+        }
+      }
+
+      & :global(.vertical-range-slider),
+      & :global(.vertical-range-slider .track) {
+        min-height: 0;
+      }
+
+      & :global(.vertical-range-slider[data-orientation='horizontal']) {
+        min-height: var(--remap-range-slider-row-height);
+        height: var(--remap-range-slider-row-height);
+        align-items: stretch;
+      }
+
+      & :global(.vertical-range-slider[data-orientation='horizontal'] .track) {
+        height: 100%;
+      }
+
+      .needle-overlay-horizontal {
+        .live-needle {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          width: var(--remap-range-needle-width);
+          margin-left: calc(var(--remap-range-needle-width) / -2);
+          background: var(--remap-range-needle-color);
+          border-radius: 1px;
+        }
+      }
+
+      .controls-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
     }
 
     .control {

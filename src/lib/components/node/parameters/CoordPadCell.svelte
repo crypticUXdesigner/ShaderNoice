@@ -5,7 +5,11 @@
    * When a param has evaluable timeline automation, shows automation-driven value for the whole timeline.
    */
   import CoordPadWithPorts from './CoordPadWithPorts.svelte';
-  import { getParamPortConnectionState } from '../../../../utils/paramPortAudioState';
+  import {
+    getParamPortConnectionState,
+    resolveParamPortDriverCellDisplay,
+    type ParamPortDriverCellDisplay,
+  } from '../../../../utils/paramPortAudioState';
   import {
     computeEffectiveParameterValue,
     getParameterInputValue,
@@ -109,6 +113,8 @@
 
   let liveValueX = $state(0);
   let liveValueY = $state(0);
+  let driverCellX = $state<ParamPortDriverCellDisplay | null>(null);
+  let driverCellY = $state<ParamPortDriverCellDisplay | null>(null);
   let effectiveValueX = $state<number | null>(null);
   let effectiveValueY = $state<number | null>(null);
   /** Same as ParamPortWithAudioState: nudge displayValue when RAF updates effective values. */
@@ -150,6 +156,8 @@
     ) {
       effectiveValueX = null;
       effectiveValueY = null;
+      driverCellX = null;
+      driverCellY = null;
       return;
     }
     const am = getAudioManager?.();
@@ -158,6 +166,18 @@
 
     return subscribeParameterValueTick(() => {
       const currentTime = getTimelineCurrentTime?.() ?? 0;
+      driverCellX = resolveParamPortDriverCellDisplay(nodeId, paramX, g, setup, {
+        nodeSpecs: specs,
+        audioManager: am ?? undefined,
+        transportTime: currentTime,
+        snapshot: setup.arrangementSnapshot,
+      });
+      driverCellY = resolveParamPortDriverCellDisplay(nodeId, paramY, g, setup, {
+        nodeSpecs: specs,
+        audioManager: am ?? undefined,
+        transportTime: currentTime,
+        snapshot: setup.arrangementSnapshot,
+      });
       const automationX =
         specX ? getAutomationValueForParam(n, paramX, g, currentTime, specX) : null;
       const automationY =
@@ -340,6 +360,7 @@
     portId: `${nodeId}-${paramX}`,
     portState: connX.state,
     signalName: connX.signalName,
+    driverCell: driverCellX,
     liveValue: liveValueX,
     attachedDriverKind: attachedDriverKindX,
     timelineDriven: hasEvaluableAutomationLaneX,
@@ -356,6 +377,7 @@
     portId: `${nodeId}-${paramY}`,
     portState: connY.state,
     signalName: connY.signalName,
+    driverCell: driverCellY,
     liveValue: liveValueY,
     attachedDriverKind: attachedDriverKindY,
     timelineDriven: hasEvaluableAutomationLaneY,

@@ -71,6 +71,7 @@ const iconAliases: Record<string, CanonicalIconId> = {
 
   // Patterns & grids
   'grid': canonicalId('grid-four', 'line'),
+  'grid-four': canonicalId('grid-four', 'line'),
   'grid-nine': canonicalId('grid-nine', 'line'),
   'dither': canonicalId('checkerboard', 'line'),
   'grain': canonicalId('dots-nine', 'line'),

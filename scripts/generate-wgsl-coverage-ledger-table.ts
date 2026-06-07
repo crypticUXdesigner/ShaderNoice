@@ -1,5 +1,5 @@
 /**
- * WGSL coverage ledger generator for `docs/implementation/webgpu-migration/wgsl-coverage-ledger.md`.
+ * WGSL coverage ledger generator for `docs/architecture/wgsl-coverage-ledger.md`.
  *
  * Usage:
  *   npx tsx scripts/generate-wgsl-coverage-ledger-table.ts              # print table (markdown) to stdout
@@ -205,7 +205,7 @@ const writeDoc = process.argv.includes('--write-doc');
 if (writeDoc) {
   const ledgerPath = join(
     process.cwd(),
-    'docs/implementation/webgpu-migration/wgsl-coverage-ledger.md'
+    'docs/architecture/wgsl-coverage-ledger.md'
   );
   writeFileSync(ledgerPath, buildFullDoc(table), 'utf8');
 } else {

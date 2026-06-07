@@ -36,6 +36,12 @@ export interface IRenderBackend extends Disposable {
    */
   setWebGpuProgram?(result: CompilationResult): PreviewProgramInstance | null;
 
+  /** After a successful WebGPU preview apply (first render), release the superseded pipeline. */
+  finalizeWebGpuProgramSwap?(): void;
+
+  /** Restore the previous WebGPU pipeline when apply fails after {@link setWebGpuProgram}. */
+  rollbackWebGpuProgramSwap?(): void;
+
   getCanvas(): HTMLCanvasElement;
   /** WebGL-only backends return a context; WebGPU-only preview returns null (Task 03). */
   getGLContext(): WebGL2RenderingContext | null;

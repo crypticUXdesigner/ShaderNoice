@@ -5,7 +5,7 @@
  * - **file (D):** decoded buffer identity changed (sample rate, length, duration, channels).
  * - **structural (C):** band/remapper topology on this file (add/remove, id, sourceFileId, remapper bandId).
  * - **band (B):** FFT / smoothing / band-level remap fields for bands on this file.
- * - **remapper (A):** remapper inMin/inMax/outMin/outMax only (bands on this file unchanged).
+ * - **remapper (A):** remapper inMin/inMax only (bands on this file unchanged).
  * - **none:** no invalidation for this file.
  *
  * Preview canonical curves stay worker-built until tasks 03+ consume these helpers.
@@ -92,8 +92,6 @@ export function remapperMapDigest(setup: AudioSetup, fileId: string): string {
       bandId: r.bandId,
       inMin: r.inMin,
       inMax: r.inMax,
-      outMin: r.outMin,
-      outMax: r.outMax,
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
   return stableStringify(remappers);

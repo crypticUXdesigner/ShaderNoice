@@ -1,32 +1,26 @@
-import { defaultArrangementNotesTrackFilter } from '../audiotool/arrangement/arrangementTrackFilter';
+import { EMPTY_ARRANGEMENT_TRACK_FILTER } from '../audiotool/arrangement/arrangementTrackFilter';
 import type { ArrangementSnapshot } from '../audiotool/arrangement/types';
 import type { NodeGraph, NodeInstance } from './types';
 
 const NOTES_NODE_TYPE = 'arrangement-notes';
 
-/** True when the node still uses “all tracks” or an empty subset filter. */
+/** True when the node still uses legacy “all tracks” (mode 0). */
 export function arrangementNotesNeedsDefaultTrackFilter(node: NodeInstance): boolean {
   if (node.type !== NOTES_NODE_TYPE) return false;
   const mode = Number(node.parameters.trackFilterMode ?? 0);
-  if (mode !== 1) return true;
-  const list =
-    typeof node.parameters.trackFilterList === 'string'
-      ? node.parameters.trackFilterList
-      : '';
-  return list.trim() === '';
+  return mode !== 1;
 }
 
 export function applyArrangementNotesDefaultTrackFilterToNode(
   node: NodeInstance,
-  snapshot: ArrangementSnapshot | undefined
+  _snapshot: ArrangementSnapshot | undefined
 ): NodeInstance {
   if (!arrangementNotesNeedsDefaultTrackFilter(node)) return node;
-  const defaults = defaultArrangementNotesTrackFilter(snapshot);
   return {
     ...node,
     parameters: {
       ...node.parameters,
-      ...defaults,
+      ...EMPTY_ARRANGEMENT_TRACK_FILTER,
     },
   };
 }
