@@ -1,7 +1,7 @@
 ﻿import type { NodeGraph, Connection } from '../../data-model/types';
 import type { NodeSpec, PortType } from '../../types/nodeSpec';
 import type { AudioSetup } from '../../data-model/audioSetupTypes';
-import type { CompilationResult, ParamLayout, UniformMetadata, WebGpuPassPlan, WebGpuTextureDesc } from '../../runtime/types';
+import type { CompilationResult, ParamLayout, UniformMetadata, WebGpuPassPlan, WebGpuTextureDesc } from '../../compile-contract';
 import {
   BLUR_GAUSSIAN_SEPARABLE_BLUR_WGSL,
   BLUR_GAUSSIAN_SEPARABLE_PRESENT_WGSL

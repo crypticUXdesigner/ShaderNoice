@@ -1,6 +1,6 @@
 import type { NodeGraph } from '../data-model/types';
 import type { NodeSpec } from '../types/nodeSpec';
-import type { CompilationResult, CompileTargetOptions, RenderBackendKind } from '../runtime/types';
+import type { CompilationResult, CompileTargetOptions, RenderBackendKind } from '../compile-contract';
 import type { AudioSetup } from '../data-model/audioSetupTypes';
 import { getVirtualNodeIdsFromAudioSetup } from '../utils/virtualNodes';
 import { GraphValidator } from './compilation/GraphValidator';

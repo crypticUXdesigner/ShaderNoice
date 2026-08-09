@@ -1,6 +1,6 @@
 import type { NodeGraph } from '../../data-model/types';
 import type { NodeSpec, ParameterValue } from '../../types/nodeSpec';
-import type { UniformMetadata } from '../../types';
+import type { UniformMetadata } from '../../compile-contract';
 import type { AudioSetup } from '../../data-model/audioSetupTypes';
 import { getPrimaryFileId } from '../../data-model/audioSetupTypes';
 import { getVirtualNodeId } from '../../utils/virtualNodes';

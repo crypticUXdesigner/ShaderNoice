@@ -7,7 +7,7 @@
 import type { NodeGraph } from '../../data-model/types';
 import type { NodeSpec } from '../../types/nodeSpec';
 import { getPrimaryFileId, type AudioSetup } from '../../data-model/audioSetupTypes';
-import type { PreviewDependencyMask, UniformMetadata } from '../../runtime/types';
+import type { PreviewDependencyMask, UniformMetadata } from '../../compile-contract';
 import { isVirtualNodeId } from '../../utils/virtualNodes';
 import { RADIAL_PULSE_SPAWN_SLOT_COUNT, radialPulseSpawnTimelineParam } from '../nodes/radial-pulse';
 import { isAudioNode } from './NodeShaderCompilerHelpers';

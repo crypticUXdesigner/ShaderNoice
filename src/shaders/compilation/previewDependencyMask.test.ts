@@ -3,7 +3,7 @@ import type { NodeGraph } from '../../data-model/types';
 import type { NodeSpec } from '../../types/nodeSpec';
 import { nodeSystemSpecs } from '../nodes';
 import { computePreviewDependencyMask, mergeWebGpuPreviewDependencyMask } from './previewDependencyMask';
-import type { PreviewDependencyMask } from '../../runtime/types';
+import type { PreviewDependencyMask } from '../../compile-contract';
 
 function allFalseMask(): PreviewDependencyMask {
   return {

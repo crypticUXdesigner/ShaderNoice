@@ -39,7 +39,7 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 | ID | Task | Status | Provides | Blocks |
 | --- | --- | --- | --- | --- |
 | 01 | [Hygiene + cheap frame CPU](./01-hygiene-frame-cpu-arch-perf-remediation.md) | ⬜ | Dead-code gone; uniform/index/status hot-path wins | — |
-| 02 | [Compile-contract extraction](./02-compile-contract-arch-perf-remediation.md) | ⬜ | Neutral IR module; shaders stop importing runtime types | 03 |
+| 02 | [Compile-contract extraction](./02-compile-contract-arch-perf-remediation.md) | ✅ | Neutral IR module; shaders stop importing runtime types | 03 |
 | 03 | [Worker payload slim](./03-worker-payload-slim-arch-perf-remediation.md) | ⬜ | Lower structuredClone cost on compile kicks | — |
 | 04A | [Shared WebGPU pass executor core](./04A-webgpu-pass-executor-core-arch-perf-remediation.md) | ⬜ | Shared pack + run API | 04B |
 | 04B | [Wire preview + exports to shared executor](./04B-webgpu-pass-executor-wire-arch-perf-remediation.md) | ⬜ | Single path for three callers | — |
@@ -52,8 +52,8 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 
 ## Progress tracker
 
-- **Overall:** 0% — package defined; implementation not started.
-- **Milestone A:** 01–03 (hygiene + compile boundary).
+- **Overall:** ~11% — task 02 done (unblocks 03); 01 and rest pending.
+- **Milestone A:** 01–03 (hygiene + compile boundary) — 02 ✅.
 - **Milestone B:** 04A–04B (shared WebGPU raster).
 - **Milestone C:** 05–08 (clock, export sync, change detection, docs).
 
@@ -65,3 +65,4 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 | Deferred | Moved to [`arch-perf-followups`](../arch-perf-followups/_OVERVIEW.md): `P3`, `A2`, `A4`, `A6`, `P5`. |
 | Conflict risk | `WebGpuRenderBackend` + both export paths — serialize 04A/04B; avoid parallel edits. |
 | Clock safety | Prefer conservative mask / golden coverage before flipping URL default on. |
+| 02 compile-contract | Neutral home: `src/compile-contract/index.ts` (not under `shaders/`) so runtime does not import shaders for IR. `runtime/types` re-exports until **08**. Shaders + `UniformGenerator` import contract directly; unblocks **03**. |
