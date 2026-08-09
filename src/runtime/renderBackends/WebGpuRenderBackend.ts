@@ -10,29 +10,31 @@ import {
   type BlurGaussianSeparableV1Runtime,
   createBlurGaussianSeparableV1Runtime,
   destroyBlurGaussianSeparableV1Runtime,
-  encodeBlurGaussianSeparableV1Frame,
 } from './blurGaussianSeparablePassPlanRuntime';
 import {
   type GlowBloomV1Plan,
   type GlowBloomV1Runtime,
   createGlowBloomV1Runtime,
   destroyGlowBloomV1Runtime,
-  encodeGlowBloomV1Frame,
 } from './glowBloomPassPlanRuntime';
 import {
   type BokehV1Plan,
   type BokehV1Runtime,
   createBokehV1Runtime,
   destroyBokehV1Runtime,
-  encodeBokehV1Frame,
 } from './bokehPassPlanRuntime';
 import {
   type CrepuscularRaysV1Plan,
   type CrepuscularRaysV1Runtime,
   createCrepuscularRaysV1Runtime,
   destroyCrepuscularRaysV1Runtime,
-  encodeCrepuscularRaysV1Frame,
 } from './crepuscularRaysPassPlanRuntime';
+import {
+  allocateParamSlotBuffer,
+  encodeWebGpuPassPlanFrame,
+  setParamSlot,
+  type WebGpuPassPlanV1Runtime,
+} from './webgpuPassPlanExecutor';
 import { previewPerformanceMark, PreviewPerfMark, previewPerfCounters } from '../previewPerformanceMarks';
 import { trimWebGpuShaderPipelineCaches, webGpuParamLayoutsEqual } from './webGpuFullscreenPreviewCache';
 import { getPreviewScheduler } from '../PreviewScheduler';
@@ -97,20 +99,7 @@ class WebGpuPreviewProgram implements PreviewProgramInstance {
   constructor(private readonly state: WebGpuPipelineState) {}
 
   setParameter(nodeId: string, paramName: string, value: number | [number, number, number, number]): void {
-    const idx = this.state.paramsLayout[`${nodeId}.${paramName}`];
-    if (idx == null) return;
-    const o = idx * 4;
-    if (typeof value === 'number') {
-      this.state.paramsData[o + 0] = value;
-      this.state.paramsData[o + 1] = 0;
-      this.state.paramsData[o + 2] = 0;
-      this.state.paramsData[o + 3] = 0;
-    } else {
-      this.state.paramsData[o + 0] = value[0];
-      this.state.paramsData[o + 1] = value[1];
-      this.state.paramsData[o + 2] = value[2];
-      this.state.paramsData[o + 3] = value[3];
-    }
+    setParamSlot(this.state.paramsData, this.state.paramsLayout, nodeId, paramName, value);
     this.state.paramsDirty = true;
   }
 
@@ -157,6 +146,68 @@ class WebGpuPreviewProgram implements PreviewProgramInstance {
 
   destroy(): void {
     this.state.destroyed = true;
+  }
+}
+
+/** Shared preview program for multipass pass-plan runtimes (pack via shared executor). */
+type PassPlanParamHost = {
+  paramsLayout: CompilationResult['paramLayout'];
+  paramsData: Float32Array;
+  paramsDirty: boolean;
+  time: number;
+  timelineTime: number;
+};
+
+class WebGpuPassPlanPreviewProgram implements PreviewProgramInstance {
+  constructor(private readonly rt: PassPlanParamHost) {}
+
+  setParameter(nodeId: string, paramName: string, value: number | [number, number, number, number]): void {
+    setParamSlot(this.rt.paramsData, this.rt.paramsLayout, nodeId, paramName, value);
+    this.rt.paramsDirty = true;
+  }
+
+  setParameters(
+    updates: Array<{ nodeId: string; paramName: string; value: number | [number, number, number, number] }>
+  ): void {
+    for (const u of updates) this.setParameter(u.nodeId, u.paramName, u.value);
+  }
+
+  setAudioUniform(nodeId: string, outputName: string, value: number): void {
+    this.setParameter(nodeId, outputName, value);
+  }
+
+  setTime(time: number): void {
+    this.rt.time = time;
+  }
+
+  setTimelineTime(time: number): void {
+    this.rt.timelineTime = time;
+  }
+
+  getTime(): number {
+    return this.rt.time;
+  }
+
+  getTimelineTime(): number {
+    return this.rt.timelineTime;
+  }
+
+  getParameters(): Map<string, number | [number, number, number, number]> {
+    const out = new Map<string, number | [number, number, number, number]>();
+    for (const [key, idx] of Object.entries(this.rt.paramsLayout)) {
+      const o = idx * 4;
+      out.set(key, [
+        this.rt.paramsData[o + 0] ?? 0,
+        this.rt.paramsData[o + 1] ?? 0,
+        this.rt.paramsData[o + 2] ?? 0,
+        this.rt.paramsData[o + 3] ?? 0,
+      ]);
+    }
+    return out;
+  }
+
+  destroy(): void {
+    // backend owns pipelines/textures
   }
 }
 
@@ -1032,11 +1083,7 @@ export class WebGpuRenderBackend implements IRenderBackend {
   }
 
   private renderBlurGaussianSeparable(ctx: WebGpuContext, rt: BlurGaussianSeparableV1Runtime): void {
-    const device = ctx.getDevice();
-    const queue = ctx.getQueue();
-    const width = this.getCanvas().width;
-    const height = this.getCanvas().height;
-    encodeBlurGaussianSeparableV1Frame(device, queue, rt, width, height, ctx.getCurrentTextureView());
+    this.renderPassPlan(ctx, rt);
   }
 
   private destroyGlowBloomState(): void {
@@ -1068,11 +1115,7 @@ export class WebGpuRenderBackend implements IRenderBackend {
   }
 
   private renderGlowBloom(ctx: WebGpuContext, rt: GlowBloomV1Runtime): void {
-    const device = ctx.getDevice();
-    const queue = ctx.getQueue();
-    const width = this.getCanvas().width;
-    const height = this.getCanvas().height;
-    encodeGlowBloomV1Frame(device, queue, rt, width, height, ctx.getCurrentTextureView());
+    this.renderPassPlan(ctx, rt);
   }
 
   private destroyBokehState(): void {
@@ -1104,11 +1147,7 @@ export class WebGpuRenderBackend implements IRenderBackend {
   }
 
   private renderBokeh(ctx: WebGpuContext, rt: BokehV1Runtime): void {
-    const device = ctx.getDevice();
-    const queue = ctx.getQueue();
-    const width = this.getCanvas().width;
-    const height = this.getCanvas().height;
-    encodeBokehV1Frame(device, queue, rt, width, height, ctx.getCurrentTextureView());
+    this.renderPassPlan(ctx, rt);
   }
 
   private destroyCrepuscularRaysState(): void {
@@ -1140,11 +1179,20 @@ export class WebGpuRenderBackend implements IRenderBackend {
   }
 
   private renderCrepuscularRays(ctx: WebGpuContext, rt: CrepuscularRaysV1Runtime): void {
-    const device = ctx.getDevice();
-    const queue = ctx.getQueue();
-    const width = this.getCanvas().width;
-    const height = this.getCanvas().height;
-    encodeCrepuscularRaysV1Frame(device, queue, rt, width, height, ctx.getCurrentTextureView());
+    this.renderPassPlan(ctx, rt);
+  }
+
+  private renderPassPlan(ctx: WebGpuContext, rt: WebGpuPassPlanV1Runtime): void {
+    encodeWebGpuPassPlanFrame(
+      {
+        device: ctx.getDevice(),
+        queue: ctx.getQueue(),
+        width: this.getCanvas().width,
+        height: this.getCanvas().height,
+        presentTargetView: ctx.getCurrentTextureView(),
+      },
+      rt
+    );
   }
 
   /**
@@ -1174,61 +1222,7 @@ export class WebGpuRenderBackend implements IRenderBackend {
         const rt = this.ensureBlurGaussianSeparable(ctx, result.webgpuPassPlan, result.paramLayout);
         rt.paramsData.fill(0);
         rt.paramsDirty = true;
-
-        class BlurPassPlanProgram implements PreviewProgramInstance {
-          setParameter(nodeId: string, paramName: string, value: number | [number, number, number, number]): void {
-            const idx = rt.paramsLayout[`${nodeId}.${paramName}`];
-            if (idx == null) return;
-            const o = idx * 4;
-            if (typeof value === 'number') {
-              rt.paramsData[o + 0] = value;
-              rt.paramsData[o + 1] = 0;
-              rt.paramsData[o + 2] = 0;
-              rt.paramsData[o + 3] = 0;
-            } else {
-              rt.paramsData[o + 0] = value[0];
-              rt.paramsData[o + 1] = value[1];
-              rt.paramsData[o + 2] = value[2];
-              rt.paramsData[o + 3] = value[3];
-            }
-            rt.paramsDirty = true;
-          }
-          setParameters(updates: Array<{ nodeId: string; paramName: string; value: number | [number, number, number, number] }>): void {
-            for (const u of updates) this.setParameter(u.nodeId, u.paramName, u.value);
-          }
-          setAudioUniform(nodeId: string, outputName: string, value: number): void {
-            this.setParameter(nodeId, outputName, value);
-          }
-          setTime(time: number): void {
-            rt.time = time;
-          }
-          setTimelineTime(time: number): void {
-            rt.timelineTime = time;
-          }
-          getTime(): number {
-            return rt.time;
-          }
-          getTimelineTime(): number {
-            return rt.timelineTime;
-          }
-          getParameters(): Map<string, number | [number, number, number, number]> {
-            const out = new Map<string, number | [number, number, number, number]>();
-            for (const [key, idx] of Object.entries(rt.paramsLayout)) {
-              const o = idx * 4;
-              out.set(key, [
-                rt.paramsData[o + 0] ?? 0,
-                rt.paramsData[o + 1] ?? 0,
-                rt.paramsData[o + 2] ?? 0,
-                rt.paramsData[o + 3] ?? 0,
-              ]);
-            }
-            return out;
-          }
-          destroy(): void {
-            // backend owns pipelines/textures
-          }
-        }
-        const prog = new BlurPassPlanProgram();
+        const prog = new WebGpuPassPlanPreviewProgram(rt);
         this.program = prog;
         this.markDirty('webgpu.passplan.blur.set');
         return prog;
@@ -1238,61 +1232,7 @@ export class WebGpuRenderBackend implements IRenderBackend {
         const rt = this.ensureGlowBloom(ctx, result.webgpuPassPlan, result.paramLayout);
         rt.paramsData.fill(0);
         rt.paramsDirty = true;
-
-        class GlowBloomPassPlanProgram implements PreviewProgramInstance {
-          setParameter(nodeId: string, paramName: string, value: number | [number, number, number, number]): void {
-            const idx = rt.paramsLayout[`${nodeId}.${paramName}`];
-            if (idx == null) return;
-            const o = idx * 4;
-            if (typeof value === 'number') {
-              rt.paramsData[o + 0] = value;
-              rt.paramsData[o + 1] = 0;
-              rt.paramsData[o + 2] = 0;
-              rt.paramsData[o + 3] = 0;
-            } else {
-              rt.paramsData[o + 0] = value[0];
-              rt.paramsData[o + 1] = value[1];
-              rt.paramsData[o + 2] = value[2];
-              rt.paramsData[o + 3] = value[3];
-            }
-            rt.paramsDirty = true;
-          }
-          setParameters(updates: Array<{ nodeId: string; paramName: string; value: number | [number, number, number, number] }>): void {
-            for (const u of updates) this.setParameter(u.nodeId, u.paramName, u.value);
-          }
-          setAudioUniform(nodeId: string, outputName: string, value: number): void {
-            this.setParameter(nodeId, outputName, value);
-          }
-          setTime(time: number): void {
-            rt.time = time;
-          }
-          setTimelineTime(time: number): void {
-            rt.timelineTime = time;
-          }
-          getTime(): number {
-            return rt.time;
-          }
-          getTimelineTime(): number {
-            return rt.timelineTime;
-          }
-          getParameters(): Map<string, number | [number, number, number, number]> {
-            const out = new Map<string, number | [number, number, number, number]>();
-            for (const [key, idx] of Object.entries(rt.paramsLayout)) {
-              const o = idx * 4;
-              out.set(key, [
-                rt.paramsData[o + 0] ?? 0,
-                rt.paramsData[o + 1] ?? 0,
-                rt.paramsData[o + 2] ?? 0,
-                rt.paramsData[o + 3] ?? 0,
-              ]);
-            }
-            return out;
-          }
-          destroy(): void {
-            // backend owns pipelines/textures
-          }
-        }
-        const prog = new GlowBloomPassPlanProgram();
+        const prog = new WebGpuPassPlanPreviewProgram(rt);
         this.program = prog;
         this.markDirty('webgpu.passplan.glow-bloom.set');
         return prog;
@@ -1302,61 +1242,7 @@ export class WebGpuRenderBackend implements IRenderBackend {
         const rt = this.ensureBokeh(ctx, result.webgpuPassPlan, result.paramLayout);
         rt.paramsData.fill(0);
         rt.paramsDirty = true;
-
-        class BokehPassPlanProgram implements PreviewProgramInstance {
-          setParameter(nodeId: string, paramName: string, value: number | [number, number, number, number]): void {
-            const idx = rt.paramsLayout[`${nodeId}.${paramName}`];
-            if (idx == null) return;
-            const o = idx * 4;
-            if (typeof value === 'number') {
-              rt.paramsData[o + 0] = value;
-              rt.paramsData[o + 1] = 0;
-              rt.paramsData[o + 2] = 0;
-              rt.paramsData[o + 3] = 0;
-            } else {
-              rt.paramsData[o + 0] = value[0];
-              rt.paramsData[o + 1] = value[1];
-              rt.paramsData[o + 2] = value[2];
-              rt.paramsData[o + 3] = value[3];
-            }
-            rt.paramsDirty = true;
-          }
-          setParameters(updates: Array<{ nodeId: string; paramName: string; value: number | [number, number, number, number] }>): void {
-            for (const u of updates) this.setParameter(u.nodeId, u.paramName, u.value);
-          }
-          setAudioUniform(nodeId: string, outputName: string, value: number): void {
-            this.setParameter(nodeId, outputName, value);
-          }
-          setTime(time: number): void {
-            rt.time = time;
-          }
-          setTimelineTime(time: number): void {
-            rt.timelineTime = time;
-          }
-          getTime(): number {
-            return rt.time;
-          }
-          getTimelineTime(): number {
-            return rt.timelineTime;
-          }
-          getParameters(): Map<string, number | [number, number, number, number]> {
-            const out = new Map<string, number | [number, number, number, number]>();
-            for (const [key, idx] of Object.entries(rt.paramsLayout)) {
-              const o = idx * 4;
-              out.set(key, [
-                rt.paramsData[o + 0] ?? 0,
-                rt.paramsData[o +  1] ?? 0,
-                rt.paramsData[o + 2] ?? 0,
-                rt.paramsData[o + 3] ?? 0,
-              ]);
-            }
-            return out;
-          }
-          destroy(): void {
-            // backend owns pipelines/textures
-          }
-        }
-        const prog = new BokehPassPlanProgram();
+        const prog = new WebGpuPassPlanPreviewProgram(rt);
         this.program = prog;
         this.markDirty('webgpu.passplan.bokeh.set');
         return prog;
@@ -1366,61 +1252,7 @@ export class WebGpuRenderBackend implements IRenderBackend {
         const rt = this.ensureCrepuscularRays(ctx, result.webgpuPassPlan, result.paramLayout);
         rt.paramsData.fill(0);
         rt.paramsDirty = true;
-
-        class CrepuscularRaysPassPlanProgram implements PreviewProgramInstance {
-          setParameter(nodeId: string, paramName: string, value: number | [number, number, number, number]): void {
-            const idx = rt.paramsLayout[`${nodeId}.${paramName}`];
-            if (idx == null) return;
-            const o = idx * 4;
-            if (typeof value === 'number') {
-              rt.paramsData[o + 0] = value;
-              rt.paramsData[o + 1] = 0;
-              rt.paramsData[o + 2] = 0;
-              rt.paramsData[o + 3] = 0;
-            } else {
-              rt.paramsData[o + 0] = value[0];
-              rt.paramsData[o + 1] = value[1];
-              rt.paramsData[o + 2] = value[2];
-              rt.paramsData[o + 3] = value[3];
-            }
-            rt.paramsDirty = true;
-          }
-          setParameters(updates: Array<{ nodeId: string; paramName: string; value: number | [number, number, number, number] }>): void {
-            for (const u of updates) this.setParameter(u.nodeId, u.paramName, u.value);
-          }
-          setAudioUniform(nodeId: string, outputName: string, value: number): void {
-            this.setParameter(nodeId, outputName, value);
-          }
-          setTime(time: number): void {
-            rt.time = time;
-          }
-          setTimelineTime(time: number): void {
-            rt.timelineTime = time;
-          }
-          getTime(): number {
-            return rt.time;
-          }
-          getTimelineTime(): number {
-            return rt.timelineTime;
-          }
-          getParameters(): Map<string, number | [number, number, number, number]> {
-            const out = new Map<string, number | [number, number, number, number]>();
-            for (const [key, idx] of Object.entries(rt.paramsLayout)) {
-              const o = idx * 4;
-              out.set(key, [
-                rt.paramsData[o + 0] ?? 0,
-                rt.paramsData[o + 1] ?? 0,
-                rt.paramsData[o + 2] ?? 0,
-                rt.paramsData[o + 3] ?? 0,
-              ]);
-            }
-            return out;
-          }
-          destroy(): void {
-            // backend owns pipelines/textures
-          }
-        }
-        const prog = new CrepuscularRaysPassPlanProgram();
+        const prog = new WebGpuPassPlanPreviewProgram(rt);
         this.program = prog;
         this.markDirty('webgpu.passplan.crepuscular-rays.set');
         return prog;
@@ -1460,8 +1292,7 @@ export class WebGpuRenderBackend implements IRenderBackend {
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
       });
 
-      const slotCount = Math.max(1, ...Object.values(result.paramLayout).map((v) => v + 1));
-      const paramsData = new Float32Array(slotCount * 4);
+      const paramsData = allocateParamSlotBuffer(result.paramLayout);
       const paramsBuffer = device.createBuffer({
         size: paramsData.byteLength,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST

@@ -2,33 +2,33 @@ import type { NodeGraph } from '../data-model/types';
 import type { AudioSetup } from '../data-model/audioSetupTypes';
 import type { CompilationResult, ShaderCompiler } from '../runtime/types';
 import type { FrameAudioState } from './OfflineAudioProvider';
-import { isRuntimeOnlyParameter } from '../utils/runtimeOnlyParams';
-import { isParameterUniformSuppressedByConnection } from '../utils/resolveParameterInputMode';
 import type { ExportRenderPathConfig, ExportRenderPathResult } from './ExportRenderPath';
 import {
   createBlurGaussianSeparableV1Runtime,
   destroyBlurGaussianSeparableV1Runtime,
-  encodeBlurGaussianSeparableV1Frame,
   validateBlurGaussianSeparableV1ShaderModules,
 } from '../runtime/renderBackends/blurGaussianSeparablePassPlanRuntime';
 import {
   createGlowBloomV1Runtime,
   destroyGlowBloomV1Runtime,
-  encodeGlowBloomV1Frame,
   validateGlowBloomV1ShaderModules,
 } from '../runtime/renderBackends/glowBloomPassPlanRuntime';
 import {
   createBokehV1Runtime,
   destroyBokehV1Runtime,
-  encodeBokehV1Frame,
   validateBokehV1ShaderModules,
 } from '../runtime/renderBackends/bokehPassPlanRuntime';
 import {
   createCrepuscularRaysV1Runtime,
   destroyCrepuscularRaysV1Runtime,
-  encodeCrepuscularRaysV1Frame,
   validateCrepuscularRaysV1ShaderModules,
 } from '../runtime/renderBackends/crepuscularRaysPassPlanRuntime';
+import {
+  applyParamSlotUpdates,
+  encodeWebGpuPassPlanFrame,
+  packPassPlanParamsFromGraph,
+  transferPassPlanParametersFromGraph,
+} from '../runtime/renderBackends/webgpuPassPlanExecutor';
 import { selectWebGpuPresentationFormat } from '../runtime/renderBackends/webgpuPresentationFormat';
 import { refreshExportArrangementBakeCaches } from './refreshExportArrangementBakeCaches';
 
@@ -45,56 +45,6 @@ function requestAdapterOptions(): GPURequestAdapterOptions {
     return {};
   }
   return { powerPreference: 'high-performance' };
-}
-
-function computeParamSlotCount(layout: CompilationResult['paramLayout']): number {
-  const vals = Object.values(layout);
-  if (vals.length === 0) return 1;
-  let max = 0;
-  for (const v of vals) max = Math.max(max, v);
-  return max + 1;
-}
-
-function setParamSlot(
-  paramsData: Float32Array,
-  layout: CompilationResult['paramLayout'],
-  nodeId: string,
-  paramName: string,
-  value: number | [number, number, number, number]
-): void {
-  const idx = layout[`${nodeId}.${paramName}`];
-  if (idx == null) return;
-  const o = idx * 4;
-  if (typeof value === 'number') {
-    paramsData[o + 0] = value;
-    paramsData[o + 1] = 0;
-    paramsData[o + 2] = 0;
-    paramsData[o + 3] = 0;
-    return;
-  }
-  paramsData[o + 0] = value[0];
-  paramsData[o + 1] = value[1];
-  paramsData[o + 2] = value[2];
-  paramsData[o + 3] = value[3];
-}
-
-/**
- * Populate the WebGPU param buffer from the graph, mirroring the export WebGL behavior:
- * - skip runtime-only params
- * - if a parameter is connected and its mode is 'override', skip the literal value
- */
-function transferParametersFromGraph(graph: NodeGraph, result: CompilationResult, paramsData: Float32Array): void {
-  for (const node of graph.nodes) {
-    for (const [paramName, value] of Object.entries(node.parameters)) {
-      if (isRuntimeOnlyParameter(node.type, paramName)) continue;
-
-      if (isParameterUniformSuppressedByConnection(graph, node, paramName)) continue;
-
-      if (typeof value === 'number') {
-        setParamSlot(paramsData, result.paramLayout, node.id, paramName, value);
-      }
-    }
-  }
 }
 
 async function waitForCanvasPresentation(): Promise<void> {
@@ -200,7 +150,7 @@ export async function createWebGpuVideoExportRenderPath(
       }
 
       const baseParamsData = new Float32Array(rt.paramsData.length);
-      transferParametersFromGraph(graph, compilation, baseParamsData);
+      transferPassPlanParametersFromGraph(graph, compilation.paramLayout, baseParamsData);
 
       let blurDisposed = false;
 
@@ -214,18 +164,18 @@ export async function createWebGpuVideoExportRenderPath(
         rt.time = timeSeconds;
         rt.timelineTime = frameState.timelineTime;
         rt.paramsData.set(baseParamsData);
-        for (const u of frameState.uniformUpdates) {
-          setParamSlot(rt.paramsData, compilation.paramLayout, u.nodeId, u.paramName, u.value);
-        }
+        applyParamSlotUpdates(rt.paramsData, compilation.paramLayout, frameState.uniformUpdates);
         rt.paramsDirty = true;
 
-        encodeBlurGaussianSeparableV1Frame(
-          device,
-          device.queue,
-          rt,
-          width,
-          height,
-          ctx.getCurrentTexture().createView()
+        encodeWebGpuPassPlanFrame(
+          {
+            device,
+            queue: device.queue,
+            width,
+            height,
+            presentTargetView: ctx.getCurrentTexture().createView(),
+          },
+          rt
         );
 
         await device.queue.onSubmittedWorkDone();
@@ -281,7 +231,7 @@ export async function createWebGpuVideoExportRenderPath(
       }
 
       const baseParamsData = new Float32Array(rt.paramsData.length);
-      transferParametersFromGraph(graph, compilation, baseParamsData);
+      transferPassPlanParametersFromGraph(graph, compilation.paramLayout, baseParamsData);
 
       let crepuscularDisposed = false;
 
@@ -295,18 +245,18 @@ export async function createWebGpuVideoExportRenderPath(
         rt.time = timeSeconds;
         rt.timelineTime = frameState.timelineTime;
         rt.paramsData.set(baseParamsData);
-        for (const u of frameState.uniformUpdates) {
-          setParamSlot(rt.paramsData, compilation.paramLayout, u.nodeId, u.paramName, u.value);
-        }
+        applyParamSlotUpdates(rt.paramsData, compilation.paramLayout, frameState.uniformUpdates);
         rt.paramsDirty = true;
 
-        encodeCrepuscularRaysV1Frame(
-          device,
-          device.queue,
-          rt,
-          width,
-          height,
-          ctx.getCurrentTexture().createView()
+        encodeWebGpuPassPlanFrame(
+          {
+            device,
+            queue: device.queue,
+            width,
+            height,
+            presentTargetView: ctx.getCurrentTexture().createView(),
+          },
+          rt
         );
 
         await device.queue.onSubmittedWorkDone();
@@ -357,7 +307,7 @@ export async function createWebGpuVideoExportRenderPath(
       }
 
       const baseParamsData = new Float32Array(rt.paramsData.length);
-      transferParametersFromGraph(graph, compilation, baseParamsData);
+      transferPassPlanParametersFromGraph(graph, compilation.paramLayout, baseParamsData);
 
       let glowBloomDisposed = false;
 
@@ -371,18 +321,18 @@ export async function createWebGpuVideoExportRenderPath(
         rt.time = timeSeconds;
         rt.timelineTime = frameState.timelineTime;
         rt.paramsData.set(baseParamsData);
-        for (const u of frameState.uniformUpdates) {
-          setParamSlot(rt.paramsData, compilation.paramLayout, u.nodeId, u.paramName, u.value);
-        }
+        applyParamSlotUpdates(rt.paramsData, compilation.paramLayout, frameState.uniformUpdates);
         rt.paramsDirty = true;
 
-        encodeGlowBloomV1Frame(
-          device,
-          device.queue,
-          rt,
-          width,
-          height,
-          ctx.getCurrentTexture().createView()
+        encodeWebGpuPassPlanFrame(
+          {
+            device,
+            queue: device.queue,
+            width,
+            height,
+            presentTargetView: ctx.getCurrentTexture().createView(),
+          },
+          rt
         );
 
         await device.queue.onSubmittedWorkDone();
@@ -433,7 +383,7 @@ export async function createWebGpuVideoExportRenderPath(
       }
 
       const baseParamsData = new Float32Array(rt.paramsData.length);
-      transferParametersFromGraph(graph, compilation, baseParamsData);
+      transferPassPlanParametersFromGraph(graph, compilation.paramLayout, baseParamsData);
 
       let bokehDisposed = false;
 
@@ -444,18 +394,18 @@ export async function createWebGpuVideoExportRenderPath(
         rt.time = timeSeconds;
         rt.timelineTime = frameState.timelineTime;
         rt.paramsData.set(baseParamsData);
-        for (const u of frameState.uniformUpdates) {
-          setParamSlot(rt.paramsData, compilation.paramLayout, u.nodeId, u.paramName, u.value);
-        }
+        applyParamSlotUpdates(rt.paramsData, compilation.paramLayout, frameState.uniformUpdates);
         rt.paramsDirty = true;
 
-        encodeBokehV1Frame(
-          device,
-          device.queue,
-          rt,
-          width,
-          height,
-          ctx.getCurrentTexture().createView()
+        encodeWebGpuPassPlanFrame(
+          {
+            device,
+            queue: device.queue,
+            width,
+            height,
+            presentTargetView: ctx.getCurrentTexture().createView(),
+          },
+          rt
         );
 
         await device.queue.onSubmittedWorkDone();
@@ -514,9 +464,7 @@ export async function createWebGpuVideoExportRenderPath(
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
-  const slotCount = computeParamSlotCount(compilation.paramLayout);
-  const baseParamsData = new Float32Array(slotCount * 4);
-  transferParametersFromGraph(graph, compilation, baseParamsData);
+  const baseParamsData = packPassPlanParamsFromGraph(graph, compilation.paramLayout);
   const paramsData = new Float32Array(baseParamsData);
   const paramsBuffer = device.createBuffer({
     size: paramsData.byteLength,
@@ -572,9 +520,7 @@ export async function createWebGpuVideoExportRenderPath(
     globalsData[7] = 0;
 
     paramsData.set(baseParamsData);
-    for (const u of frameState.uniformUpdates) {
-      setParamSlot(paramsData, compilation.paramLayout, u.nodeId, u.paramName, u.value);
-    }
+    applyParamSlotUpdates(paramsData, compilation.paramLayout, frameState.uniformUpdates);
 
     device.queue.writeBuffer(
       globalsBuffer,
