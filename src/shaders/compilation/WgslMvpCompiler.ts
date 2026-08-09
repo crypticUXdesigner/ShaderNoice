@@ -254,6 +254,59 @@ export const WGSL_WEBGPU_PASS_PLAN_NODE_TYPES = new Set<string>([
 ]);
 
 /**
+ * Pass-plan effect params are grafted onto `paramLayout` after the upstream subgraph compile,
+ * so they never appear in `subResult.uniforms`. Emit UniformMetadata for those slots so
+ * preview (`applyUniformDefaults`) and export packing can seed omitted graph keys.
+ */
+function appendPassPlanEffectUniforms(
+  graph: NodeGraph,
+  nodeSpecs: Map<string, NodeSpec>,
+  effectNodeId: string,
+  paramNames: readonly string[],
+  baseUniforms: UniformMetadata[]
+): UniformMetadata[] {
+  const node = graph.nodes.find((n) => n.id === effectNodeId);
+  if (!node) return baseUniforms;
+  const spec = nodeSpecs.get(node.type);
+  const seen = new Set(baseUniforms.map((u) => `${u.nodeId}.${u.paramName}`));
+  const extra: UniformMetadata[] = [];
+  for (const paramName of paramNames) {
+    if (seen.has(`${effectNodeId}.${paramName}`)) continue;
+    const paramSpec = spec?.parameters?.[paramName];
+    const graphValue = node.parameters[paramName];
+    let defaultValue: UniformMetadata['defaultValue'];
+    let type: UniformMetadata['type'] = 'float';
+    if (typeof graphValue === 'number') {
+      defaultValue = graphValue;
+      type = paramSpec?.type === 'int' ? 'int' : 'float';
+    } else if (
+      Array.isArray(graphValue) &&
+      graphValue.length >= 2 &&
+      graphValue.length <= 4 &&
+      graphValue.every((x) => typeof x === 'number')
+    ) {
+      defaultValue = graphValue as UniformMetadata['defaultValue'];
+      type = graphValue.length === 2 ? 'vec2' : graphValue.length === 3 ? 'vec3' : 'vec4';
+    } else if (paramSpec) {
+      defaultValue = getParameterDefaultValueHelper(paramSpec, paramName);
+      if (paramSpec.type === 'int') type = 'int';
+      else if (paramSpec.type === 'vec4') type = 'vec4';
+      else type = 'float';
+    } else {
+      defaultValue = 0;
+    }
+    extra.push({
+      name: `uPass_${effectNodeId}_${paramName}`.replace(/[^a-zA-Z0-9_]/g, '_'),
+      nodeId: effectNodeId,
+      paramName,
+      type,
+      defaultValue,
+    });
+  }
+  return extra.length === 0 ? baseUniforms : [...baseUniforms, ...extra];
+}
+
+/**
  * Try to emit a `pass.bokeh.v1` pass plan for a graph that ends in
  * `... -> bokeh -> final-output`. The upstream subgraph is compiled as inline WGSL,
  * then runtime performs bright-pass, shaped blur, and combine.
@@ -366,7 +419,20 @@ function tryCompileBokehPassPlan(
     supported: true,
     code: subResult.code,
     shaderCode: '',
-    uniforms: subResult.uniforms,
+    uniforms: appendPassPlanEffectUniforms(
+      graph,
+      nodeSpecs,
+      bokehNodeId,
+      [
+        'bokehThreshold',
+        'bokehIntensity',
+        'bokehRadius',
+        'bokehStrength',
+        'bokehBlades',
+        'bokehRotation',
+      ],
+      subResult.uniforms
+    ),
     metadata: {
       warnings: subResult.metadata.warnings,
       errors: [],
@@ -1796,7 +1862,13 @@ function tryCompileBlurPassPlan(
     supported: true,
     code: subResult.code,
     shaderCode: '',
-    uniforms: subResult.uniforms,
+    uniforms: appendPassPlanEffectUniforms(
+      graph,
+      nodeSpecs,
+      blurNodeId,
+      ['blurAmount', 'blurRadius', 'blurType', 'blurDirection', 'blurCenterX', 'blurCenterY'],
+      subResult.uniforms
+    ),
     metadata: {
       warnings: subResult.metadata.warnings,
       errors: [],
@@ -1930,7 +2002,13 @@ function tryCompileGlowBloomPassPlan(
     supported: true,
     code: subResult.code,
     shaderCode: '',
-    uniforms: subResult.uniforms,
+    uniforms: appendPassPlanEffectUniforms(
+      graph,
+      nodeSpecs,
+      glowNodeId,
+      ['glowThreshold', 'glowIntensity', 'glowRadius', 'glowStrength'],
+      subResult.uniforms
+    ),
     metadata: {
       warnings: subResult.metadata.warnings,
       errors: [],
@@ -2074,7 +2152,23 @@ function tryCompileCrepuscularRaysPassPlan(
     supported: true,
     code: subResult.code,
     shaderCode: '',
-    uniforms: subResult.uniforms,
+    uniforms: appendPassPlanEffectUniforms(
+      graph,
+      nodeSpecs,
+      crepNodeId,
+      [
+        'sourceX',
+        'sourceY',
+        'distanceFalloff',
+        'intensity',
+        'rayCount',
+        'spread',
+        'width',
+        'rotationSpeed',
+        'rotationOffset',
+      ],
+      subResult.uniforms
+    ),
     metadata: {
       warnings: subResult.metadata.warnings,
       errors: [],

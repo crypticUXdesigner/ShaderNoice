@@ -27,10 +27,9 @@ import {
   validateCrepuscularRaysV1ShaderModules,
 } from '../runtime/renderBackends/crepuscularRaysPassPlanRuntime';
 import {
-  applyParamSlotUpdates,
   encodeWebGpuPassPlanFrame,
+  fillPassPlanParamsBuffer,
   packPassPlanParamsFromGraph,
-  transferPassPlanParametersFromGraph,
 } from '../runtime/renderBackends/webgpuPassPlanExecutor';
 import { selectWebGpuRgbaExportFormat } from '../runtime/renderBackends/webgpuPresentationFormat';
 import { refreshExportArrangementBakeCaches } from '../video-export/refreshExportArrangementBakeCaches';
@@ -162,10 +161,10 @@ export async function renderWebGpuExportRgba8(
           };
         }
 
-        transferPassPlanParametersFromGraph(graph, compilation.paramLayout, rt.paramsData);
-        if (opts.uniformUpdates) {
-          applyParamSlotUpdates(rt.paramsData, compilation.paramLayout, opts.uniformUpdates);
-        }
+        fillPassPlanParamsBuffer(graph, compilation.paramLayout, rt.paramsData, {
+          uniforms: compilation.uniforms,
+          uniformUpdates: opts.uniformUpdates,
+        });
         rt.paramsDirty = true;
         rt.time = opts.timeSeconds;
         rt.timelineTime = opts.timelineTimeSeconds;
@@ -249,10 +248,10 @@ export async function renderWebGpuExportRgba8(
           };
         }
 
-        transferPassPlanParametersFromGraph(graph, compilation.paramLayout, rt.paramsData);
-        if (opts.uniformUpdates) {
-          applyParamSlotUpdates(rt.paramsData, compilation.paramLayout, opts.uniformUpdates);
-        }
+        fillPassPlanParamsBuffer(graph, compilation.paramLayout, rt.paramsData, {
+          uniforms: compilation.uniforms,
+          uniformUpdates: opts.uniformUpdates,
+        });
         rt.paramsDirty = true;
         rt.time = opts.timeSeconds;
         rt.timelineTime = opts.timelineTimeSeconds;
@@ -336,10 +335,10 @@ export async function renderWebGpuExportRgba8(
           };
         }
 
-        transferPassPlanParametersFromGraph(graph, compilation.paramLayout, rt.paramsData);
-        if (opts.uniformUpdates) {
-          applyParamSlotUpdates(rt.paramsData, compilation.paramLayout, opts.uniformUpdates);
-        }
+        fillPassPlanParamsBuffer(graph, compilation.paramLayout, rt.paramsData, {
+          uniforms: compilation.uniforms,
+          uniformUpdates: opts.uniformUpdates,
+        });
         rt.paramsDirty = true;
         rt.time = opts.timeSeconds;
         rt.timelineTime = opts.timelineTimeSeconds;
@@ -423,10 +422,10 @@ export async function renderWebGpuExportRgba8(
           };
         }
 
-        transferPassPlanParametersFromGraph(graph, compilation.paramLayout, rt.paramsData);
-        if (opts.uniformUpdates) {
-          applyParamSlotUpdates(rt.paramsData, compilation.paramLayout, opts.uniformUpdates);
-        }
+        fillPassPlanParamsBuffer(graph, compilation.paramLayout, rt.paramsData, {
+          uniforms: compilation.uniforms,
+          uniformUpdates: opts.uniformUpdates,
+        });
         rt.paramsDirty = true;
         rt.time = opts.timeSeconds;
         rt.timelineTime = opts.timelineTimeSeconds;
@@ -518,7 +517,10 @@ export async function renderWebGpuExportRgba8(
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
-    const paramsData = packPassPlanParamsFromGraph(graph, compilation.paramLayout, opts.uniformUpdates);
+    const paramsData = packPassPlanParamsFromGraph(graph, compilation.paramLayout, {
+      uniforms: compilation.uniforms,
+      uniformUpdates: opts.uniformUpdates,
+    });
     const paramsBuffer = device.createBuffer({
       size: paramsData.byteLength,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,

@@ -13,7 +13,7 @@
 import type { NodeGraph } from '../../data-model/types';
 import { isRuntimeOnlyParameter } from '../../utils/runtimeOnlyParams';
 import { isParameterUniformSuppressedByConnection } from '../../utils/resolveParameterInputMode';
-import type { CompilationResult } from '../../compile-contract';
+import type { CompilationResult, UniformMetadata } from '../../compile-contract';
 import type { BlurGaussianSeparableV1Runtime } from './blurGaussianSeparablePassPlanRuntime';
 import { encodeBlurGaussianSeparableV1Frame } from './blurGaussianSeparablePassPlanRuntime';
 import type { GlowBloomV1Runtime } from './glowBloomPassPlanRuntime';
@@ -52,6 +52,13 @@ export type WebGpuPassPlanEncodeHost = {
   presentTargetView: GPUTextureView;
 };
 
+export type PackPassPlanParamsOptions = {
+  /** Compiler uniforms — seed defaults before graph transfer (preview parity). */
+  uniforms?: ReadonlyArray<UniformMetadata>;
+  /** Frame/audio overrides applied after graph transfer. */
+  uniformUpdates?: ReadonlyArray<WebGpuParamSlotUpdate>;
+};
+
 /** Slot count for `array<vec4<f32>>` buffers; at least 1 so empty layouts still allocate. */
 export function computeParamSlotCount(layout: WebGpuParamLayout): number {
   const vals = Object.values(layout);
@@ -64,6 +71,13 @@ export function computeParamSlotCount(layout: WebGpuParamLayout): number {
 /** Allocate a zeroed param buffer sized for `layout`. */
 export function allocateParamSlotBuffer(layout: WebGpuParamLayout): Float32Array {
   return new Float32Array(computeParamSlotCount(layout) * 4);
+}
+
+function toVec4(v: UniformMetadata['defaultValue']): WebGpuParamValue {
+  if (typeof v === 'number') return v;
+  if (v.length === 4) return v as [number, number, number, number];
+  if (v.length === 3) return [v[0], v[1], v[2], 0];
+  return [v[0], v[1], 0, 0];
 }
 
 /**
@@ -105,6 +119,23 @@ export function applyParamSlotUpdates(
 }
 
 /**
+ * Seed compiler-declared default uniform values into the param buffer.
+ *
+ * Graphs often omit keys that equal defaults (and old presets omit newly added params).
+ * Preview seeds via `applyUniformDefaults` before graph transfer; export must do the same
+ * or missing slots stay 0.0 and diverge from preview.
+ */
+export function applyPassPlanUniformDefaults(
+  uniforms: ReadonlyArray<UniformMetadata>,
+  layout: WebGpuParamLayout,
+  paramsData: Float32Array
+): void {
+  for (const u of uniforms) {
+    setParamSlot(paramsData, layout, u.nodeId, u.paramName, toVec4(u.defaultValue));
+  }
+}
+
+/**
  * Populate the WebGPU param buffer from the graph, mirroring export WebGL / prior export WebGPU:
  * - skip runtime-only params
  * - if a parameter is connected and its mode is 'override', skip the literal value
@@ -127,19 +158,48 @@ export function transferPassPlanParametersFromGraph(
 }
 
 /**
- * Allocate, transfer graph defaults, then apply optional uniform updates.
- * Marks no GPU dirty flag — callers set `paramsDirty` on their runtime.
+ * Fill an existing param buffer: optional compiler defaults → graph → optional updates.
+ * Prefer this for export runtimes that already own `paramsData`.
  */
+export function fillPassPlanParamsBuffer(
+  graph: NodeGraph,
+  layout: WebGpuParamLayout,
+  paramsData: Float32Array,
+  options?: PackPassPlanParamsOptions
+): void {
+  if (options?.uniforms && options.uniforms.length > 0) {
+    applyPassPlanUniformDefaults(options.uniforms, layout, paramsData);
+  }
+  transferPassPlanParametersFromGraph(graph, layout, paramsData);
+  if (options?.uniformUpdates && options.uniformUpdates.length > 0) {
+    applyParamSlotUpdates(paramsData, layout, options.uniformUpdates);
+  }
+}
+
+/**
+ * Allocate, optionally seed compiler defaults, transfer graph values, then apply updates.
+ * Marks no GPU dirty flag — callers set `paramsDirty` on their runtime.
+ *
+ * Pass `uniforms` for preview/export parity when graphs omit default-valued keys.
+ */
+function normalizePackPassPlanParamsOptions(
+  options?: PackPassPlanParamsOptions | ReadonlyArray<WebGpuParamSlotUpdate>
+): PackPassPlanParamsOptions | undefined {
+  if (options == null) return undefined;
+  // Legacy callers passed a bare updates array as the 3rd argument.
+  if (Array.isArray(options)) {
+    return { uniformUpdates: options };
+  }
+  return options as PackPassPlanParamsOptions;
+}
+
 export function packPassPlanParamsFromGraph(
   graph: NodeGraph,
   layout: WebGpuParamLayout,
-  uniformUpdates?: ReadonlyArray<WebGpuParamSlotUpdate>
+  options?: PackPassPlanParamsOptions | ReadonlyArray<WebGpuParamSlotUpdate>
 ): Float32Array {
   const paramsData = allocateParamSlotBuffer(layout);
-  transferPassPlanParametersFromGraph(graph, layout, paramsData);
-  if (uniformUpdates && uniformUpdates.length > 0) {
-    applyParamSlotUpdates(paramsData, layout, uniformUpdates);
-  }
+  fillPassPlanParamsBuffer(graph, layout, paramsData, normalizePackPassPlanParamsOptions(options));
   return paramsData;
 }
 

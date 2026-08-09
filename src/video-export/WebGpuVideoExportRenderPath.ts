@@ -27,8 +27,8 @@ import {
 import {
   applyParamSlotUpdates,
   encodeWebGpuPassPlanFrame,
+  fillPassPlanParamsBuffer,
   packPassPlanParamsFromGraph,
-  transferPassPlanParametersFromGraph,
 } from '../runtime/renderBackends/webgpuPassPlanExecutor';
 import { selectWebGpuPresentationFormat } from '../runtime/renderBackends/webgpuPresentationFormat';
 import { refreshExportArrangementBakeCaches } from './refreshExportArrangementBakeCaches';
@@ -151,7 +151,9 @@ export async function createWebGpuVideoExportRenderPath(
       }
 
       const baseParamsData = new Float32Array(rt.paramsData.length);
-      transferPassPlanParametersFromGraph(graph, compilation.paramLayout, baseParamsData);
+      fillPassPlanParamsBuffer(graph, compilation.paramLayout, baseParamsData, {
+        uniforms: compilation.uniforms,
+      });
 
       let blurDisposed = false;
 
@@ -232,7 +234,9 @@ export async function createWebGpuVideoExportRenderPath(
       }
 
       const baseParamsData = new Float32Array(rt.paramsData.length);
-      transferPassPlanParametersFromGraph(graph, compilation.paramLayout, baseParamsData);
+      fillPassPlanParamsBuffer(graph, compilation.paramLayout, baseParamsData, {
+        uniforms: compilation.uniforms,
+      });
 
       let crepuscularDisposed = false;
 
@@ -308,7 +312,9 @@ export async function createWebGpuVideoExportRenderPath(
       }
 
       const baseParamsData = new Float32Array(rt.paramsData.length);
-      transferPassPlanParametersFromGraph(graph, compilation.paramLayout, baseParamsData);
+      fillPassPlanParamsBuffer(graph, compilation.paramLayout, baseParamsData, {
+        uniforms: compilation.uniforms,
+      });
 
       let glowBloomDisposed = false;
 
@@ -384,7 +390,9 @@ export async function createWebGpuVideoExportRenderPath(
       }
 
       const baseParamsData = new Float32Array(rt.paramsData.length);
-      transferPassPlanParametersFromGraph(graph, compilation.paramLayout, baseParamsData);
+      fillPassPlanParamsBuffer(graph, compilation.paramLayout, baseParamsData, {
+        uniforms: compilation.uniforms,
+      });
 
       let bokehDisposed = false;
 
@@ -465,7 +473,9 @@ export async function createWebGpuVideoExportRenderPath(
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
   });
 
-  const baseParamsData = packPassPlanParamsFromGraph(graph, compilation.paramLayout);
+  const baseParamsData = packPassPlanParamsFromGraph(graph, compilation.paramLayout, {
+    uniforms: compilation.uniforms,
+  });
   const paramsData = new Float32Array(baseParamsData);
   const paramsBuffer = device.createBuffer({
     size: paramsData.byteLength,

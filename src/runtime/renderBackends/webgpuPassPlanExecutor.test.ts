@@ -22,6 +22,7 @@ import { isParameterUniformSuppressedByConnection } from '../../utils/resolvePar
 import {
   allocateParamSlotBuffer,
   applyParamSlotUpdates,
+  applyPassPlanUniformDefaults,
   computeParamSlotCount,
   packPassPlanParamsFromGraph,
   readParamSlotScalar,
@@ -245,7 +246,7 @@ describe('webgpuPassPlanExecutor param packing', () => {
       { nodeId: 'n-blur-stab', paramName: 'blurAmount', value: 0.75 as const },
       { nodeId: 'remap-mvp-stetra-audio-scale', paramName: 'out', value: 0.5 as const },
     ];
-    const packed = packPassPlanParamsFromGraph(graph, result.paramLayout, updates);
+    const packed = packPassPlanParamsFromGraph(graph, result.paramLayout, { uniformUpdates: updates });
     expect(readParamSlotScalar(packed, result.paramLayout, 'n-blur-stab', 'blurAmount')).toBe(0.75);
     expect(result.paramLayout['remap-mvp-stetra-audio-scale.out']).toBeTypeOf('number');
     expect(
@@ -254,6 +255,42 @@ describe('webgpuPassPlanExecutor param packing', () => {
 
     const legacy = legacyExportPack(graph, result.paramLayout, updates);
     expect(Array.from(packed)).toEqual(Array.from(legacy));
+  });
+
+  it('seeds compiler defaults for omitted graph parameters (preview/export parity)', () => {
+    // blurRadius default is 5.0; omit it so graph-only packing would leave the slot at 0.
+    const full = mvpBlurPassPlanGraph();
+    const blurNode = full.nodes.find((n) => n.id === 'n-blur');
+    expect(blurNode).toBeTruthy();
+    const { blurRadius: _omit, ...paramsWithoutRadius } = blurNode!.parameters;
+    void _omit;
+    const graph: NodeGraph = {
+      ...full,
+      nodes: full.nodes.map((n) =>
+        n.id === 'n-blur' ? { ...n, parameters: paramsWithoutRadius } : n
+      ),
+    };
+
+    const result = compileWebGpu(graph);
+    expect(result.paramLayout['n-blur.blurRadius']).toBeTypeOf('number');
+    const blurRadiusUniform = result.uniforms.find(
+      (u) => u.nodeId === 'n-blur' && u.paramName === 'blurRadius'
+    );
+    expect(blurRadiusUniform?.defaultValue).toBe(5);
+
+    const withoutDefaults = packPassPlanParamsFromGraph(graph, result.paramLayout);
+    expect(readParamSlotScalar(withoutDefaults, result.paramLayout, 'n-blur', 'blurRadius')).toBe(0);
+
+    const withDefaults = packPassPlanParamsFromGraph(graph, result.paramLayout, {
+      uniforms: result.uniforms,
+    });
+    expect(readParamSlotScalar(withDefaults, result.paramLayout, 'n-blur', 'blurRadius')).toBe(5);
+
+    // Defaults alone match UniformMetadata; graph transfer must not wipe them when key is absent.
+    const buf = allocateParamSlotBuffer(result.paramLayout);
+    applyPassPlanUniformDefaults(result.uniforms, result.paramLayout, buf);
+    transferPassPlanParametersFromGraph(graph, result.paramLayout, buf);
+    expect(readParamSlotScalar(buf, result.paramLayout, 'n-blur', 'blurRadius')).toBe(5);
   });
 
   it('applyParamSlotUpdates batches writes', () => {
