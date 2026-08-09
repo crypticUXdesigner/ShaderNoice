@@ -1,6 +1,6 @@
 # Graph, stores, and platform boundaries
 
-**Last updated:** 2026-08-09
+**Last updated:** 2026-08-09 (arch-perf remediation closeout)
 
 The **node graph** (nodes, connections, view state, automation metadata) is owned by the **data model** and exposed through a **Svelte 5 module store**. **Runtime and compilation read the graph**; they do not mutate it in place. This page is the canonical description of that boundary and of related seams (types, serialization, connections, change detection, runtime-only parameters).
 
@@ -9,6 +9,7 @@ The **node graph** (nodes, connections, view state, automation metadata) is owne
 - **Types** — `NodeGraph`, `NodeInstance`, `Connection`, `ParameterValue`, etc. live in [`src/data-model/types.ts`](../../src/data-model/types.ts). [`src/types/nodeGraph.ts`](../../src/types/nodeGraph.ts) re-exports those types and narrows file-format shapes; it is not a second graph implementation. Optional **`bypassed?: boolean`** on **`NodeInstance`** records per-node Power (serialized like other node fields); the compiler interprets it at compile time—the runtime does not simulate bypass separately from the shader (see [`docs/user-goals/04-nodes-and-parameters.md`](../user-goals/04-nodes-and-parameters.md)).
 - **Updates** — Pure updaters in [`src/data-model/immutableUpdates.ts`](../../src/data-model/immutableUpdates.ts) (`updateNodeParameter`, `addNode`, `removeConnection`, …) return a **new** graph reference.
 - **Store** — [`src/lib/stores/graphStore.svelte.ts`](../../src/lib/stores/graphStore.svelte.ts) holds `$state` for the graph and audio setup; actions call immutable updaters then assign `graph = …`.
+- **Compile IR** — Pass-plan / uniform / preview-mask types live in [`src/compile-contract/`](../../src/compile-contract/) (neutral module shared by `shaders` emit and `runtime` consume). Do **not** import those IR types from `runtime/types`.
 
 [`src/utils/changeDetection/GraphChangeDetector.ts`](../../src/utils/changeDetection/GraphChangeDetector.ts) assumes **reference equality means no change** (`oldGraph === newGraph`). Any in-place mutation of an object still held by the store would break change detection and incremental compilation.
 
@@ -51,13 +52,26 @@ Supported save/load uses [`src/data-model/serialization.ts`](../../src/data-mode
 
 | Belongs in… | Examples / put new code here when… |
 | --- | --- |
-| **`src/data-model/`** | Graph types, immutable updates, validation, serialization, connection keys |
+| **`src/data-model/`** | Graph types, immutable updates, validation, serialization, connection keys; audio **virtual node** ids ([`virtualNodes.ts`](../../src/data-model/virtualNodes.ts)) |
+| **`src/compile-contract/`** | Neutral compile IR / pass-plan / preview-mask types (no runtime or shader imports) |
 | **`src/runtime/`** or **`src/shaders/`** | Preview loop, compile scheduling, GLSL/WGSL emission, GPU backends |
 | **`src/lib/`** / **`src/ui/`** | Svelte UI components vs canvas engine / interactions |
 | **`src/image-export/`**, **`src/video-export/`**, **`src/export/`** | Export orchestration and raster-API user messaging |
 | **`src/utils/`** | Pure helpers reused by UI + runtime (no graph mutation): e.g. `changeDetection/GraphChangeDetector.ts`, `driverRemap.ts`, `presetManager.ts`, `ContextualHelpManager.ts`, `errorHandling.ts`, `nodeSpecUtils.ts` |
 
-Do **not** add graph mutators or store actions under `utils`. Prefer `GraphChangeDetector` over the legacy [`graphComparison.ts`](../../src/utils/graphComparison.ts) helper for new change-detection call sites.
+Do **not** add graph mutators or store actions under `utils`. The legacy `graphComparison.ts` helper was **removed** (arch-perf **01**); use **`GraphChangeDetector`** only.
+
+### Approved `utils` residuals (graph-adjacent)
+
+These stay under `utils` for now (UI + runtime share them; moving would pull automation evaluators or audio interfaces into data-model):
+
+| Module | Why residual |
+| --- | --- |
+| [`paramDriverBypass.ts`](../../src/utils/paramDriverBypass.ts) | Bypass read/write uses data-model updaters + `automationEvaluator`; keep near other param-driver helpers |
+| [`paramPortAudioState.ts`](../../src/utils/paramPortAudioState.ts) | Needs `IAudioManager` (runtime) for live values |
+| [`resolveParameterInputMode.ts`](../../src/utils/resolveParameterInputMode.ts) / driver attach helpers | Cross-cut UI, compile, and store paths |
+
+[`src/utils/virtualNodes.ts`](../../src/utils/virtualNodes.ts) is a **re-export shim** only — prefer [`src/data-model/virtualNodes.ts`](../../src/data-model/virtualNodes.ts) (or `data-model` barrel).
 
 ## Connection model
 
@@ -75,11 +89,11 @@ Incremental compile is used when connections are unchanged, a previous result ex
 ### Who calls what (change detection)
 
 - **`GraphChangeDetector`** ([`src/utils/changeDetection/GraphChangeDetector.ts`](../../src/utils/changeDetection/GraphChangeDetector.ts)) — Single implementation of `isOnlyPositionChange`, `detectChanges`, automation-only helpers, and affected-node tracking. Assumes immutable graphs (`oldGraph === newGraph` means no change).
-- **`RuntimeManager.setGraph`** — Delegates `isOnlyPositionChange` to `GraphChangeDetector.isOnlyPositionChange`. On non–layout-only edits it calls `GraphChangeDetector.detectChanges` (structure path) and `isOnlyAutomationRegionTimesChange` to drive `CompilationManager.onGraphStructureChange` and audio cleanup.
-- **`CompilationManager.detectGraphChanges` (private)** — Calls `GraphChangeDetector.detectChanges` with `trackAffectedNodes: true` / `includeConnectionIds: true`, then updates `previousGraph` / `previousGraphState` for the next compile.
+- **`RuntimeManager.setGraph`** — Delegates `isOnlyPositionChange` to `GraphChangeDetector.isOnlyPositionChange`. On non–layout-only edits it calls `GraphChangeDetector.detectChanges` (structure path) and `isOnlyAutomationRegionTimesChange` to drive `CompilationManager.onGraphStructureChange` and audio cleanup. When a structure change is detected, the same `ChangeDetectionResult` is passed into compilation so the compile path does not walk the graph again (arch-perf **07**).
+- **`CompilationManager.detectGraphChanges` (private)** — Uses a shared result when provided; otherwise calls `GraphChangeDetector.detectChanges` with `trackAffectedNodes: true` / `includeConnectionIds: true`, then updates `previousGraph` / `previousGraphState` for the next compile. Connection-only edits tighten affected-node sets (endpoints + BFS), not the whole graph.
 - **`graphUpdate` (editor)** — [`src/ui/editor/graphUpdate.ts`](../../src/ui/editor/graphUpdate.ts) uses `GraphChangeDetector.detectChanges` after applying a graph patch to invalidate connection layers (incremental UI), not to schedule compilation.
 
-`detectGraphChanges` as a **method name** exists only on **`CompilationManager`** (it wraps `GraphChangeDetector.detectChanges`). There is also a legacy helper file [`src/utils/graphComparison.ts`](../../src/utils/graphComparison.ts) with a parallel `isOnlyPositionChange`; new code should prefer **`GraphChangeDetector`** so runtime and compiler stay aligned.
+`detectGraphChanges` as a **method name** exists only on **`CompilationManager`** (it wraps `GraphChangeDetector.detectChanges`). There is **no** parallel `graphComparison` helper anymore.
 
 ### Edit kind → RuntimeManager vs CompilationManager
 

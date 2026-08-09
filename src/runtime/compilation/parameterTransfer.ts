@@ -4,7 +4,8 @@
  */
 
 import type { NodeGraph } from '../../data-model/types';
-import type { PreviewProgramInstance, UniformMetadata } from '../types';
+import type { UniformMetadata } from '../../compile-contract';
+import type { PreviewProgramInstance } from '../types';
 import { isRuntimeOnlyParameter } from '../../utils/runtimeOnlyParams';
 import { isParameterUniformSuppressedByConnection } from '../../utils/resolveParameterInputMode';
 

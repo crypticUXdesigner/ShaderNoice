@@ -1,7 +1,8 @@
 /**
  * Browser entry for WebGL vs WebGPU pixel parity (opt-in; run via `npm run test:webgpu-golden`).
  */
-import type { CompilationResult, PreviewProgramInstance } from '../runtime/types';
+import type { CompilationResult } from '../compile-contract';
+import type { PreviewProgramInstance } from '../runtime/types';
 import type { IRenderBackend } from '../runtime/renderBackends/IRenderBackend';
 import { NodeShaderCompiler } from '../shaders/NodeShaderCompiler';
 import { nodeSystemSpecs } from '../shaders/nodes/index';

@@ -1,6 +1,6 @@
 # Preview, recompilation, and graph updates
 
-**Last updated:** 2026-05-14
+**Last updated:** 2026-08-09 (arch-perf remediation; WebGPU preview clock policy A)
 
 This document describes **how graph and structure changes reach the runtime**, how **`CompilationManager`** schedules full compiles vs fast paths, and how **`PreviewScheduler`** records signals for debugging and telemetry. For the parameter-specific path, see [`parameters-pipeline.md`](./parameters-pipeline.md). For worker offload of GLSL generation, see [`compilation-worker.md`](./compilation-worker.md).
 

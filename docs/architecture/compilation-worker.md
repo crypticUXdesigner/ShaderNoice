@@ -1,6 +1,6 @@
 # Compilation Web Worker
 
-**Last updated:** 2026-05
+**Last updated:** 2026-08-09 (arch-perf remediation closeout)
 
 Graph → GLSL compilation can run **off the main thread** in a dedicated worker while **WebGL program build and rendering** stay on the main thread. This document is the **contract reference** for that boundary.
 
@@ -29,12 +29,24 @@ Payload and reply shapes are defined in [`src/runtime/compilation/workerMessages
 ### Worker responsibilities
 
 - **`init`** — Build a `Map` of `NodeSpec`, construct **`NodeShaderCompiler`**, reply `{ type: 'inited' }`.
-- **`compile`** — Receive graph, optional `audioSetup`, optional `previousResult` ( **`null` when `tryIncremental` is false**; when incremental, only a slim **`IncrementalPreviousResult`** — today `metadata.executionOrder` — see `slimPreviousResultForWorker` / arch-perf task 03), `affectedNodeIds`, `tryIncremental`. Run incremental compile when allowed; fall back to full **`compile`**. Reply `{ type: 'result', id, result }` or `{ type: 'error', id, message }`.
+- **`compile`** — Receive graph, optional `audioSetup`, optional `previousResult` ( **`null` when `tryIncremental` is false**; when incremental, only a slim **`IncrementalPreviousResult`** from [`src/compile-contract/`](../../src/compile-contract/) — today `metadata.executionOrder` — see `slimPreviousResultForWorker` / arch-perf task 03), `affectedNodeIds`, `tryIncremental`. Run incremental compile when allowed; fall back to full **`compile`**. Reply `{ type: 'result', id, result }` or `{ type: 'error', id, message }`.
+
+### Slim payload (structuredClone cost)
+
+`cloneableCompilePayload` in `CompilationManager` builds the postMessage body:
+
+| Field | Full compile (`tryIncremental: false`) | Incremental attempt |
+| --- | --- | --- |
+| `graph` / `audioSetup` | Always cloned (proxy safety) | Same |
+| `previousResult` | **`null`** (omit fat prior `CompilationResult`) | Slim `IncrementalPreviousResult` only |
+| `affectedNodeIds` | Present | Present |
+
+IR / result types in the reply are `CompilationResult` from **compile-contract**, not from `runtime/types`.
 
 ### Main-thread responsibilities
 
 - Create the worker and send **`init`** (see [`src/runtime/factories.ts`](../../src/runtime/factories.ts) — dynamic `import(...?worker)` and `waitForWorkerInited`).
-- Post **`compile`** with a **structured-cloneable** payload (see `cloneableCompilePayload` in `CompilationManager`).
+- Post **`compile`** with a **structured-cloneable** payload (see `cloneableCompilePayload` in `CompilationManager` / table above).
 - On **`result`**, ignore stale `id`s, then call **`applyCompilationResult`** inside error handling.
 - On **`cancelPendingRecompile`**, bump compile id so late worker messages are ignored.
 - **`recompileAfterContextRestore`** — Uses **synchronous main-thread compile** when a worker is configured, so restore does not wait on async worker round-trip.

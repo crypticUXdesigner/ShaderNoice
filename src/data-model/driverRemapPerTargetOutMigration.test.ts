@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { NodeGraph } from './types';
 import type { AudioSetup } from './audioSetupTypes';
-import { getVirtualNodeId } from '../utils/virtualNodes';
+import { getVirtualNodeId } from './virtualNodes';
 import {
   migrateAudioRemapperOutToConnections,
   migrateDriverRemapOutToTargets,

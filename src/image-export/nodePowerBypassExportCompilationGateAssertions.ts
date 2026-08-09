@@ -4,7 +4,7 @@
  */
 import { expect } from 'vitest';
 import type { NodeGraph } from '../data-model/types';
-import type { CompilationResult } from '../runtime/types';
+import type { CompilationResult } from '../compile-contract';
 import type { NodeShaderCompiler } from '../shaders/NodeShaderCompiler';
 
 export function assertCompileDeterministic(

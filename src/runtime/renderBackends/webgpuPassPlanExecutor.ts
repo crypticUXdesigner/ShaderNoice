@@ -13,7 +13,7 @@
 import type { NodeGraph } from '../../data-model/types';
 import { isRuntimeOnlyParameter } from '../../utils/runtimeOnlyParams';
 import { isParameterUniformSuppressedByConnection } from '../../utils/resolveParameterInputMode';
-import type { CompilationResult } from '../types';
+import type { CompilationResult } from '../../compile-contract';
 import type { BlurGaussianSeparableV1Runtime } from './blurGaussianSeparablePassPlanRuntime';
 import { encodeBlurGaussianSeparableV1Frame } from './blurGaussianSeparablePassPlanRuntime';
 import type { GlowBloomV1Runtime } from './glowBloomPassPlanRuntime';

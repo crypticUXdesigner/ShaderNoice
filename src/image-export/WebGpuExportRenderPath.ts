@@ -1,6 +1,7 @@
 import type { NodeGraph } from '../data-model/types';
 import type { AudioSetup } from '../data-model/audioSetupTypes';
-import type { CompilationResult, ShaderCompiler } from '../runtime/types';
+import type { CompilationResult } from '../compile-contract';
+import type { ShaderCompiler } from '../runtime/types';
 import type { BlurGaussianSeparableV1Runtime } from '../runtime/renderBackends/blurGaussianSeparablePassPlanRuntime';
 import {
   createBlurGaussianSeparableV1Runtime,

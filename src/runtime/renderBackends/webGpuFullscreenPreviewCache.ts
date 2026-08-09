@@ -1,4 +1,4 @@
-import type { CompilationResult } from '../types';
+import type { CompilationResult } from '../../compile-contract';
 import { getWebGpuPreviewCacheMaxModules, previewPerfCounters } from '../previewPerformanceMarks';
 
 /**

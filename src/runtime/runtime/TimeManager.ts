@@ -5,7 +5,8 @@
  * Extracted from RuntimeManager to improve separation of concerns.
  */
 
-import type { PreviewDependencyMask, PreviewProgramInstance } from '../types';
+import type { PreviewDependencyMask } from '../../compile-contract';
+import type { PreviewProgramInstance } from '../types';
 import type { IRenderBackend } from '../renderBackends/IRenderBackend';
 
 /** Clock/present path only needs mark+draw from the backend. */

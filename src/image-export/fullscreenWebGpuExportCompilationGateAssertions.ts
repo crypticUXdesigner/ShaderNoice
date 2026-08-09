@@ -4,7 +4,7 @@
  * `createWebGpuVideoExportRenderPath` early exits).
  */
 import { expect } from 'vitest';
-import type { CompilationResult } from '../runtime/types';
+import type { CompilationResult } from '../compile-contract';
 
 export function assertFullscreenExportWebGpuCompileGate(compilation: CompilationResult, label: string): void {
   expect(compilation.metadata.errors, `${label}: compiler errors`).toEqual([]);

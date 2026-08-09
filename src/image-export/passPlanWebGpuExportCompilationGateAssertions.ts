@@ -8,7 +8,7 @@
  * WGSL (`webgpuPassPlan` absent).
  */
 import { expect } from 'vitest';
-import type { CompilationResult } from '../runtime/types';
+import type { CompilationResult } from '../compile-contract';
 
 const AUDIO_REMAP_LAYOUT_KEY = 'remap-mvp-stetra-audio-scale.out' as const;
 

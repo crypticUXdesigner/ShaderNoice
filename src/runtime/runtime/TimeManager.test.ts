@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TimeManager } from './TimeManager';
-import type { PreviewDependencyMask } from '../types';
+import type { PreviewDependencyMask } from '../../compile-contract';
 
 function staticDeps(): PreviewDependencyMask {
   return {

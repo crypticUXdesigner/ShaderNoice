@@ -8,11 +8,13 @@
 
 import { ShaderInstance, SHADER_INSTANCE_PROGRAM_PENDING_MESSAGE } from './ShaderInstance';
 import type {
-  PreviewProgramInstance,
-  ShaderCompiler,
   CompilationResult,
   PreviewDependencyMask,
-  RenderBackendKind
+  RenderBackendKind,
+} from '../compile-contract';
+import type {
+  PreviewProgramInstance,
+  ShaderCompiler,
 } from './types';
 import type { NodeGraph, ParameterValue } from '../data-model/types';
 import type { AudioSetup } from '../data-model/audioSetupTypes';

@@ -1,6 +1,7 @@
 import type { Disposable } from '../../utils/Disposable';
 import type { ShaderInstance } from '../ShaderInstance';
-import type { CompilationResult, PreviewProgramInstance } from '../types';
+import type { CompilationResult } from '../../compile-contract';
+import type { PreviewProgramInstance } from '../types';
 import type { RenderBackendSelection } from './renderBackendTypes';
 
 /**

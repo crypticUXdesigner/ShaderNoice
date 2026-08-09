@@ -4,7 +4,7 @@ import {
   SHADER_INSTANCE_PROGRAM_PENDING_MESSAGE,
   type ShaderInstanceOptions,
 } from './ShaderInstance';
-import type { CompilationResult } from './types';
+import type { CompilationResult } from '../compile-contract';
 
 /** Fake enum value for parallel compile completion (must not collide with LINK_STATUS). */
 const COMPLETION_KHR = 91_181;

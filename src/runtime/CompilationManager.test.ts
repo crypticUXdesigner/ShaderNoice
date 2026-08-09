@@ -11,7 +11,7 @@ import spikeFixture from '../audiotool/arrangement/__fixtures__/spike-arrangemen
 import type { NodeGraph } from '../data-model/types';
 import type { AudioSetup } from '../data-model/audioSetupTypes';
 import type { PreviewCompileUiSink } from './previewCompileUiSink';
-import type { CompilationResult } from './types';
+import type { CompilationResult } from '../compile-contract';
 import { createCompilationManager } from './factories';
 import type { ShaderCompiler } from './types';
 import type { RenderBackendSelection } from './renderBackends/renderBackendTypes';

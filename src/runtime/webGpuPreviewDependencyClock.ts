@@ -1,4 +1,4 @@
-import type { PreviewDependencyMask } from './types';
+import type { PreviewDependencyMask } from '../compile-contract';
 
 /**
  * Opt-in URL flag: `?webgpuPreviewDependencyClock=1|true|yes`

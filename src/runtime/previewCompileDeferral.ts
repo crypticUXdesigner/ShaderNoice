@@ -1,4 +1,4 @@
-import type { CompilationResult } from './types';
+import type { CompilationResult } from '../compile-contract';
 
 /** True when the graph gained or lost at least one node (not connection-only). */
 export function graphNodesAddedOrRemoved(changes: {

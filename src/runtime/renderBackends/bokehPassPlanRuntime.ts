@@ -3,7 +3,7 @@
  * (`pass.bokeh.v1` pass plans).
  * Used by preview (`WebGpuRenderBackend`) and export paths.
  */
-import type { CompilationResult, WebGpuPassPlan } from '../types';
+import type { CompilationResult, WebGpuPassPlan } from '../../compile-contract';
 import { previewPerformanceMark, PreviewPerfMark } from '../previewPerformanceMarks';
 import { ResourcePool, textureDescKey, type WebGpuTextureDesc as FrameGraphTextureDesc } from '../webgpuFrameGraph';
 

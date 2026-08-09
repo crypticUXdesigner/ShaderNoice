@@ -20,7 +20,7 @@ The script reads `WGSL_SUPPORTED_NODE_TYPES` and `WGSL_WEBGPU_PASS_PLAN_NODE_TYP
 | **Node id** | Stable shader node type (`NodeSpec` id). | `nodeSystemSpecs` / ledger table |
 | **GL preview** | Graph can drive the WebGL2 preview path (subject to normal GLSL compile/link rules). | GLSL pipeline in `NodeShaderCompiler` + runtime; not gated by WGSL allowlist. |
 | **WGSL fullscreen** | Node participates in **single-shader** WGSL codegen when no higher-priority pass plan applies. | Membership in `WGSL_SUPPORTED_NODE_TYPES`. |
-| **`webgpuPassPlan` kind** | When topology matches `… → effectNode → final-output` (see pass-plan table below), compiler may emit a **multi-pass** plan instead of inline WGSL. | `WebGpuPassPlan['kind']` in [`src/runtime/types.ts`](../../src/runtime/types.ts); emitters in `WgslMvpCompiler.ts`. |
+| **`webgpuPassPlan` kind** | When topology matches `… → effectNode → final-output` (see pass-plan table below), compiler may emit a **multi-pass** plan instead of inline WGSL. | `WebGpuPassPlan['kind']` in [`src/compile-contract/`](../../src/compile-contract/); emitters in `WgslMvpCompiler.ts`. |
 | **Export still (WGSL)** | Still image export can compile/serve this graph on the WebGPU export path when the session is WebGPU (session inherits export raster API). | [`src/image-export/`](../../src/image-export/) `*Gate*.test.ts`, `WebGpuExportRenderPath` |
 | **Export video (WGSL)** | Video export WebGPU path can serve this graph (async frame pipeline). | [`src/video-export/`](../../src/video-export/) `*Gate*.test.ts`, `WebGpuVideoExportRenderPath` |
 | **Notes** | Audio-driven uniforms, SDF allow-lists, step caps, research-tier visuals. | Ledger “Notes / blockers”, `MVP_INLINE_NOTE_OVERRIDES` in the generator script |

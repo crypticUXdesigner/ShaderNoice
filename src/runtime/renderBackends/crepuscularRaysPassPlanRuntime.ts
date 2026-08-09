@@ -9,7 +9,7 @@
  *   3. radial sweep pass: mask -> rays (per-fragment march toward source point)
  *   4. combine pass: source + rays * intensity -> swapchain / export target
  */
-import type { CompilationResult, WebGpuPassPlan } from '../types';
+import type { CompilationResult, WebGpuPassPlan } from '../../compile-contract';
 import { previewPerformanceMark, PreviewPerfMark } from '../previewPerformanceMarks';
 import { ResourcePool, textureDescKey, type WebGpuTextureDesc as FrameGraphTextureDesc } from '../webgpuFrameGraph';
 

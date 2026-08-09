@@ -11,7 +11,8 @@ export { CompilationManager } from './CompilationManager';
 export { Renderer } from './Renderer';
 export { ShaderInstance } from './ShaderInstance';
 export { ShaderCompilationError, UniformNotFoundError, WebGLContextError } from './errors';
-export type { CompilationResult, UniformMetadata, ShaderCompiler, TimelineState } from './types';
+export type { CompilationResult, UniformMetadata } from '../compile-contract';
+export type { ShaderCompiler, TimelineState } from './types';
 export { getUniformName, hashGraph } from './utils';
 export {
   AudiographClient,

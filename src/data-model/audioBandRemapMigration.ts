@@ -15,7 +15,7 @@
 
 import type { NodeGraph } from './types';
 import type { AudioBandEntry, AudioSetup, AudioRemapperEntry } from './audioSetupTypes';
-import { getVirtualNodeId } from '../utils/virtualNodes';
+import { getVirtualNodeId } from './virtualNodes';
 
 const BAND_REMAP_SIGNAL_PREFIX = 'band-';
 const BAND_REMAP_SIGNAL_SUFFIX = '-remap';

@@ -3,7 +3,7 @@ import { createEmptyGraph } from './utils';
 import { addConnection } from './immutableUpdates';
 import { removeStaleVirtualAudioConnections } from './removeStaleVirtualAudioConnections';
 import type { AudioSetup } from './audioSetupTypes';
-import { getVirtualNodeId } from '../utils/virtualNodes';
+import { getVirtualNodeId } from './virtualNodes';
 
 const emptySetup: AudioSetup = { files: [], bands: [], remappers: [] };
 

@@ -4,7 +4,7 @@ import {
   parseWebGpuPreviewDependencyClockMaskFromSearch,
   resolveWebGpuPreviewDependencyMaskForClock,
 } from './webGpuPreviewDependencyClock';
-import type { PreviewDependencyMask } from './types';
+import type { PreviewDependencyMask } from '../compile-contract';
 
 function mask(partial: Partial<PreviewDependencyMask>): PreviewDependencyMask {
   return {

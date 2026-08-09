@@ -6,11 +6,11 @@
  */
 
 import { GraphChangeDetector } from '../utils/changeDetection/GraphChangeDetector';
+import type { PreviewDependencyMask } from '../compile-contract';
 import type {
   IAudioManager,
   ICompilationManager,
   TimelineState,
-  PreviewDependencyMask
 } from './types';
 import type { IRenderBackend } from './renderBackends/IRenderBackend';
 import type { RenderBackendSelection } from './renderBackends/renderBackendTypes';

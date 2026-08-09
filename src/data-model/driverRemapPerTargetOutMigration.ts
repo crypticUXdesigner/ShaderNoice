@@ -12,7 +12,7 @@ import type { AudioRemapperEntry, AudioSetup } from './audioSetupTypes';
 import type { MidiEnvelopeBinding, MidiEnvelopeRemapper } from './midiEnvelopeTypes';
 import { DEFAULT_MIDI_ENVELOPE_REMAPPER_OUTPUT } from './midiEnvelopeTypes';
 import { DEFAULT_DRIVER_CONNECTION_OUT } from '../utils/driverRemap';
-import { isVirtualNodeId } from '../utils/virtualNodes';
+import { isVirtualNodeId } from './virtualNodes';
 
 type LegacyAudioRemapper = AudioRemapperEntry & { outMin?: number; outMax?: number };
 type LegacyMidiRemapper = MidiEnvelopeRemapper & { outMin?: number; outMax?: number };

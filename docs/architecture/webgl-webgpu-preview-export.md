@@ -1,6 +1,6 @@
 # WebGL vs WebGPU preview and export (exclusive session modes)
 
-**Last updated:** 2026-06-07
+**Last updated:** 2026-08-09 (arch-perf remediation closeout)
 
 **Shipped:** Exclusive preview/export modes and hybrid preview removal were delivered 2026-05-12 (formerly tracked under `docs/implementation/webgl-webgpu-exclusive-modes/`, consolidated here).
 
@@ -9,6 +9,19 @@
 - For any **preview session** or **single export job**, **at most one** live raster API runs: **WebGL2** or **WebGPU** (the CPU compiler may still emit both GLSL and WGSL).
 - **WebGPU-only preview** does not keep a parallel WebGL2 context for nominal frames. `WebGpuRenderBackend` does not extend the WebGL backend; `getGLContext()` is null on that path. See [`preview-and-recompilation.md`](./preview-and-recompilation.md) (*Reliability properties*).
 - **Export** uses the **same** raster backend as the editor session (`RuntimeManager.getExportRasterBackend` → `runImageExportFlow` / `runVideoExportFlow`). There is **no** silent WebGPU→WebGL fallback inside one export job.
+
+## Shared WebGPU pass-plan executor
+
+Preview and both WebGPU export paths pack param slots and encode pass plans through one module:
+
+| Caller | Path |
+| --- | --- |
+| Live preview | `WebGpuRenderBackend` |
+| Still export | `WebGpuExportRenderPath` |
+| Video export | `WebGpuVideoExportRenderPath` |
+| Shared core | [`src/runtime/renderBackends/webgpuPassPlanExecutor.ts`](../../src/runtime/renderBackends/webgpuPassPlanExecutor.ts) (`setParamSlot`, graph→slot transfer with runtime-only + override suppression, `encodeWebGpuPassPlanFrame`) |
+
+Pass-plan IR types (`WebGpuPassPlan`, `CompilationResult`, …) are owned by [`src/compile-contract/`](../../src/compile-contract/).
 
 ## Offline driver uniforms (export frames)
 
@@ -39,7 +52,7 @@ Per export frame, non-GLSL parameter drivers are applied as **uniform updates** 
 ## Optional follow-ups (not required for exclusive modes)
 
 - **Telemetry:** frame time, memory, WebGPU block rate — add when instrumenting preview/runtime.
-- **Validation timing:** some gaps may later surface as **connection-time** or **add-node** rules in WebGPU mode; coordinate with [`WIRE-VALIDATION-DESIGN.md`](./WIRE-VALIDATION-DESIGN.md) and [`GAP-INVENTORY.md`](./GAP-INVENTORY.md).
+- **Validation timing / allowlist injection:** some gaps may later surface as **connection-time** or **add-node** rules in WebGPU mode; coordinate with [`WIRE-VALIDATION-DESIGN.md`](./WIRE-VALIDATION-DESIGN.md) and [`GAP-INVENTORY.md`](./GAP-INVENTORY.md). Tracked under [`arch-perf-followups`](../implementation/arch-perf-followups/_OVERVIEW.md) (**A6**).
 
 ## Manual QA (spot-check after large GPU changes)
 

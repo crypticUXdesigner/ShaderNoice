@@ -5,7 +5,7 @@
  * Implements the ShaderInstance class from Runtime Integration Specification.
  */
 
-import type { CompilationResult } from './types';
+import type { CompilationResult } from '../compile-contract';
 import { getUniformName } from './utils';
 import { ShaderCompilationError } from './errors';
 import type { Disposable } from '../utils/Disposable';

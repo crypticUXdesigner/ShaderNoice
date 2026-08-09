@@ -2,7 +2,7 @@
  * Neutral compile IR / pass-plan contract shared by shaders (emit) and runtime (consume).
  *
  * Lives outside `runtime/` so `src/shaders/` does not import runtime types for IR.
- * Runtime may re-export these from `runtime/types` during a transition window (task 02 / 08).
+ * Call sites import from here directly (arch-perf tasks 02 / 08); `runtime/types` no longer re-exports.
  */
 
 /**

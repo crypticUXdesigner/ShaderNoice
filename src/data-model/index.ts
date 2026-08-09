@@ -214,7 +214,7 @@ export {
   retargetBandsToPrimary,
 } from './audioSetupUpdates';
 
-// Virtual nodes for named audio signals.
+// Virtual nodes for named audio signals (graph-domain; owned here since arch-perf 08).
 export {
   VIRTUAL_NODE_PREFIX,
   isVirtualNodeId,
@@ -222,8 +222,8 @@ export {
   getVirtualNodeId,
   getNamedSignalsFromAudioSetup,
   getVirtualNodeIdsFromAudioSetup,
-} from '../utils/virtualNodes';
-export type { NamedSignal } from '../utils/virtualNodes';
+} from './virtualNodes';
+export type { NamedSignal } from './virtualNodes';
 
 // Audio state/values for parameter ports.
 export {

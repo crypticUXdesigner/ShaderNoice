@@ -64,3 +64,9 @@ Close the package: relocate or clearly document one graph-domain utils leak, rem
 ### Final steps
 
 - Mark task **08** ✅; set **Overall** progress in **`_OVERVIEW.md`**; update **`docs/implementation/README.md`** status line.
+
+### Landed (2026-08-09)
+
+- Ownership: `virtualNodes` → `data-model` (+ utils re-export); approved residuals documented for `paramDriverBypass` et al.
+- Removed `runtime/types` compile-contract re-export shim; call sites import `compile-contract`.
+- Architecture docs synced; package marked complete / 100%.

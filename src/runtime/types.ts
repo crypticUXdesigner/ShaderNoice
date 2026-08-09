@@ -3,38 +3,16 @@
  *
  * These types match the Runtime Integration Specification.
  *
- * Compile IR / pass-plan types live in `src/compile-contract/` (arch-perf task 02).
- * Re-exported here for a transition window; prefer importing from `compile-contract` for new code.
- * Shim removal tracked in arch-perf task 08.
+ * Compile IR / pass-plan types live in `src/compile-contract/` (arch-perf tasks 02/08).
+ * Import those from `compile-contract` — this module no longer re-exports them.
  */
 
 import type {
   CompilationResult,
   CompileTargetOptions,
   IncrementalPreviousResult,
-  ParamLayout,
   PreviewDependencyMask,
-  RenderBackendKind,
-  ShaderResourceDecl,
-  UniformMetadata,
-  WebGpuPassPlan,
-  WebGpuTextureDesc,
-  WebGpuTextureSizeDesc,
 } from '../compile-contract';
-
-export type {
-  CompilationResult,
-  CompileTargetOptions,
-  IncrementalPreviousResult,
-  ParamLayout,
-  PreviewDependencyMask,
-  RenderBackendKind,
-  ShaderResourceDecl,
-  UniformMetadata,
-  WebGpuPassPlan,
-  WebGpuTextureDesc,
-  WebGpuTextureSizeDesc,
-};
 
 /**
  * Minimal uniform/program sink for live preview updates (WebGL or WebGPU).

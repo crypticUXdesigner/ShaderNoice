@@ -46,16 +46,16 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 | 05 | [WebGPU preview dependency clock](./05-webgpu-preview-clock-arch-perf-remediation.md) | ✅ | Safer mask default or conservative subset | — |
 | 06 | [Export WebGL sync](./06-export-webgl-sync-arch-perf-remediation.md) | ✅ | Faster export without black frames | — |
 | 07 | [Change-detection sharing](./07-change-detection-sharing-arch-perf-remediation.md) | ✅ | Fewer walks; tighter wire-affected sets | — |
-| 08 | [Ownership closeout + arch docs](./08-ownership-docs-closeout-arch-perf-remediation.md) | ⬜ | utils hygiene slice; architecture doc sync | — |
+| 08 | [Ownership closeout + arch docs](./08-ownership-docs-closeout-arch-perf-remediation.md) | ✅ | utils hygiene slice; architecture doc sync | — |
 
 **Execution order:** `01` anytime; `02` → `03`; `04A` → `04B`; `05` ∥ `06` ∥ `07` after `01` (no hard dep); `08` last.
 
 ## Progress tracker
 
-- **Overall:** ~89% — **01**, **02**, **03**, **04A**, **04B**, **05**, **06**, and **07** done (2026-08-09): hygiene/frame CPU + compile-contract + slim worker payloads + shared WebGPU pass-plan pack/encode with three callers wired; WebGPU preview dependency clock (policy A always-safe static subset); WebGL export fence sync (`clientWaitSync`, `finish` fallback) instead of unconditional `gl.finish()`; shared `GraphChangeDetector` result runtime→compile with connection-only affected sets (endpoint+BFS). **08** remaining.
-- **Milestone A:** 01–03 (hygiene + compile boundary) — 01 ✅, 02 ✅, 03 ✅.
-- **Milestone B:** 04A ✅ / 04B ✅ (shared WebGPU raster).
-- **Milestone C:** 05–08 (clock, export sync, change detection, docs) — 05 ✅, 06 ✅, 07 ✅.
+- **Overall:** 100% — **Done** (2026-08-09). All tasks **01–08** landed: hygiene/frame CPU + compile-contract + slim worker payloads + shared WebGPU pass-plan executor (preview + image/video export) + WebGPU preview clock (policy A) + WebGL export fence sync + shared change detection + ownership/docs closeout.
+- **Milestone A:** 01–03 (hygiene + compile boundary) — ✅.
+- **Milestone B:** 04A / 04B (shared WebGPU raster) — ✅.
+- **Milestone C:** 05–08 (clock, export sync, change detection, docs) — ✅.
 
 ## Notes & risks
 
@@ -65,8 +65,9 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 | Deferred | Moved to [`arch-perf-followups`](../arch-perf-followups/_OVERVIEW.md): `P3`, `A2`, `A4`, `A6`, `P5`. |
 | Conflict risk | `WebGpuRenderBackend` + both export paths — serialize 04A/04B; avoid parallel edits. |
 | Clock safety | Prefer conservative mask / golden coverage before flipping URL default on. |
-| 02 compile-contract | Neutral home: `src/compile-contract/index.ts` (not under `shaders/`) so runtime does not import shaders for IR. `runtime/types` re-exports until **08**. Shaders + `UniformGenerator` import contract directly; unblocks **03**. |
+| 02 compile-contract | Neutral home: `src/compile-contract/index.ts` (not under `shaders/`) so runtime does not import shaders for IR. **08** removed `runtime/types` re-export shim; call sites import contract directly. |
 | 03 worker payload | `cloneableCompilePayload` omits `previousResult` when `!tryIncremental`; incremental posts `IncrementalPreviousResult` (`metadata.executionOrder` only). Graph still structured-cloned (proxy safety). |
 | 04A (2026-08-09) | Added `src/runtime/renderBackends/webgpuPassPlanExecutor.ts` (`setParamSlot`, graph transfer w/ runtime-only + override suppression, `encodeWebGpuPassPlanFrame`). Callers unchanged; packing parity tests in `webgpuPassPlanExecutor.test.ts`. Unblocks **04B**. |
 | 04B (2026-08-09) | Wired `WebGpuRenderBackend`, `WebGpuExportRenderPath`, `WebGpuVideoExportRenderPath` to shared executor; removed private `setParamSlot` / transfer / encode switchboards. Manual QA: INTEGRATION-QA rows 5–7 (WebGPU preview + image export) and a short WebGPU video-export smoke if available. |
 | 05 WebGPU clock | **Policy A:** always apply proven-static subset (no wall/timeline/audio/spawn/frame + no primary audio); keep `?webgpuPreviewDependencyClock=` for broader wall/timeline masks. Fail-open elsewhere. Tests: `webGpuPreviewDependencyClock.test.ts`; docs: `preview-and-recompilation.md`. |
+| 08 closeout | Moved `virtualNodes` → `src/data-model/virtualNodes.ts` (utils re-export shim). Documented approved utils residuals (`paramDriverBypass`, etc.). Removed compile-contract re-exports from `runtime/types`. Arch docs: `graph-and-platform-boundaries`, `compilation-worker`, `webgl-webgpu-preview-export`, `preview-and-recompilation` (05 already current), `COVERAGE-MATRIX` pointer. Deferred leftovers stay in [`arch-perf-followups`](../arch-perf-followups/_OVERVIEW.md): A2, A4, A6, P3, P5. |

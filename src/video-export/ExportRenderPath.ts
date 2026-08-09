@@ -9,7 +9,8 @@
 
 import type { NodeGraph } from '../data-model/types';
 import type { AudioSetup } from '../data-model/audioSetupTypes';
-import type { ShaderCompiler, CompilationResult } from '../runtime/types';
+import type { CompilationResult } from '../compile-contract';
+import type { ShaderCompiler } from '../runtime/types';
 import { ShaderInstance } from '../runtime/ShaderInstance';
 import type { FrameAudioState } from './OfflineAudioProvider';
 import { isRuntimeOnlyParameter } from '../utils/runtimeOnlyParams';

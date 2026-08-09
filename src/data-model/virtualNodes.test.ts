@@ -7,7 +7,7 @@ import {
   getVirtualNodeIdsFromAudioSetup,
   VIRTUAL_NODE_PREFIX,
 } from './virtualNodes';
-import type { AudioSetup } from '../data-model/audioSetupTypes';
+import type { AudioSetup } from './audioSetupTypes';
 
 describe('virtualNodes', () => {
   describe('isVirtualNodeId', () => {

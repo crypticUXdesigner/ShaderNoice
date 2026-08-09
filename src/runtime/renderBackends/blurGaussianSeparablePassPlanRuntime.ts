@@ -9,7 +9,7 @@
  *   3. blur vertical sampling tex1 → tex0
  *   4. present tex0 to swapchain
  */
-import type { CompilationResult, WebGpuPassPlan } from '../types';
+import type { CompilationResult, WebGpuPassPlan } from '../../compile-contract';
 import { previewPerformanceMark, PreviewPerfMark } from '../previewPerformanceMarks';
 import { ResourcePool, textureDescKey, type WebGpuTextureDesc as FrameGraphTextureDesc } from '../webgpuFrameGraph';
 

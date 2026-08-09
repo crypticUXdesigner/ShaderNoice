@@ -4,7 +4,8 @@ import type { IRenderBackend } from './IRenderBackend';
 import type { RenderBackendSelection } from './renderBackendTypes';
 import { PreviewFrameLayoutHost } from './PreviewFrameLayoutHost';
 import { WebGpuContext } from './WebGpuContext';
-import type { CompilationResult, PreviewProgramInstance, WebGpuPassPlan } from '../types';
+import type { CompilationResult, WebGpuPassPlan } from '../../compile-contract';
+import type { PreviewProgramInstance } from '../types';
 import {
   type BlurGaussianSeparableV1Plan,
   type BlurGaussianSeparableV1Runtime,

@@ -6,7 +6,7 @@
 import type { NodeGraph } from './types';
 import type { AudioSetup } from './audioSetupTypes';
 import { removeConnections } from './immutableUpdates';
-import { getVirtualNodeIdsFromAudioSetup, isVirtualNodeId } from '../utils/virtualNodes';
+import { getVirtualNodeIdsFromAudioSetup, isVirtualNodeId } from './virtualNodes';
 
 export function removeStaleVirtualAudioConnections(
   graph: NodeGraph,
