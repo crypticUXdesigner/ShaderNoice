@@ -1,9 +1,9 @@
 ---
-name: review-architecture-skill
+name: review-architecture
 description: Perform an architecture review using the existing /review-architecture workflow and feed findings into docs/implementation tasks. Use when assessing structure, boundaries, and technical debt.
 ---
 
-# Review architecture skill
+# Review architecture
 
 Structured pass per **`.cursor/commands/review-architecture.md`**—translate insights into deferrable WPs.
 

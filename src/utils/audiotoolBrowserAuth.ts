@@ -71,6 +71,27 @@ export function getAudiotoolOAuthScope(): string {
   return s?.length ? s : 'user:read project:read';
 }
 
+/**
+ * Nexus strips `code` / `state` / `error` from the URL only after a *successful*
+ * token exchange. Failed exchanges (HTTP 400, invalid_grant, stale code) leave
+ * those params in place, so the next reload retries the same dead code.
+ */
+export function clearAudiotoolOAuthCallbackParamsFromUrl(): void {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  const keys = ['code', 'scope', 'state', 'error', 'error_description'] as const;
+  let changed = false;
+  for (const key of keys) {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key);
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  const next = `${url.pathname}${url.search}${url.hash}`;
+  window.history.replaceState({}, document.title, next);
+}
+
 export async function initAudiotoolBrowserAuth(): Promise<BrowserAuthResult> {
   const clientId = getAudiotoolOAuthClientId();
   const redirectUrl = getAudiotoolOAuthRedirectUrl();
@@ -80,9 +101,28 @@ export async function initAudiotoolBrowserAuth(): Promise<BrowserAuthResult> {
       redirectUrl
     );
   }
-  return audiotool({
-    clientId,
-    redirectUrl,
-    scope: getAudiotoolOAuthScope(),
-  });
+  const hadCallbackParams =
+    typeof window !== 'undefined' &&
+    (new URLSearchParams(window.location.search).has('code') ||
+      new URLSearchParams(window.location.search).has('error'));
+
+  try {
+    const result = await audiotool({
+      clientId,
+      redirectUrl,
+      scope: getAudiotoolOAuthScope(),
+    });
+
+    // Successful auth already cleaned the URL inside Nexus; clean up after failures too.
+    if (hadCallbackParams && result.status === 'unauthenticated') {
+      clearAudiotoolOAuthCallbackParamsFromUrl();
+    }
+
+    return result;
+  } catch (err) {
+    if (hadCallbackParams) {
+      clearAudiotoolOAuthCallbackParamsFromUrl();
+    }
+    throw err;
+  }
 }

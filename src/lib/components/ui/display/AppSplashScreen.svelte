@@ -306,14 +306,6 @@
     transition: filter 480ms ease;
   }
 
-  /**
-   * Auth menu rows are typed into the HUD body; re-enable pointer events on audiotool splash.
-   */
-  .app-splash--audiotool :global(button.sys-warn__line--menu) {
-    pointer-events: auto;
-    cursor: default;
-  }
-
   .app-splash__header {
     justify-self: center;
     display: flex;
@@ -370,8 +362,10 @@
   }
 
   /**
-   * So clicks anywhere on the overlay hit the root handler in intro mode (pointer-events not inherited).
-   * Audiotool mode keeps the HUD command footer interactive via :global(.sys-warn__cmd) above.
+   * Descendants use pointer-events: none so overlay dismiss hits the root (not inherited).
+   * Re-enable auth menu rows after this rule: Svelte scoping makes
+   * `.app-splash--audiotool .app-splash__center *` beat a shallower
+   * `.app-splash--audiotool button.sys-warn__line--menu` exception.
    */
   .app-splash--audiotool .app-splash__center *,
   .app-splash--audiotool .app-splash__footer * {
@@ -381,6 +375,11 @@
   .app-splash:not(.app-splash--audiotool) .app-splash__center *,
   .app-splash:not(.app-splash--audiotool) .app-splash__footer * {
     pointer-events: none;
+  }
+
+  .app-splash--audiotool .app-splash__center :global(button.sys-warn__line--menu) {
+    pointer-events: auto;
+    cursor: default;
   }
 
   /**

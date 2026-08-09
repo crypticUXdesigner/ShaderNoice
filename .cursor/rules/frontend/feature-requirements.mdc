@@ -1,6 +1,6 @@
 ---
 description: When editing canvas, panel, parameters, audio, timeline, or export, align with docs/user-goals/.
-globs: "src/ui/**/*.ts,src/lib/**/*.svelte,src/video-export/**/*.ts"
+globs: "src/ui/**/*.ts,src/lib/**/*.svelte,src/video-export/**/*.ts,src/image-export/**/*.ts,src/export/**/*.ts"
 alwaysApply: false
 ---
 
@@ -17,6 +17,7 @@ Before changing canvas, panel, parameters, connections, audio, timeline, presets
 | Connections | `05-connections.md` |
 | Audio | `06-audio.md` |
 | Timeline | `07-timeline-and-automation.md` |
+| Parameter drivers | `12-parameter-drivers.md` |
 | Presets / data | `08-presets-and-data.md` |
 | Export | `09-export.md` |
 | Help | `10-help-and-discovery.md` |

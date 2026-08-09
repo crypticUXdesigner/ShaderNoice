@@ -1,9 +1,9 @@
 ---
-name: review-performance-skill
+name: review-performance
 description: Run a structured performance review using the /review-performance workflow and propose follow-up tasks. Use when evaluating runtime, UI, or export performance beyond a single bug.
 ---
 
-# Review performance skill
+# Review performance
 
 Repository-wide perf review scaffolding from **`.cursor/commands/review-performance.md`** — pair with **`runtime-performance-scan`** for engine hot paths.
 

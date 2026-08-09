@@ -7,7 +7,7 @@ description: Add or modify a shader node in src/shaders/nodes following node sta
 
 Ship GLSL-facing nodes without desyncing registry, compiler, docs, or UX guarantees.
 
-**Context:** **`shaders/node-standards.mdc`** (checklist + **parameter/group labels** + **port `label` rules**), **`feature-requirements.mdc`**, **`help-discovery.mdc`**, **`compilation.mdc`**. Extended port reference: **`docs/implementation/node-port-labels-in-out-analysis.md`**.
+**Context:** **`shaders/node-standards.mdc`** (checklist + **parameter/group labels** + **port `label` rules**), **`feature-requirements.mdc`**, **`help-discovery.mdc`**, **`compilation.mdc`**.
 
 ---
 

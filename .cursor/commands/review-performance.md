@@ -1,6 +1,6 @@
 # Review performance → optional WPs
 
-Bench / reason about hotspots; propose scoped optimizations — **`review-performance-skill`** mirrors flow.
+Bench / reason about hotspots; propose scoped optimizations — **`review-performance`** mirrors flow.
 
 Honor **`project-workflow.mdc`**, **`workpkg-hygiene.mdc`**.
 

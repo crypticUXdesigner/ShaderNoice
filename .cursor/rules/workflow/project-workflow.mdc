@@ -10,22 +10,34 @@ Context: **`AGENTS.md`**, **`core/project-conventions.mdc`** (immutable graph, u
 
 **Invoke:** `/` in chat → pick command or skill. **Canonical prose** lives in **`.cursor/commands/*.md`**; repeatable runners in **`.cursor/skills/*/SKILL.md`**. Shared task-file rules: **`workpkg-hygiene.mdc`**.
 
-| Intent | Slash |
+| Intent | Slash / skill |
 | --- | --- |
 | New multi-step initiative, fuzzy goals | `/define-project` |
 | Goals clear → task files | `/define-tasks` |
-| ShaderToy gap analysis | `/analyze-shadertoy` |
 | Execute one tracked task | `/implement-task` (attach `_OVERVIEW` + task markdown) |
-| CI / Pages green | `/prepare-commit` (`npm run verify:pages`) |
 | Post-project QA pass | `/review-project` |
-| Architecture findings → maybe WPs | `/review-architecture` |
-| Structured pass on one shader node (impl + UX) | `/review-node` |
-| Performance findings → maybe WPs | `/review-performance` |
-| Capture investigated bug | `/write-bug` |
-| Close loop on `docs/bug/` report | `/review-bug` |
-| Prune / relocate stale `docs/`; refresh `docs/architecture/` vs code | `/cleanup-docs` |
+| ShaderToy gap analysis | `/analyze-shadertoy` |
+| CI / Pages green | `/prepare-commit` (`npm run verify:pages`; skill **`prepare-commit`**) |
+| Architecture findings → maybe WPs | `/review-architecture` (skill **`review-architecture`**) |
+| Performance findings → maybe WPs | `/review-performance` (skill **`review-performance`**; deep dive **`runtime-performance-scan`**) |
+| Structured pass on one shader node | `/review-node` |
+| Capture investigated bug | `/write-bug` (skill **`document-bug`**) |
+| Close loop on `docs/bug/` report | `/review-bug` (skill **`investigate-and-fix-bug`**) |
+| Prune / relocate stale `docs/`; refresh architecture vs code | `/cleanup-docs` |
 | Clean up shipped `docs/implementation/` packages | See `docs-implementation-done-cleanup.mdc` |
 | Audit Cursor agent config itself | `/review-agent-tooling` |
 | Audit `$effect` usage vs Svelte 5 guidance | `/audit-svelte-effects` |
+| Accessibility baseline check | skill **`a11y-check`** |
+| Safe serialization / migration change | skill **`data-model-migration`** |
+| Safe graph shape refactor | skill **`graph-safe-refactor`** |
+| Export pipeline vs user-goals | skill **`export-pipeline-check`** |
+| Preset JSON maintenance | skill **`preset-maintenance`** |
+| Add / change shader node | skill **`add-shader-node`** |
+| Add / change audio graph pieces | skill **`add-audio-node`** |
+| New Svelte component | skill **`add-svelte-component`** |
+| Refactor existing Svelte UI | skill **`refactor-svelte`** |
+| Run checks and summarize | skill **`run-tests-and-summarize`** |
+| Orient a new contributor / agent session | skill **`onboard-contributor`** |
+| Coach modes (sanitized handoffs) | `/coaching-internal`, `/coaching-external`, `/coaching-sub` |
 
 After big structural changes: consider new/updated **`docs/`** or **`.cursor/rules/`** entries — propose separately, don’t fold into unrelated implementation PRs unless required.

@@ -3,6 +3,7 @@
    * Animated sys-warn panel: boot log typewriter, optional error append, phase chrome.
    * Pass `active={false}` to defer the sequence until the user can see the panel (e.g. after a native file picker).
    */
+  import { untrack } from 'svelte';
   import SysWarnPanel from './SysWarnPanel.svelte';
   import {
     SPLASH_BOOT_STATUS,
@@ -130,10 +131,15 @@
   const isLive = $derived(
     active && headerReady && !settled && !reduceMotion && !dismissing && !transitionActive,
   );
+  /**
+   * Menu rows finish inside the intro `complete` beat (`mainComplete`).
+   * Do not also require `typingDone` — follow-up error typing temporarily clears
+   * `typingDone` and would disable Sign in / Guest after a failed OAuth return.
+   */
   const commandsReady = $derived(
     commandsActive &&
       !transitionActive &&
-      (reduceMotion ? mainComplete : commandsEarly ? mainComplete && typingDone : false),
+      (reduceMotion || commandsEarly ? mainComplete : false),
   );
 
   const awaitUserInput = $derived(
@@ -475,30 +481,40 @@
     });
   });
 
-  /** Append auth / runtime errors after the main beat without replaying the boot log. */
+  /**
+   * Append auth / runtime errors after the main beat without replaying the boot log.
+   * Depend only on `errorText` + `mainComplete` so unrelated prop churn cannot cancel an
+   * in-flight error sequence and leave `typingDone`/settled stuck (OAuth token failures).
+   */
   $effect(() => {
     const err = errorText?.trim() ?? null;
-    if (!active || reduceMotion || !mainComplete || transitionActive) return;
+    const complete = mainComplete;
+
+    if (!complete) {
+      shownError = null;
+      return;
+    }
 
     if (!err) {
       shownError = null;
       return;
     }
 
-    if (shownError === err) return;
+    if (untrack(() => shownError) === err) return;
+    if (untrack(() => !active || reduceMotion || transitionActive || dismissing)) return;
 
-    if (shownError != null) {
+    if (untrack(() => shownError) != null) {
       completedLines = completedLines.filter((line) => line.variant !== 'error');
     }
 
     shownError = err;
+    // Keep `typingDone` so auth menu commands stay armed while the error line types.
     settled = false;
-    typingDone = false;
     showCursor = true;
 
     return runSequence(buildSysWarnErrorSequence(err), {
       onComplete: () => {
-        typingDone = true;
+        settled = true;
       },
     });
   });

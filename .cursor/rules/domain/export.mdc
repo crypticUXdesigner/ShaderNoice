@@ -1,6 +1,6 @@
 ---
 description: Image and video export — resolution, duration, progress, full audio; WebCodecs check.
-globs: "src/video-export/**/*.ts"
+globs: "src/video-export/**/*.ts,src/image-export/**/*.ts,src/export/**/*.ts"
 alwaysApply: false
 ---
 

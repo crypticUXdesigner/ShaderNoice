@@ -20,4 +20,4 @@ Execute npm scripts (`verify:pages`, `check`, narrower slices if operator constr
 
 ## Output
 
-Scripts used • failing clusters + files • readiness verdict • pointer to **`prepare-commit-skill`** for merge gate narration
+Scripts used • failing clusters + files • readiness verdict • pointer to **`prepare-commit`** for merge gate narration

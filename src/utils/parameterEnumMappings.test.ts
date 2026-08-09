@@ -74,9 +74,43 @@ describe('getParameterEnumMappings', () => {
     const m = getParameterEnumMappings('fractal', 'fractalMode');
     expect(m).not.toBeNull();
     expect(m![0]).toBe('KIFS');
-    expect(m![3]).toBe('Julia');
+    expect(m![3]).toBe('Escape');
     expect(m![5]).toBe('Min distance');
-    expect(m![6]).toBeUndefined();
+    expect(m![6]).toBe('Newton');
+    expect(m![7]).toBe('Lyapunov');
+    expect(m![8]).toBe('Shape Julia');
+    expect(m![9]).toBeUndefined();
+  });
+
+  it('maps fractal portal enable enum', () => {
+    const m = getParameterEnumMappings('fractal', 'fractalPortalEnable');
+    expect(m).not.toBeNull();
+    expect(m![0]).toBe('Off');
+    expect(m![1]).toBe('On');
+  });
+
+  it('maps fractal escape family and coloring enums', () => {
+    const family = getParameterEnumMappings('fractal', 'fractalEscapeFamily');
+    expect(family).not.toBeNull();
+    expect(family![0]).toBe('Julia');
+    expect(family![1]).toBe('Mandelbrot');
+    expect(family![2]).toBe('Burning Ship');
+    const coloring = getParameterEnumMappings('fractal', 'fractalColoring');
+    expect(coloring).not.toBeNull();
+    expect(coloring![0]).toBe('Iteration');
+    expect(coloring![1]).toBe('Smooth');
+    expect(coloring![2]).toBe('Distance');
+  });
+
+  it('maps fractal trap shape enums', () => {
+    const m = getParameterEnumMappings('fractal', 'fractalTrapShape');
+    expect(m).not.toBeNull();
+    expect(m![0]).toBe('Ring');
+    expect(m![1]).toBe('Line');
+    expect(m![2]).toBe('Cross');
+    expect(m![3]).toBe('Spiral');
+    expect(m![4]).toBe('Multi');
+    expect(m![5]).toBeUndefined();
   });
 
   it('maps color-lut preset to curated LUT labels', () => {

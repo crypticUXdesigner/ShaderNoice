@@ -176,9 +176,45 @@ export function getParameterEnumMappings(
       0: 'KIFS',
       1: 'Kaleidoscope',
       2: 'Cross',
-      3: 'Julia',
+      3: 'Escape',
       4: 'Orbit trap',
-      5: 'Min distance'
+      5: 'Min distance',
+      6: 'Newton',
+      7: 'Lyapunov',
+      8: 'Shape Julia'
+    };
+  }
+
+  if (nodeId === 'fractal' && paramName === 'fractalPortalEnable') {
+    return {
+      0: 'Off',
+      1: 'On'
+    };
+  }
+
+  if (nodeId === 'fractal' && paramName === 'fractalEscapeFamily') {
+    return {
+      0: 'Julia',
+      1: 'Mandelbrot',
+      2: 'Burning Ship'
+    };
+  }
+
+  if (nodeId === 'fractal' && paramName === 'fractalColoring') {
+    return {
+      0: 'Iteration',
+      1: 'Smooth',
+      2: 'Distance'
+    };
+  }
+
+  if (nodeId === 'fractal' && paramName === 'fractalTrapShape') {
+    return {
+      0: 'Ring',
+      1: 'Line',
+      2: 'Cross',
+      3: 'Spiral',
+      4: 'Multi'
     };
   }
 

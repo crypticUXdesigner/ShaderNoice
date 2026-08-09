@@ -6,7 +6,7 @@
  * compiler's read-only filter over `graph.connections` so bypassed nodes drop out of GLSL/WGSL
  * codegen without changing the data model.
  *
- * Two rules (see `docs/implementation/node-power/_OVERVIEW.md`):
+ * Two rules (see `src/shaders/nodePower.ts`):
  *
  * - **Rule A — passthrough.** `inputs[0].type === outputs[0].type`. The bypassed node's
  *   primary output is rewritten in this view to point at the bypassed node's primary input

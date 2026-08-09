@@ -1,5 +1,5 @@
 ---
-name: prepare-commit-skill
+name: prepare-commit
 description: Run full pre-push chores so the branch passes GitHub Actions (GitHub Pages deploy on main). Use when the user asks to prepare a commit, prepare a PR, merge readiness, deploy readiness, “CI green”, “chore before push”, or anything similar — execute checks and git hygiene, not just a single test command.
 ---
 

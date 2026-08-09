@@ -60,7 +60,7 @@ export interface NodeInstance {
 
   /**
    * Optional. When true, the node's effect is removed from the compiled output per the global Power rules.
-   * See docs/implementation/node-power/_OVERVIEW.md.
+   * See `src/shaders/nodePower.ts` and `docs/user-goals/04-nodes-and-parameters.md`.
    */
   bypassed?: boolean;
 }

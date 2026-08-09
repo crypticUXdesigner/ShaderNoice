@@ -8215,8 +8215,23 @@ fn flowCurl(p: vec3<f32>, eps: f32) -> vec2<f32> {
         const offsetX = paramSlotExprWired(paramLayout, nodeId, 'fractalOffsetX', 0);
         const offsetY = paramSlotExprWired(paramLayout, nodeId, 'fractalOffsetY', 0);
         const foldCount = paramSlotExprWired(paramLayout, nodeId, 'fractalFoldCount', 0);
+        const escapeFamily = paramSlotExprWired(paramLayout, nodeId, 'fractalEscapeFamily', 0);
+        const coloring = paramSlotExprWired(paramLayout, nodeId, 'fractalColoring', 0);
         const juliaReal = paramSlotExprWired(paramLayout, nodeId, 'fractalJuliaReal', 0);
         const juliaImag = paramSlotExprWired(paramLayout, nodeId, 'fractalJuliaImag', 0);
+        const trapShape = paramSlotExprWired(paramLayout, nodeId, 'fractalTrapShape', 0);
+        const trapRadius = paramSlotExprWired(paramLayout, nodeId, 'fractalTrapRadius', 0);
+        const newtonPower = paramSlotExprWired(paramLayout, nodeId, 'fractalNewtonPower', 0);
+        const lyapunovA = paramSlotExprWired(paramLayout, nodeId, 'fractalLyapunovA', 0);
+        const lyapunovB = paramSlotExprWired(paramLayout, nodeId, 'fractalLyapunovB', 0);
+        const shapeRadius = paramSlotExprWired(paramLayout, nodeId, 'fractalShapeRadius', 0);
+        const shapeAspect = paramSlotExprWired(paramLayout, nodeId, 'fractalShapeAspect', 0);
+        const shapeThin = paramSlotExprWired(paramLayout, nodeId, 'fractalShapeThin', 0);
+        const shapeShell = paramSlotExprWired(paramLayout, nodeId, 'fractalShapeShell', 0);
+        const portalEnable = paramSlotExprWired(paramLayout, nodeId, 'fractalPortalEnable', 0);
+        const portalX = paramSlotExprWired(paramLayout, nodeId, 'fractalPortalX', 0);
+        const portalY = paramSlotExprWired(paramLayout, nodeId, 'fractalPortalY', 0);
+        const portalRadius = paramSlotExprWired(paramLayout, nodeId, 'fractalPortalRadius', 0);
         const timeOffset = paramSlotExprWired(paramLayout, nodeId, 'fractalTimeOffset', 0);
         const animationSpeed = paramSlotExprWired(paramLayout, nodeId, 'fractalAnimationSpeed', 0);
         const rotationSpeed = paramSlotExprWired(paramLayout, nodeId, 'fractalRotationSpeed', 0);
@@ -8227,6 +8242,20 @@ fn flowCurl(p: vec3<f32>, eps: f32) -> vec2<f32> {
           `
 fn fractalCmulWgsl(a: vec2<f32>, b: vec2<f32>) -> vec2<f32> {
   return vec2<f32>(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
+}
+
+fn fractalCdivWgsl(a: vec2<f32>, b: vec2<f32>) -> vec2<f32> {
+  let d = max(dot(b, b), 1e-12);
+  return vec2<f32>(dot(a, b), a.y * b.x - a.x * b.y) / d;
+}
+
+fn fractalCpowIntWgsl(z: vec2<f32>, n: i32) -> vec2<f32> {
+  var r = vec2<f32>(1.0, 0.0);
+  for (var k = 0; k < 5; k = k + 1) {
+    if (k >= n) { break; }
+    r = fractalCmulWgsl(r, z);
+  }
+  return r;
 }
 
 fn fractalRotate2Wgsl(z: vec2<f32>, angle: f32) -> vec2<f32> {
@@ -8244,6 +8273,272 @@ fn fractalKaleidoFoldWgsl(z_in: vec2<f32>, folds: i32) -> vec2<f32> {
   return vec2<f32>(cos(folded), sin(folded)) * r;
 }
 
+fn fractalEscapeFieldWgsl(
+  p: vec2<f32>,
+  t: f32,
+  family: i32,
+  coloring: i32,
+  intensity: f32,
+  iterations: i32,
+  contrast_in: f32,
+  juliaC: vec2<f32>,
+  rotationSpeed: f32
+) -> f32 {
+  let contrast = max(contrast_in, 0.0001);
+  let escapeR2 = 4.0;
+  var z: vec2<f32>;
+  var c: vec2<f32>;
+  if (family == 0) {
+    z = p;
+    c = juliaC + vec2<f32>(sin(t * rotationSpeed), cos(t * rotationSpeed)) * 0.15;
+  } else if (family == 2) {
+    z = vec2<f32>(0.0, 0.0);
+    c = vec2<f32>(p.x, -p.y);
+  } else {
+    z = vec2<f32>(0.0, 0.0);
+    c = p;
+  }
+
+  var dz = vec2<f32>(1.0, 0.0);
+  var field = 0.0;
+  var didEscape = false;
+  for (var i = 0; i < ${FRACTAL_MAX_ITERATIONS}; i = i + 1) {
+    if (i >= iterations) { break; }
+
+    if (family == 2) {
+      let sx = select(-1.0, 1.0, z.x >= 0.0);
+      let sy = select(-1.0, 1.0, z.y >= 0.0);
+      dz = vec2<f32>(dz.x * sx, dz.y * sy);
+      z = abs(z);
+    }
+
+    dz = 2.0 * fractalCmulWgsl(z, dz);
+    z = fractalCmulWgsl(z, z) + c;
+
+    let r2 = dot(z, z);
+    if (r2 > escapeR2) {
+      didEscape = true;
+      let iterNorm = f32(max(iterations, 1));
+      if (coloring == 1) {
+        let r = sqrt(r2);
+        let mu = f32(i) + 1.0 - log2(max(log2(max(r, 1.0001)), 1e-6));
+        field = clamp(mu / iterNorm, 0.0, 1.0);
+      } else if (coloring == 2) {
+        let r = sqrt(r2);
+        let lz = log(max(r, 1e-6));
+        let ddz = max(length(dz), 1e-8);
+        let de = 0.5 * lz * r / ddz;
+        field = exp(-de * 10.0);
+      } else {
+        field = f32(i + 1) / iterNorm;
+      }
+      break;
+    }
+  }
+  if (!didEscape) {
+    field = 1.0;
+  }
+  return pow(field, contrast) * intensity;
+}
+
+fn fractalOrbitTrapDistWgsl(z: vec2<f32>, shape: i32, radius: f32) -> f32 {
+  let dRing = abs(length(z) - radius);
+  if (shape == 1) {
+    return abs(z.y);
+  }
+  if (shape == 2) {
+    return min(abs(z.x), abs(z.y));
+  }
+  if (shape == 3) {
+    let theta = atan2(z.y, z.x);
+    let spiralR = radius * (1.0 + (theta + 3.141592653589793) / 6.283185307179586);
+    return abs(length(z) - spiralR);
+  }
+  if (shape == 4) {
+    return min(dRing, min(abs(z.x), abs(z.y)));
+  }
+  return dRing;
+}
+
+fn fractalNewtonFieldWgsl(
+  p: vec2<f32>,
+  t: f32,
+  intensity: f32,
+  iterations: i32,
+  contrast_in: f32,
+  newtonPower: i32,
+  rotationSpeed: f32
+) -> f32 {
+  let power = clamp(newtonPower, 2, 5);
+  let contrast = max(contrast_in, 0.0001);
+  let pf = f32(power);
+  var z = fractalRotate2Wgsl(p, t * rotationSpeed);
+  if (dot(z, z) < 1e-10) {
+    z = vec2<f32>(1e-4, 0.0);
+  }
+
+  var field = 0.0;
+  var converged = false;
+  for (var i = 0; i < ${FRACTAL_MAX_ITERATIONS}; i = i + 1) {
+    if (i >= iterations) { break; }
+
+    let zn = fractalCpowIntWgsl(z, power);
+    let zn1 = fractalCpowIntWgsl(z, power - 1);
+    let pz = zn - vec2<f32>(1.0, 0.0);
+    let dp = pf * zn1;
+    let delta = fractalCdivWgsl(pz, dp);
+    z = z - delta;
+
+    let r2 = dot(z, z);
+    if (r2 > 1e6) {
+      field = 0.0;
+      converged = true;
+      break;
+    }
+    if (dot(delta, delta) < 1e-10) {
+      let ang = atan2(z.y, z.x);
+      let sector = 6.28318530718 / pf;
+      var rootId = i32(floor(mod(ang + 3.141592653589793, 6.28318530718) / sector));
+      rootId = clamp(rootId, 0, power - 1);
+      let conv = 1.0 - f32(i) / f32(max(iterations, 1));
+      field = (f32(rootId) + clamp(conv, 0.0, 1.0)) / pf;
+      converged = true;
+      break;
+    }
+  }
+  if (!converged) {
+    let ang = atan2(z.y, z.x);
+    let sector = 6.28318530718 / pf;
+    var rootId = i32(floor(mod(ang + 3.141592653589793, 6.28318530718) / sector));
+    rootId = clamp(rootId, 0, power - 1);
+    field = f32(rootId) / pf;
+  }
+  return pow(clamp(field, 0.0, 1.0), contrast) * intensity;
+}
+
+fn fractalLyapunovFieldWgsl(
+  p: vec2<f32>,
+  t: f32,
+  intensity: f32,
+  iterations: i32,
+  contrast_in: f32,
+  lyapunovA: f32,
+  lyapunovB: f32,
+  rotationSpeed: f32
+) -> f32 {
+  let contrast = max(contrast_in, 0.0001);
+  let q = fractalRotate2Wgsl(p, t * rotationSpeed * 0.25);
+  let a = clamp(lyapunovA + q.x, 0.0, 4.0);
+  let b = clamp(lyapunovB + q.y, 0.0, 4.0);
+
+  var x = 0.5;
+  var sum = 0.0;
+  var n = 0;
+  for (var i = 0; i < ${FRACTAL_MAX_ITERATIONS}; i = i + 1) {
+    if (i >= iterations) { break; }
+    let r = select(b, a, (i & 1) == 0);
+    x = clamp(r * x * (1.0 - x), 1e-6, 1.0 - 1e-6);
+    let deriv = abs(r * (1.0 - 2.0 * x));
+    sum = sum + log(max(deriv, 1e-8));
+    n = n + 1;
+  }
+  let lambda = sum / f32(max(n, 1));
+  let field = clamp(0.5 - lambda * 0.5, 0.0, 1.0);
+  return pow(field, contrast) * intensity;
+}
+
+// Shape modulus μ(z) = |z| / R_shape(θ); R_shape = ellipse radial extent (+ soft squircle).
+fn fractalShapeModulusWgsl(z: vec2<f32>, radius: f32, aspect: f32) -> f32 {
+  let r = length(z);
+  let u = z / max(r, 1e-8);
+  let ax = max(aspect, 0.05);
+  let ell = radius / max(length(vec2<f32>(u.x / ax, u.y * ax)), 1e-6);
+  let squ = radius / max(pow(pow(abs(u.x), 4.0) + pow(abs(u.y), 4.0), 0.25), 1e-6);
+  let R = mix(ell, squ, 0.22);
+  return r / max(R, 1e-6);
+}
+
+fn fractalPortalRemapWgsl(z: vec2<f32>, center: vec2<f32>, portalR: f32) -> vec2<f32> {
+  let d = z - center;
+  let r2 = dot(d, d);
+  let R2 = portalR * portalR;
+  if (r2 < R2 && r2 > 1e-10) {
+    return center + d * (R2 / r2);
+  }
+  return z;
+}
+
+fn fractalShapeJuliaFieldWgsl(
+  p: vec2<f32>,
+  t: f32,
+  intensity: f32,
+  iterations: i32,
+  contrast_in: f32,
+  coloring: i32,
+  juliaC: vec2<f32>,
+  rotationSpeed: f32,
+  shapeRadius: f32,
+  shapeAspect: f32,
+  shapeThin: f32,
+  shapeShell: f32,
+  portalEnable: i32,
+  portalCenter: vec2<f32>,
+  portalRadius: f32
+) -> f32 {
+  let contrast = max(contrast_in, 0.0001);
+  let thin = max(shapeThin, 0.02);
+  let radius = max(shapeRadius + shapeShell, 0.05);
+  let aspect = max(shapeAspect, 0.05);
+  let portalOn = portalEnable != 0;
+  let portalR = max(portalRadius, 0.05);
+
+  var z = p;
+  var c = juliaC + vec2<f32>(sin(t * rotationSpeed), cos(t * rotationSpeed)) * 0.15;
+  if (portalOn) {
+    z = fractalPortalRemapWgsl(z, portalCenter, portalR);
+  }
+
+  var field = 0.0;
+  var didEscape = false;
+  var shellAcc = 1e6;
+  var escapeMu = 0.0;
+  var escapeI = 0;
+  for (var i = 0; i < ${FRACTAL_MAX_ITERATIONS}; i = i + 1) {
+    if (i >= iterations) { break; }
+
+    z = fractalCmulWgsl(z, z) + c;
+    if (portalOn) {
+      z = fractalPortalRemapWgsl(z, portalCenter, portalR);
+    }
+
+    let mu = fractalShapeModulusWgsl(z, radius, aspect);
+    shellAcc = min(shellAcc, abs(mu - 1.0));
+    if (mu > 2.0) {
+      didEscape = true;
+      escapeMu = mu;
+      escapeI = i;
+      break;
+    }
+  }
+
+  let iterNorm = f32(max(iterations, 1));
+  let band = exp(-shellAcc / thin);
+  if (didEscape) {
+    if (coloring == 1) {
+      let muSafe = max(escapeMu, 1.0001);
+      let sm = f32(escapeI) + 1.0 - log2(max(log2(muSafe), 1e-6));
+      field = mix(clamp(sm / iterNorm, 0.0, 1.0), band, 0.55);
+    } else if (coloring == 2) {
+      field = band;
+    } else {
+      field = mix(f32(escapeI + 1) / iterNorm, band, 0.55);
+    }
+  } else {
+    field = band;
+  }
+  return pow(clamp(field, 0.0, 1.0), contrast) * intensity;
+}
+
 fn fractalDeformWgsl(
   p: vec2<f32>,
   time: f32,
@@ -8254,7 +8549,21 @@ fn fractalDeformWgsl(
   contrast_in: f32,
   offset: vec2<f32>,
   foldCount: i32,
+  escapeFamily: i32,
+  coloring: i32,
   juliaC: vec2<f32>,
+  trapShape: i32,
+  trapRadius: f32,
+  newtonPower: i32,
+  lyapunovA: f32,
+  lyapunovB: f32,
+  shapeRadius: f32,
+  shapeAspect: f32,
+  shapeThin: f32,
+  shapeShell: f32,
+  portalEnable: i32,
+  portalCenter: vec2<f32>,
+  portalRadius: f32,
   timeOffset: f32,
   animationSpeed: f32,
   rotationSpeed: f32,
@@ -8265,20 +8574,19 @@ fn fractalDeformWgsl(
   let t = (time + timeOffset) * animationSpeed;
 
   if (mode == 3) {
-    var z = p;
-    var c = juliaC;
-    c = c + vec2<f32>(sin(t * rotationSpeed), cos(t * rotationSpeed)) * 0.15;
-    var escaped = 0.0;
-    for (var i = 0; i < ${FRACTAL_MAX_ITERATIONS}; i = i + 1) {
-      if (i >= iterations) { break; }
-      z = fractalCmulWgsl(z, z) + c;
-      if (dot(z, z) > 4.0) {
-        escaped = f32(i + 1) / f32(max(iterations, 1));
-        break;
-      }
-    }
-    if (escaped <= 0.0) { escaped = 1.0; }
-    return pow(escaped, contrast) * intensity;
+    return fractalEscapeFieldWgsl(p, t, escapeFamily, coloring, intensity, iterations, contrast_in, juliaC, rotationSpeed);
+  }
+  if (mode == 6) {
+    return fractalNewtonFieldWgsl(p, t, intensity, iterations, contrast_in, newtonPower, rotationSpeed);
+  }
+  if (mode == 7) {
+    return fractalLyapunovFieldWgsl(p, t, intensity, iterations, contrast_in, lyapunovA, lyapunovB, rotationSpeed);
+  }
+  if (mode == 8) {
+    return fractalShapeJuliaFieldWgsl(
+      p, t, intensity, iterations, contrast_in, coloring, juliaC, rotationSpeed,
+      shapeRadius, shapeAspect, shapeThin, shapeShell, portalEnable, portalCenter, portalRadius
+    );
   }
 
   var z = p;
@@ -8311,8 +8619,8 @@ fn fractalDeformWgsl(
       }
       z = z * layerScale - offset;
       scaleAcc = scaleAcc * layerScale;
-      let trap = abs(length(z) - 0.5);
-      value = value + exp(-trap * scaleAcc * 2.0);
+      let trap = fractalOrbitTrapDistWgsl(z, trapShape, max(trapRadius, 0.01));
+      value = min(value + exp(-trap * scaleAcc * 2.0), 64.0);
     } else if (mode == 5) {
       z = abs(z);
       if (z.x < z.y) {
@@ -8342,10 +8650,15 @@ fn fractalDeformWgsl(
         );
 
         const iterations = `clamp(i32(${iterationsF} + 0.5), 1, ${FRACTAL_MAX_ITERATIONS})`;
-        const modeI = `clamp(i32(${mode} + 0.5), 0, 5)`;
+        const modeI = `clamp(i32(${mode} + 0.5), 0, 8)`;
+        const familyI = `clamp(i32(${escapeFamily} + 0.5), 0, 2)`;
+        const coloringI = `clamp(i32(${coloring} + 0.5), 0, 2)`;
+        const trapShapeI = `clamp(i32(${trapShape} + 0.5), 0, 4)`;
         const foldsI = `clamp(i32(${foldCount} + 0.5), 2, 8)`;
+        const newtonPowerI = `clamp(i32(${newtonPower} + 0.5), 2, 5)`;
+        const portalEnableI = `clamp(i32(${portalEnable} + 0.5), 0, 1)`;
         const fractalUv = `((${pIn.code} - vec2<f32>(${centerX}, ${centerY})) * ${scale})`;
-        const value = `fractalDeformWgsl(${fractalUv}, globals.v0.x, ${modeI}, ${intensity}, ${layers}, ${iterations}, ${contrast}, vec2<f32>(${offsetX}, ${offsetY}), ${foldsI}, vec2<f32>(${juliaReal}, ${juliaImag}), ${timeOffset}, ${animationSpeed}, ${rotationSpeed}, ${layerPhase})`;
+        const value = `fractalDeformWgsl(${fractalUv}, globals.v0.x, ${modeI}, ${intensity}, ${layers}, ${iterations}, ${contrast}, vec2<f32>(${offsetX}, ${offsetY}), ${foldsI}, ${familyI}, ${coloringI}, vec2<f32>(${juliaReal}, ${juliaImag}), ${trapShapeI}, ${trapRadius}, ${newtonPowerI}, ${lyapunovA}, ${lyapunovB}, ${shapeRadius}, ${shapeAspect}, ${shapeThin}, ${shapeShell}, ${portalEnableI}, vec2<f32>(${portalX}, ${portalY}), ${portalRadius}, ${timeOffset}, ${animationSpeed}, ${rotationSpeed}, ${layerPhase})`;
         setNodeOut(nodeId, 'out', { type: 'f32', code: `(${value} * 0.3)` });
         break;
       }

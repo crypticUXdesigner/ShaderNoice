@@ -182,4 +182,4 @@ Use short, stable `id`s (e.g. `a`, `b`, `c`). Every `type` must exist in the nod
 - Data: `src/data/node-documentation.json`
 - Types: `HelpContent`, `HelpPort`, `HelpParameter` in `src/utils/ContextualHelpManager.ts`
 - UI: `HelpCallout.svelte` → `HelpCalloutContent.svelte` and subcomponents (`HelpCalloutHeadline`, `HelpCalloutPortsSection`, `HelpCalloutParametersSection`, `SetupExample`).
-- Port label audit (UI vs code names): `docs/implementation/node-port-labels-in-out-analysis.md`
+- Port labels (UI vs code names): `.cursor/rules/shaders/node-standards.mdc` (**Port label rules**)

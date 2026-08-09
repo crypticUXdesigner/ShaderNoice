@@ -6,11 +6,11 @@
  * Both UI (NodeHeader Power button) and compiler (passthrough/disconnect)
  * import this module so eligibility never drifts between layers.
  *
- * See `docs/implementation/node-power/_OVERVIEW.md` for the rule definitions.
+ * Rule definitions live in this module (`POWER_ELIGIBLE_CATEGORIES`, bypass helpers).
+ * User-facing Power behavior: `docs/user-goals/04-nodes-and-parameters.md`.
  *
  * Note: Categories are aligned to the actual strings used in
- * `src/shaders/nodes/**` (audited 2026-05-10). The `_OVERVIEW.md` table lists
- * "Color System" conceptually, but those nodes are tagged in code as
+ * `src/shaders/nodes/**` (audited 2026-05-10). Color-system nodes are tagged in code as
  * `'Inputs'`, `'Effects'`, or `'Blend'` — so listing those three already
  * covers the color system. `'Utilities'` and `'Mask'` are intentionally
  * excluded (math, utility, masking/control nodes are out of scope).

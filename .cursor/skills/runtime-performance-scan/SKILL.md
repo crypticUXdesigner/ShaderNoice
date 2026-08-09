@@ -5,7 +5,7 @@ description: Perform a focused performance review of runtime and compilation pat
 
 # Runtime performance scan
 
-Deep dive on **`src/runtime` + compilation** hotspots—feeds **`review-performance-skill`** agendas.
+Deep dive on **`src/runtime` + compilation** hotspots—feeds **`review-performance`** agendas.
 
 **Context:** **`compilation.mdc`**, **`project-conventions.mdc`**, relevant perf briefing docs if referenced.
 

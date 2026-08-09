@@ -1771,7 +1771,8 @@
       audiotoolError={atConn.oauthErrorDetail}
       onAudiotoolSignIn={atConn.splashPrimaryAction ?? undefined}
       audiotoolSignInLabel={atConn.splashSignInLabel}
-      onContinueWithoutAudiotool={useAudiotoolGate && atConn.phase === 'disconnected'
+      onContinueWithoutAudiotool={useAudiotoolGate &&
+      (atConn.phase === 'disconnected' || atConn.phase === 'init_error')
         ? handleContinueWithoutAudiotool
         : undefined}
       audiotoolBootstrapping={atConn.editorBootstrapInFlight}

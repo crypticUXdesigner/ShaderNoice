@@ -1,6 +1,6 @@
 # Review architecture → optional WPs
 
-Surface structural risks / refactors-as-WPs — **skills:** **`review-architecture-skill`** for guided flow.
+Surface structural risks / refactors-as-WPs — **skills:** **`review-architecture`** for guided flow.
 
 Honor **`project-workflow.mdc`** + **`workpkg-hygiene.mdc`**.
 

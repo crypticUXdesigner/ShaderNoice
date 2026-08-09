@@ -1,12 +1,12 @@
 # Architecture documentation
 
-**Last updated:** 2026-06-07
+**Last updated:** 2026-08-09
 
-This folder describes **how the codebase is shaped**: ownership of the graph, control flow from UI to WebGL, where compilation runs (main thread vs worker), and where major subsystems live. **Product behavior** for users is specified in [`docs/user-goals/`](../user-goals/README.md). **Delivery tasks and experiments** live in [`docs/implementation/`](../implementation/README.md).
+This folder describes **how the codebase is shaped**: ownership of the graph, control flow from UI to WebGL/WebGPU, where compilation runs (main thread vs worker), and where major subsystems live. **Product behavior** for users is specified in [`docs/user-goals/`](../user-goals/README.md). **Delivery tasks and experiments** live in [`docs/implementation/`](../implementation/README.md).
 
 ## System at a glance
 
-Solid arrows are the **primary preview path**: graph edits and parameters flow **store → App callbacks → runtime → GPU**. When no worker is configured, `CompilationManager` runs `NodeShaderCompiler` **in the same process** instead of the dashed worker leg. **Detail:** [parameters-pipeline](./parameters-pipeline.md), [preview-and-recompilation](./preview-and-recompilation.md), [compilation-worker](./compilation-worker.md), [editor-ui-canvas-layout](./editor-ui-canvas-layout.md).
+Solid arrows are the **primary preview path**: graph edits and parameters flow **store → App callbacks → runtime → GPU**. When no worker is configured, `CompilationManager` runs `NodeShaderCompiler` **in the same process** instead of the dashed worker leg. Preview/export use one exclusive raster API per session (`?renderBackend=auto|webgl|webgpu`). **Detail:** [parameters-pipeline](./parameters-pipeline.md), [preview-and-recompilation](./preview-and-recompilation.md), [compilation-worker](./compilation-worker.md), [editor-ui-canvas-layout](./editor-ui-canvas-layout.md), [webgl-webgpu-preview-export](./webgl-webgpu-preview-export.md).
 
 ```mermaid
 flowchart TB
@@ -52,6 +52,7 @@ flowchart TB
 | When does recompilation run vs uniform-only updates? | [`parameters-pipeline.md`](./parameters-pipeline.md) and [`preview-and-recompilation.md`](./preview-and-recompilation.md) — debounced kicks use idle/timer → **one** `requestAnimationFrame` before `recompile()` |
 | Where does GLSL compilation run (main vs worker)? | [`compilation-worker.md`](./compilation-worker.md) — `src/runtime/compilation/compilationWorker.ts` vs in-process |
 | How does audio drive connected parameters? | [`audio-reactivity.md`](./audio-reactivity.md) — compiler wiring + `TimeManager` / `AudioParameterHandler` |
+| Where is shared helper code (`src/utils`)? | [`graph-and-platform-boundaries.md`](./graph-and-platform-boundaries.md) — *Where `src/utils` fits* |
 | Where is Svelte vs canvas TypeScript? | [`editor-ui-canvas-layout.md`](./editor-ui-canvas-layout.md) — `src/lib/` vs `src/ui/` |
 | How do I enable the **adaptive preview (P2) DPR** dev experiment? | [`adaptive-preview-p2-toggle.md`](./adaptive-preview-p2-toggle.md) — **not** a shipped user setting; `localStorage` key `shadernoice.previewAdaptive` or `__previewSchedulerDebug.setAdaptivePreview` (see [`PRODUCTIZATION.md`](./PRODUCTIZATION.md)) |
 | **Manual QA:** adaptive × WebGL/WebGPU preview × image export | [`INTEGRATION-QA-CHECKLIST.md`](./INTEGRATION-QA-CHECKLIST.md) — sign-off matrix for releases / risky changes |
@@ -71,7 +72,7 @@ flowchart TB
 
 | Document | Purpose |
 | --- | --- |
-| [graph-and-platform-boundaries.md](./graph-and-platform-boundaries.md) | Single source of truth for the graph, immutability, change detection, validation/serialization touchpoints, runtime-only parameter concept, errors at compile boundaries. |
+| [graph-and-platform-boundaries.md](./graph-and-platform-boundaries.md) | Single source of truth for the graph, immutability, change detection, validation/serialization touchpoints, runtime-only parameter concept, errors at compile boundaries; where `src/utils` fits. |
 | [parameters-pipeline.md](./parameters-pipeline.md) | UI → store → runtime → uniform vs recompile decisions; `ParameterValue` matrix; key files. |
 | [preview-and-recompilation.md](./preview-and-recompilation.md) | `setGraph` / structure vs parameter paths, `CompilationManager` scheduling, interaction with `PreviewScheduler`, reliability notes. |
 | [adaptive-preview-p2-toggle.md](./adaptive-preview-p2-toggle.md) | **Dev-only** adaptive preview DPR cap + settle; `localStorage` and `__previewSchedulerDebug` (`?previewOverlay`). Product stance: [`PRODUCTIZATION.md`](./PRODUCTIZATION.md). Manual QA: [`INTEGRATION-QA-CHECKLIST.md`](./INTEGRATION-QA-CHECKLIST.md). |

@@ -1,12 +1,12 @@
 # Graph, stores, and platform boundaries
 
-**Last updated:** 2026-05
+**Last updated:** 2026-08-09
 
 The **node graph** (nodes, connections, view state, automation metadata) is owned by the **data model** and exposed through a **Svelte 5 module store**. **Runtime and compilation read the graph**; they do not mutate it in place. This page is the canonical description of that boundary and of related seams (types, serialization, connections, change detection, runtime-only parameters).
 
 ## Graph ownership and immutability
 
-- **Types** — `NodeGraph`, `NodeInstance`, `Connection`, `ParameterValue`, etc. live in [`src/data-model/types.ts`](../../src/data-model/types.ts). [`src/types/nodeGraph.ts`](../../src/types/nodeGraph.ts) re-exports those types and narrows file-format shapes; it is not a second graph implementation. Optional **`bypassed?: boolean`** on **`NodeInstance`** records per-node Power (serialized like other node fields); the compiler interprets it at compile time—the runtime does not simulate bypass separately from the shader (see [`docs/implementation/node-power/_OVERVIEW.md`](../implementation/node-power/_OVERVIEW.md)).
+- **Types** — `NodeGraph`, `NodeInstance`, `Connection`, `ParameterValue`, etc. live in [`src/data-model/types.ts`](../../src/data-model/types.ts). [`src/types/nodeGraph.ts`](../../src/types/nodeGraph.ts) re-exports those types and narrows file-format shapes; it is not a second graph implementation. Optional **`bypassed?: boolean`** on **`NodeInstance`** records per-node Power (serialized like other node fields); the compiler interprets it at compile time—the runtime does not simulate bypass separately from the shader (see [`docs/user-goals/04-nodes-and-parameters.md`](../user-goals/04-nodes-and-parameters.md)).
 - **Updates** — Pure updaters in [`src/data-model/immutableUpdates.ts`](../../src/data-model/immutableUpdates.ts) (`updateNodeParameter`, `addNode`, `removeConnection`, …) return a **new** graph reference.
 - **Store** — [`src/lib/stores/graphStore.svelte.ts`](../../src/lib/stores/graphStore.svelte.ts) holds `$state` for the graph and audio setup; actions call immutable updaters then assign `graph = …`.
 
@@ -44,6 +44,20 @@ flowchart LR
 ## Serialization and validation
 
 Supported save/load uses [`src/data-model/serialization.ts`](../../src/data-model/serialization.ts): `serializeGraph` / `deserializeGraph` with format version checks and **`validateGraph`**. Presets and default/local persistence go through this path. New ingest paths (URL loaders, tests) should use the same pipeline so invalid graphs never reach the runtime or compiler.
+
+## Where `src/utils` fits
+
+[`src/utils/`](../../src/utils/) is a **shared helpers** tree (mostly flat modules + `changeDetection/`). Prefer putting new domain ownership elsewhere; use `utils` only for cross-cutting helpers that several layers import.
+
+| Belongs in… | Examples / put new code here when… |
+| --- | --- |
+| **`src/data-model/`** | Graph types, immutable updates, validation, serialization, connection keys |
+| **`src/runtime/`** or **`src/shaders/`** | Preview loop, compile scheduling, GLSL/WGSL emission, GPU backends |
+| **`src/lib/`** / **`src/ui/`** | Svelte UI components vs canvas engine / interactions |
+| **`src/image-export/`**, **`src/video-export/`**, **`src/export/`** | Export orchestration and raster-API user messaging |
+| **`src/utils/`** | Pure helpers reused by UI + runtime (no graph mutation): e.g. `changeDetection/GraphChangeDetector.ts`, `driverRemap.ts`, `presetManager.ts`, `ContextualHelpManager.ts`, `errorHandling.ts`, `nodeSpecUtils.ts` |
+
+Do **not** add graph mutators or store actions under `utils`. Prefer `GraphChangeDetector` over the legacy [`graphComparison.ts`](../../src/utils/graphComparison.ts) helper for new change-detection call sites.
 
 ## Connection model
 
