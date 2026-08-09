@@ -1,6 +1,11 @@
 import type { NodeGraph } from '../data-model/types';
 import type { NodeSpec } from '../types/nodeSpec';
-import type { CompilationResult, CompileTargetOptions, RenderBackendKind } from '../compile-contract';
+import type {
+  CompilationResult,
+  CompileTargetOptions,
+  IncrementalPreviousResult,
+  RenderBackendKind,
+} from '../compile-contract';
 import type { AudioSetup } from '../data-model/audioSetupTypes';
 import { getVirtualNodeIdsFromAudioSetup } from '../utils/virtualNodes';
 import { GraphValidator } from './compilation/GraphValidator';
@@ -117,7 +122,7 @@ export class NodeShaderCompiler {
    */
   compileIncremental(
     graph: NodeGraph,
-    previousResult: CompilationResult | null,
+    previousResult: IncrementalPreviousResult | null,
     affectedNodeIds: Set<string>,
     audioSetup?: AudioSetup | null,
     options?: CompileTargetOptions

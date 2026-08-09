@@ -40,7 +40,7 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 | --- | --- | --- | --- | --- |
 | 01 | [Hygiene + cheap frame CPU](./01-hygiene-frame-cpu-arch-perf-remediation.md) | ✅ | Dead-code gone; uniform/index/status hot-path wins | — |
 | 02 | [Compile-contract extraction](./02-compile-contract-arch-perf-remediation.md) | ✅ | Neutral IR module; shaders stop importing runtime types | 03 |
-| 03 | [Worker payload slim](./03-worker-payload-slim-arch-perf-remediation.md) | ⬜ | Lower structuredClone cost on compile kicks | — |
+| 03 | [Worker payload slim](./03-worker-payload-slim-arch-perf-remediation.md) | ✅ | Lower structuredClone cost on compile kicks | — |
 | 04A | [Shared WebGPU pass executor core](./04A-webgpu-pass-executor-core-arch-perf-remediation.md) | ✅ | Shared pack + run API | 04B |
 | 04B | [Wire preview + exports to shared executor](./04B-webgpu-pass-executor-wire-arch-perf-remediation.md) | ⬜ | Single path for three callers | — |
 | 05 | [WebGPU preview dependency clock](./05-webgpu-preview-clock-arch-perf-remediation.md) | ⬜ | Safer mask default or conservative subset | — |
@@ -52,8 +52,8 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 
 ## Progress tracker
 
-- **Overall:** ~44% — **01**, **02**, **04A**, and **06** done (2026-08-09): hygiene/frame CPU + compile-contract + shared WebGPU pass-plan pack/encode; WebGL export fence sync (`clientWaitSync`, `finish` fallback) instead of unconditional `gl.finish()`; **03** and **04B** unblocked; callers still on private copies until **04B**.
-- **Milestone A:** 01–03 (hygiene + compile boundary) — 01 ✅, 02 ✅.
+- **Overall:** ~55% — **01**, **02**, **03**, **04A**, and **06** done (2026-08-09): hygiene/frame CPU + compile-contract + slim worker payloads + shared WebGPU pass-plan pack/encode; WebGL export fence sync (`clientWaitSync`, `finish` fallback) instead of unconditional `gl.finish()`; **04B** unblocked; callers still on private copies until **04B**.
+- **Milestone A:** 01–03 (hygiene + compile boundary) — 01 ✅, 02 ✅, 03 ✅.
 - **Milestone B:** 04A ✅ → **04B** unblocked (wire three callers).
 - **Milestone C:** 05–08 (clock, export sync, change detection, docs) — 06 ✅.
 
@@ -66,4 +66,5 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 | Conflict risk | `WebGpuRenderBackend` + both export paths — serialize 04A/04B; avoid parallel edits. |
 | Clock safety | Prefer conservative mask / golden coverage before flipping URL default on. |
 | 02 compile-contract | Neutral home: `src/compile-contract/index.ts` (not under `shaders/`) so runtime does not import shaders for IR. `runtime/types` re-exports until **08**. Shaders + `UniformGenerator` import contract directly; unblocks **03**. |
+| 03 worker payload | `cloneableCompilePayload` omits `previousResult` when `!tryIncremental`; incremental posts `IncrementalPreviousResult` (`metadata.executionOrder` only). Graph still structured-cloned (proxy safety). |
 | 04A (2026-08-09) | Added `src/runtime/renderBackends/webgpuPassPlanExecutor.ts` (`setParamSlot`, graph transfer w/ runtime-only + override suppression, `encodeWebGpuPassPlanFrame`). Callers unchanged; packing parity tests in `webgpuPassPlanExecutor.test.ts`. Unblocks **04B**. |

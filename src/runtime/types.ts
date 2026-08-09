@@ -11,6 +11,7 @@
 import type {
   CompilationResult,
   CompileTargetOptions,
+  IncrementalPreviousResult,
   ParamLayout,
   PreviewDependencyMask,
   RenderBackendKind,
@@ -24,6 +25,7 @@ import type {
 export type {
   CompilationResult,
   CompileTargetOptions,
+  IncrementalPreviousResult,
   ParamLayout,
   PreviewDependencyMask,
   RenderBackendKind,
@@ -69,7 +71,7 @@ export interface ShaderCompiler {
    */
   compileIncremental?(
     graph: import('../data-model/types').NodeGraph,
-    previousResult: CompilationResult | null,
+    previousResult: IncrementalPreviousResult | null,
     affectedNodeIds: Set<string>,
     audioSetup?: import('../data-model/audioSetupTypes').AudioSetup | null,
     options?: CompileTargetOptions

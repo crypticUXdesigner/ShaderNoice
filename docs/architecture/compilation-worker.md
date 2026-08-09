@@ -29,7 +29,7 @@ Payload and reply shapes are defined in [`src/runtime/compilation/workerMessages
 ### Worker responsibilities
 
 - **`init`** — Build a `Map` of `NodeSpec`, construct **`NodeShaderCompiler`**, reply `{ type: 'inited' }`.
-- **`compile`** — Receive graph, optional `audioSetup`, optional `previousResult` ( **`null` when `tryIncremental` is false** so the main thread avoids cloning the last snapshot for full compiles), `affectedNodeIds`, `tryIncremental`. Run incremental compile when allowed; fall back to full **`compile`**. Reply `{ type: 'result', id, result }` or `{ type: 'error', id, message }`.
+- **`compile`** — Receive graph, optional `audioSetup`, optional `previousResult` ( **`null` when `tryIncremental` is false**; when incremental, only a slim **`IncrementalPreviousResult`** — today `metadata.executionOrder` — see `slimPreviousResultForWorker` / arch-perf task 03), `affectedNodeIds`, `tryIncremental`. Run incremental compile when allowed; fall back to full **`compile`**. Reply `{ type: 'result', id, result }` or `{ type: 'error', id, message }`.
 
 ### Main-thread responsibilities
 

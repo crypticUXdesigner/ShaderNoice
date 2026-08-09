@@ -262,6 +262,19 @@ export type WebGpuPassPlan =
     };
 
 /**
+ * Subset of {@link CompilationResult} that `NodeShaderCompiler.compileIncremental` reads.
+ * Worker compile posts must clone only these fields (not code / uniforms / pass plans).
+ *
+ * Retained today:
+ * - `metadata.executionOrder` — order-safety / subsequence guards for incremental WebGL emits
+ */
+export type IncrementalPreviousResult = {
+  metadata: {
+    executionOrder: string[];
+  };
+};
+
+/**
  * Compilation result from the shader compiler.
  */
 export interface CompilationResult {
