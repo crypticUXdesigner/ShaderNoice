@@ -15,6 +15,10 @@ import type { FrameAudioState } from './OfflineAudioProvider';
 import { isRuntimeOnlyParameter } from '../utils/runtimeOnlyParams';
 import { isParameterUniformSuppressedByConnection } from '../utils/resolveParameterInputMode';
 import { refreshExportArrangementBakeCaches } from './refreshExportArrangementBakeCaches';
+import {
+  waitForWebGlExportCommands,
+  waitForWebGlExportCommandsAsync,
+} from './waitForWebGlExportCommands';
 
 export interface ExportRenderPathConfig {
   /** Export width in pixels */
@@ -122,7 +126,7 @@ function createExportRenderPathImpl(
 
   let disposed = false;
 
-  function renderFrame(frameIndex: number, frameState: FrameAudioState): HTMLCanvasElement | OffscreenCanvas {
+  function drawExportFrame(frameIndex: number, frameState: FrameAudioState): void {
     if (disposed) {
       throw new Error('ExportRenderPath already disposed');
     }
@@ -136,12 +140,12 @@ function createExportRenderPathImpl(
     glContext.clearColor(0, 0, 0, 1);
     glContext.clear(glContext.COLOR_BUFFER_BIT);
     shaderInstance.render(width, height);
+  }
 
-    // Ensure GPU work is complete before the canvas is captured by the encoder.
-    // This avoids intermittent black frames caused by snapshotting before WebGL commands have finished.
-    glContext.flush();
-    glContext.finish();
-
+  function renderFrame(frameIndex: number, frameState: FrameAudioState): HTMLCanvasElement | OffscreenCanvas {
+    drawExportFrame(frameIndex, frameState);
+    // Fence + clientWaitSync (finish fallback). See waitForWebGlExportCommands.ts.
+    waitForWebGlExportCommands(glContext);
     return canvas;
   }
 
@@ -149,7 +153,10 @@ function createExportRenderPathImpl(
     frameIndex: number,
     frameState: FrameAudioState
   ): Promise<HTMLCanvasElement | OffscreenCanvas> {
-    return renderFrame(frameIndex, frameState);
+    drawExportFrame(frameIndex, frameState);
+    // Async fence poll so video export can yield while waiting on the GPU.
+    await waitForWebGlExportCommandsAsync(glContext);
+    return canvas;
   }
 
   function dispose(): void {

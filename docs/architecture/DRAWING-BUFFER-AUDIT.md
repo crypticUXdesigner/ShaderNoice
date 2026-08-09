@@ -28,10 +28,10 @@ No other `webgl2` context creation sites were found in `src/` (search: `getConte
 
 **Export (WebGL)**
 
-- **Image:** `createExportRenderPath` → `renderFrame` → **`canvas.toBlob`** on the same WebGL canvas (after `flush`/`finish` in `ExportRenderPath`).
+- **Image:** `createExportRenderPath` → `renderFrame` → **`canvas.toBlob`** on the same WebGL canvas (after GPU sync in `ExportRenderPath`).
 - **Video:** `renderFrame` / `renderFrameAsync` → canvas passed to **`WebCodecsVideoExporter.addFrame`** → Mediabunny **`CanvasSource`** (implicit per-frame capture from the canvas).
 
-`ExportRenderPath` already calls **`gl.finish()`** before returning the canvas to reduce **intermittent black frames** when the encoder snapshots the surface. **`preserveDrawingBuffer: true`** remains important because capture can still occur **after** the WebGL drawing buffer would otherwise become invalid for readback when the default is `false`.
+`ExportRenderPath` syncs GPU work via **`fenceSync` + `clientWaitSync`** ([`waitForWebGlExportCommands`](../../src/video-export/waitForWebGlExportCommands.ts)), falling back to **`gl.finish()`** on unsupported/failed/timeout waits, to reduce **intermittent black frames** when the encoder snapshots the surface without unconditionally finishing every frame. **`preserveDrawingBuffer: true`** remains important because capture can still occur **after** the WebGL drawing buffer would otherwise become invalid for readback when the default is `false`.
 
 **Export (WebGPU)**
 
@@ -62,7 +62,7 @@ No other `webgl2` context creation sites were found in `src/` (search: `getConte
 **Manual / integration (regression if set `false` without a new copy path):**
 
 1. **WebGL image export:** Open image export, confirm dialog **preview** and **final PNG/JPEG/WebP** match the shader (no black / cleared frame).
-2. **WebGL video export:** Encode a short clip; scan for **intermittent black frames** (historically mitigated by `finish()` + `preserveDrawingBuffer: true`).
+2. **WebGL video export:** Encode a short clip; scan for **intermittent black frames** (mitigated by fence/`clientWaitSync` with `finish()` fallback + `preserveDrawingBuffer: true`).
 3. **WebGL preview + detached / blit layout:** Any configuration that uses **off-screen WebGL backing + `drawImage` to presentation** must show a stable image when idle (not flashing black between frames).
 4. **WebGPU session:** Raster export uses WebGPU helpers above — should be **unchanged** by a WebGL flag flip, but worth a **smoke** image + video export when toggling backends in QA.
 

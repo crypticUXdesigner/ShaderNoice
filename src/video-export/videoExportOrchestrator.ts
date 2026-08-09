@@ -396,6 +396,9 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
             { cause: e }
           );
         }
+      } else if (renderPath.renderFrameAsync) {
+        // WebGL: prefer async fence wait so we do not block the UI thread on gl.finish().
+        canvas = await renderPath.renderFrameAsync(frameIndex, frameState);
       } else {
         canvas = renderPath.renderFrame(frameIndex, frameState);
       }

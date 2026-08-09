@@ -44,7 +44,7 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 | 04A | [Shared WebGPU pass executor core](./04A-webgpu-pass-executor-core-arch-perf-remediation.md) | ⬜ | Shared pack + run API | 04B |
 | 04B | [Wire preview + exports to shared executor](./04B-webgpu-pass-executor-wire-arch-perf-remediation.md) | ⬜ | Single path for three callers | — |
 | 05 | [WebGPU preview dependency clock](./05-webgpu-preview-clock-arch-perf-remediation.md) | ⬜ | Safer mask default or conservative subset | — |
-| 06 | [Export WebGL sync](./06-export-webgl-sync-arch-perf-remediation.md) | ⬜ | Faster export without black frames | — |
+| 06 | [Export WebGL sync](./06-export-webgl-sync-arch-perf-remediation.md) | ✅ | Faster export without black frames | — |
 | 07 | [Change-detection sharing](./07-change-detection-sharing-arch-perf-remediation.md) | ⬜ | Fewer walks; tighter wire-affected sets | — |
 | 08 | [Ownership closeout + arch docs](./08-ownership-docs-closeout-arch-perf-remediation.md) | ⬜ | utils hygiene slice; architecture doc sync | — |
 
@@ -52,10 +52,11 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 
 ## Progress tracker
 
-- **Overall:** ~12% — **01** done (2026-08-09): deleted dead `graphComparison`; cached `getUniformName`; connection/band indexes; gated frame audio status writes.
+- **Overall:** ~25% — **01** + **06** done (2026-08-09): hygiene/frame CPU; WebGL export fence sync (`clientWaitSync`, `finish` fallback) instead of unconditional `gl.finish()`.
 - **Milestone A:** 01–03 (hygiene + compile boundary) — 01 ✅.
 - **Milestone B:** 04A–04B (shared WebGPU raster).
-- **Milestone C:** 05–08 (clock, export sync, change detection, docs).
+- **Milestone C:** 05–08 (clock, export sync, change detection, docs) — 06 ✅.
+
 
 ## Notes & risks
 
