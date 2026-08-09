@@ -3,7 +3,7 @@
  * Extracted from AudioManager.updateUniforms for smaller module size.
  */
 
-import type { AudioSetup } from '../../data-model/audioSetupTypes';
+import type { AudioBandEntry, AudioSetup } from '../../data-model/audioSetupTypes';
 import type { AudioPlaybackController } from './AudioPlaybackController';
 import type { FrequencyAnalyzer } from './FrequencyAnalyzer';
 import type { UniformUpdate as OfflineUniformUpdate } from '../../video-export/OfflineAudioProvider';
@@ -24,11 +24,39 @@ export interface GraphForUniforms {
 /** Reused each `collectAudioUniformUpdates` call; cleared before fill. Consumers must treat the return as ephemeral (same contract as a fresh array). */
 const collectedAudioUniformUpdatesScratch: AudioUniformUpdate[] = [];
 
+/** Rebuild when `audioSetup` object identity changes. */
+let bandByIdCacheSetup: AudioSetup | null = null;
+let bandByIdCache: Map<string, AudioBandEntry> | null = null;
+
+function getBandByIdMap(audioSetup: AudioSetup): Map<string, AudioBandEntry> {
+  if (audioSetup === bandByIdCacheSetup && bandByIdCache) {
+    return bandByIdCache;
+  }
+  const map = new Map<string, AudioBandEntry>();
+  for (const band of audioSetup.bands) {
+    map.set(band.id, band);
+  }
+  bandByIdCacheSetup = audioSetup;
+  bandByIdCache = map;
+  return map;
+}
+
 /**
  * @internal Vitest — same buffer is returned across calls when length is reset each invocation.
  */
 export function getAudioUniformUpdatesScratchBufferForTests(): AudioUniformUpdate[] {
   return collectedAudioUniformUpdatesScratch;
+}
+
+/** @internal Vitest — reset band index between cases. */
+export function clearBandByIdCacheForTests(): void {
+  bandByIdCacheSetup = null;
+  bandByIdCache = null;
+}
+
+/** @internal Vitest — which setup identity the band map was built from. */
+export function getBandByIdCacheSetupForTests(): AudioSetup | null {
+  return bandByIdCacheSetup;
 }
 
 /**
@@ -143,8 +171,9 @@ export function collectAudioUniformUpdates(
     }
 
     if (audioSetup?.remappers) {
+      const bandsById = getBandByIdMap(audioSetup);
       for (const remapper of audioSetup.remappers) {
-        const band = audioSetup.bands.find((b) => b.id === remapper.bandId);
+        const band = bandsById.get(remapper.bandId);
         if (band && curveFileIds.has(band.sourceFileId)) continue;
         const analyzerState = frequencyAnalyzer.getAnalyzerNodeState(remapper.bandId);
         const bandValue = analyzerState?.smoothedBandValues?.[0];

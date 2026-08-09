@@ -38,7 +38,7 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 
 | ID | Task | Status | Provides | Blocks |
 | --- | --- | --- | --- | --- |
-| 01 | [Hygiene + cheap frame CPU](./01-hygiene-frame-cpu-arch-perf-remediation.md) | ⬜ | Dead-code gone; uniform/index/status hot-path wins | — |
+| 01 | [Hygiene + cheap frame CPU](./01-hygiene-frame-cpu-arch-perf-remediation.md) | ✅ | Dead-code gone; uniform/index/status hot-path wins | — |
 | 02 | [Compile-contract extraction](./02-compile-contract-arch-perf-remediation.md) | ⬜ | Neutral IR module; shaders stop importing runtime types | 03 |
 | 03 | [Worker payload slim](./03-worker-payload-slim-arch-perf-remediation.md) | ⬜ | Lower structuredClone cost on compile kicks | — |
 | 04A | [Shared WebGPU pass executor core](./04A-webgpu-pass-executor-core-arch-perf-remediation.md) | ⬜ | Shared pack + run API | 04B |
@@ -52,8 +52,8 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 
 ## Progress tracker
 
-- **Overall:** 0% — package defined; implementation not started.
-- **Milestone A:** 01–03 (hygiene + compile boundary).
+- **Overall:** ~12% — **01** done (2026-08-09): deleted dead `graphComparison`; cached `getUniformName`; connection/band indexes; gated frame audio status writes.
+- **Milestone A:** 01–03 (hygiene + compile boundary) — 01 ✅.
 - **Milestone B:** 04A–04B (shared WebGPU raster).
 - **Milestone C:** 05–08 (clock, export sync, change detection, docs).
 
