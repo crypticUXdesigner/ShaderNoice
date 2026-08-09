@@ -74,9 +74,9 @@ export class RuntimeManager implements Disposable {
   private onContextLostCallback?: () => void;
 
   /**
-   * When true and preview raster is WebGPU, pass compile `previewDependencies` into `TimeManager`
-   * if {@link resolveWebGpuPreviewDependencyMaskForClock} accepts the mask (fail-open otherwise).
-   * Default false — see `setTime` comment.
+   * When true and preview raster is WebGPU, enable the **broader** experimental clock path
+   * (wall/timeline-driven masks) via {@link resolveWebGpuPreviewDependencyMaskForClock}.
+   * Default false — proven-static masks still apply without this flag (policy A).
    */
   private readonly webGpuPreviewDependencyClockMask: boolean;
 
@@ -395,11 +395,10 @@ export class RuntimeManager implements Disposable {
       this.timeManager.markDirty(this.renderer, 'audio');
     }
 
-    // WebGPU-exclusive preview: by default do not throttle the clock on `previewDependencies`.
-    // WGSL MVP mask inference has missed real motion (audio hydrate / primary transport / pass-plan
-    // slices), which skips `setTime` + `render` and looks like a frozen canvas. Opt-in:
-    // `?webgpuPreviewDependencyClock=1` + fail-open in `resolveWebGpuPreviewDependencyMaskForClock`.
-    // WebGL always uses the compile mask so paused idle graphs do not pay full-rate analyser work.
+    // WebGPU-exclusive preview: always apply a proven-static dependency subset (policy A);
+    // broader wall/timeline masks stay behind `?webgpuPreviewDependencyClock=1` + fail-open.
+    // Incomplete WGSL motion inference must not freeze animated canvases — see
+    // `resolveWebGpuPreviewDependencyMaskForClock`. WebGL always uses the compile mask.
     const mask = this.compilationManager.getPreviewDependencyMask();
     const audioPrimaryPresent = getPrimaryFileId(this.currentAudioSetup) != null;
     const previewDepsForClock =

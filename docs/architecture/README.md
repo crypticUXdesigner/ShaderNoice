@@ -56,7 +56,7 @@ flowchart TB
 | Where is Svelte vs canvas TypeScript? | [`editor-ui-canvas-layout.md`](./editor-ui-canvas-layout.md) — `src/lib/` vs `src/ui/` |
 | How do I enable the **adaptive preview (P2) DPR** dev experiment? | [`adaptive-preview-p2-toggle.md`](./adaptive-preview-p2-toggle.md) — **not** a shipped user setting; `localStorage` key `shadernoice.previewAdaptive` or `__previewSchedulerDebug.setAdaptivePreview` (see [`PRODUCTIZATION.md`](./PRODUCTIZATION.md)) |
 | **Manual QA:** adaptive × WebGL/WebGPU preview × image export | [`INTEGRATION-QA-CHECKLIST.md`](./INTEGRATION-QA-CHECKLIST.md) — sign-off matrix for releases / risky changes |
-| Optional **WebGPU preview dependency clock** (`?webgpuPreviewDependencyClock=`) | [`preview-and-recompilation.md`](./preview-and-recompilation.md) — *Optional developer URL flags*; `src/runtime/webGpuPreviewDependencyClock.ts` |
+| **WebGPU preview dependency clock** (static subset default + optional `?webgpuPreviewDependencyClock=`) | [`preview-and-recompilation.md`](./preview-and-recompilation.md) — *Optional developer URL flags*; `src/runtime/webGpuPreviewDependencyClock.ts` |
 | **WebGL vs WebGPU** session preview + export (one raster API per session/job) | [`webgl-webgpu-preview-export.md`](./webgl-webgpu-preview-export.md) — policy; [`COVERAGE-MATRIX.md`](./COVERAGE-MATRIX.md), [`PARITY-PLAN.md`](./PARITY-PLAN.md) |
 
 ## Suggested reading order

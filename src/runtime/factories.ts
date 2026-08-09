@@ -113,7 +113,10 @@ export function createRuntimeManager(
   nodeSpecsForWorker?: Map<string, NodeSpec> | Record<string, NodeSpec>,
   options?: {
     renderBackend?: RenderBackendMode;
-    /** Opt-in; default false. See `resolveWebGpuPreviewDependencyMaskForClock`. */
+    /**
+     * Broader experimental WebGPU clock (wall/timeline masks). Default false —
+     * proven-static subset still applies. See `resolveWebGpuPreviewDependencyMaskForClock`.
+     */
     webGpuPreviewDependencyClockMask?: boolean;
     previewCompileUiSink?: PreviewCompileUiSink;
   }
