@@ -1,20 +1,19 @@
 /**
  * Ensures compile payloads (including incremental previousResult) round-trip through the same
- * cloning path used before postMessage to the compilation worker, preserving paramLayout slots
- * for virtual audio remap uniforms.
+ * cloning path used before postMessage to the compilation worker.
  *
  * Outbound: `WorkerCompilePayload` (`type: 'compile'`, numeric `id`, `targetBackend`, `graph`,
- * `audioSetup`, `previousResult` nullable, `affectedNodeIds`, `tryIncremental`).
+ * `audioSetup`, slim `previousResult` when incremental, `affectedNodeIds`, `tryIncremental`).
  * Inbound: `WorkerReplyMessage` — `inited` | `result` (`id` + `result`) | `error` (`id` + `message`).
  * `CompilationManager` applies `result` on the main thread; stale `id`s must be ignored.
  */
 
 import { describe, it, expect } from 'vitest';
 import type { WorkerCompilePayload, WorkerReplyMessage } from './workerMessages';
-import { cloneableCompilePayload } from './workerMessages';
-import type { RenderBackendKind } from '../types';
+import { cloneableCompilePayload, slimPreviousResultForWorker } from './workerMessages';
+import type { RenderBackendKind } from '../../compile-contract';
 import type { NodeGraph } from '../../data-model/types';
-import type { CompilationResult } from '../types';
+import type { CompilationResult } from '../../compile-contract';
 
 const AUDIO_REMAP_LAYOUT_KEY = 'remap-mvp-stetra-audio-scale.out';
 
@@ -28,18 +27,26 @@ function minimalGraph(): NodeGraph {
   };
 }
 
-function minimalCompilationResultWithAudioRemapSlot(): CompilationResult {
+function fatCompilationResultWithAudioRemapSlot(): CompilationResult {
   return {
     backend: 'webgpu',
     supported: true,
     unsupportedReasons: undefined,
-    code: '',
-    shaderCode: '',
-    uniforms: [],
+    code: 'FAT_SHADER_SOURCE_SHOULD_NOT_CROSS_WORKER_ON_INCREMENTAL',
+    shaderCode: 'FAT_SHADER_SOURCE_SHOULD_NOT_CROSS_WORKER_ON_INCREMENTAL',
+    uniforms: [
+      {
+        name: 'uFat',
+        nodeId: 'n-out',
+        paramName: 'someParam',
+        type: 'float',
+        defaultValue: 0,
+      },
+    ],
     metadata: {
-      warnings: [],
+      warnings: ['w'],
       errors: [],
-      executionOrder: [],
+      executionOrder: ['n-a', 'n-out'],
       finalOutputNodeId: 'n-out',
       previewDependencies: {
         usesWallTime: false,
@@ -61,49 +68,54 @@ function minimalCompilationResultWithAudioRemapSlot(): CompilationResult {
   };
 }
 
-describe('cloneableCompilePayload', () => {
-  it('preserves paramLayout entries for audio remap keys on incremental previousResult', () => {
-    const targetBackend: RenderBackendKind = 'webgpu';
+describe('slimPreviousResultForWorker / cloneableCompilePayload', () => {
+  it('omits previousResult entirely when tryIncremental is false (even if caller passed a fat result)', () => {
+    const fat = fatCompilationResultWithAudioRemapSlot();
+    expect(slimPreviousResultForWorker(fat, false)).toBeNull();
+
+    const payload: WorkerCompilePayload = {
+      type: 'compile',
+      id: 2,
+      targetBackend: 'webgpu',
+      graph: minimalGraph(),
+      audioSetup: null,
+      previousResult: fat,
+      affectedNodeIds: [],
+      tryIncremental: false,
+    };
+
+    const cloned = cloneableCompilePayload(payload);
+    expect(cloned.previousResult).toBeNull();
+    expect(cloned.tryIncremental).toBe(false);
+    expect(cloned).not.toHaveProperty('previousResult.code');
+  });
+
+  it('strips incremental previousResult to metadata.executionOrder only (no code/uniforms/paramLayout)', () => {
+    const fat = fatCompilationResultWithAudioRemapSlot();
     const payload: WorkerCompilePayload = {
       type: 'compile',
       id: 1,
-      targetBackend,
+      targetBackend: 'webgl' as RenderBackendKind,
       graph: minimalGraph(),
       audioSetup: null,
-      previousResult: minimalCompilationResultWithAudioRemapSlot(),
+      previousResult: fat,
       affectedNodeIds: ['n-out'],
       tryIncremental: true,
     };
 
     const cloned = cloneableCompilePayload(payload);
 
-    expect(cloned.previousResult?.paramLayout[AUDIO_REMAP_LAYOUT_KEY]).toBe(19);
-    expect(cloned.previousResult?.paramLayout['n-out.someParam']).toBe(0);
-  });
-
-  it('matches structuredClone when available (worker channel behavior)', () => {
-    const targetBackend: RenderBackendKind = 'webgpu';
-    const payload: WorkerCompilePayload = {
-      type: 'compile',
-      id: 2,
-      targetBackend,
-      graph: minimalGraph(),
-      audioSetup: null,
-      previousResult: minimalCompilationResultWithAudioRemapSlot(),
-      affectedNodeIds: [],
-      tryIncremental: false,
-    };
-
-    if (typeof structuredClone !== 'function') {
-      expect.fail('structuredClone should exist in Vitest environment');
-    }
-
-    const viaCloneable = cloneableCompilePayload(payload);
-    const direct = structuredClone(payload);
-
-    expect(viaCloneable.previousResult?.paramLayout[AUDIO_REMAP_LAYOUT_KEY]).toBe(
-      direct.previousResult?.paramLayout[AUDIO_REMAP_LAYOUT_KEY]
-    );
+    expect(cloned.tryIncremental).toBe(true);
+    expect(cloned.previousResult).toEqual({
+      metadata: { executionOrder: ['n-a', 'n-out'] },
+    });
+    expect(cloned.previousResult).not.toHaveProperty('code');
+    expect(cloned.previousResult).not.toHaveProperty('shaderCode');
+    expect(cloned.previousResult).not.toHaveProperty('uniforms');
+    expect(cloned.previousResult).not.toHaveProperty('paramLayout');
+    expect(cloned.previousResult).not.toHaveProperty('webgpuPassPlan');
+    expect(cloned.previousResult?.metadata).not.toHaveProperty('warnings');
+    expect(cloned.previousResult?.metadata).not.toHaveProperty('previewDependencies');
   });
 
   it('cloneableCompilePayload keeps tryIncremental false with null previousResult (full compile channel)', () => {
@@ -126,12 +138,13 @@ describe('cloneableCompilePayload', () => {
   });
 
   it('WorkerReplyMessage result branch carries compile id and result metadata CompilationManager reads', () => {
-    const result = minimalCompilationResultWithAudioRemapSlot();
+    const result = fatCompilationResultWithAudioRemapSlot();
     const msg: WorkerReplyMessage = { type: 'result', id: 42, result };
     expect(msg.type).toBe('result');
     expect(msg.id).toBe(42);
     expect(msg.result.metadata.finalOutputNodeId).toBe('n-out');
     expect(msg.result.backend).toBe('webgpu');
+    expect(msg.result.paramLayout[AUDIO_REMAP_LAYOUT_KEY]).toBe(19);
   });
 
   it('WorkerReplyMessage error branch is structuredClone-stable', () => {
@@ -157,6 +170,11 @@ describe('cloneableCompilePayload', () => {
       evil: () => 1,
     } as unknown as WorkerCompilePayload;
 
+    // Force JSON path by temporarily shadowing structuredClone failure via a non-cloneable
+    // value already handled: functions on the *slimmed* object are not present; we still
+    // assert the helper returns a plain compile payload without the evil key when falling
+    // through (structuredClone throws on functions if present on input before slim — here
+    // slim picks known keys only, so structuredClone succeeds and drops evil).
     const cloned = cloneableCompilePayload(payload);
     expect('evil' in cloned).toBe(false);
     expect(cloned.type).toBe('compile');

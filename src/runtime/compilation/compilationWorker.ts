@@ -4,7 +4,7 @@
  */
 
 import { NodeShaderCompiler } from '../../shaders/NodeShaderCompiler';
-import type { CompilationResult } from '../types';
+import type { CompilationResult } from '../../compile-contract';
 import type { NodeSpec } from '../../types/nodeSpec';
 import type {
   WorkerInitPayload,

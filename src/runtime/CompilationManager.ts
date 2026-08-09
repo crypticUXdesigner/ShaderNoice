@@ -1161,7 +1161,8 @@ export class CompilationManager implements Disposable {
         targetBackend,
         graph: this.graph,
         audioSetup: this.audioSetup,
-        // Worker only reads previousResult when tryIncremental && previousResult != null.
+        // cloneableCompilePayload omits previousResult when !tryIncremental and strips to
+        // IncrementalPreviousResult (executionOrder only) when incremental.
         previousResult: tryIncremental ? previousResult : null,
         affectedNodeIds: Array.from(changes.affectedNodeIds),
         tryIncremental,
