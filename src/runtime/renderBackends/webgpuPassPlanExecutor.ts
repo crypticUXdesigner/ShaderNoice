@@ -7,7 +7,7 @@
  * - graph transfer with runtime-only + connection-suppression policy
  * - dispatching encode to the existing pass-plan runtimes (no forked plan math)
  *
- * Wiring of the three callers lands in arch-perf-remediation **04B**.
+ * Wiring of the three callers: arch-perf-remediation **04B**.
  */
 
 import type { NodeGraph } from '../../data-model/types';
