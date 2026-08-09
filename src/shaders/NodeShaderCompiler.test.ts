@@ -10,8 +10,18 @@
 import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { NodeShaderCompiler } from './NodeShaderCompiler';
+import { MainCodeGenerator } from './compilation/MainCodeGenerator';
+import { FunctionGenerator } from './compilation/FunctionGenerator';
+import {
+  glslIncrementalEmitStats,
+  resetGlslIncrementalEmitStats,
+} from './compilation/glslSectionHashes';
+import {
+  resetWgslIncrementalEmitStats,
+  wgslIncrementalEmitStats,
+} from './compilation/wgslSectionHashes';
 import { WGSL_SUPPORTED_NODE_TYPES, WGSL_WEBGPU_PASS_PLAN_NODE_TYPES } from './compilation/WgslMvpCompiler';
 import { nodeSystemSpecs } from './nodes/index';
 import { WAKE_SMEAR_MAX_EMITTERS } from './nodes/wake-smear';
@@ -5267,6 +5277,469 @@ describe('NodeShaderCompiler', () => {
       };
       const incr = compiler.compileIncremental(broken, prev, new Set(['n2']));
       expect(incr).toBeNull();
+    });
+  });
+
+  describe('compileIncremental GLSL hash-skip (04A)', () => {
+    function simpleConstGraph(): NodeGraph {
+      return {
+        id: 'g-hash-skip',
+        name: 'g',
+        version: '2.0',
+        nodes: [
+          { id: 'n-cf', type: 'constant-float', position: { x: 0, y: 0 }, parameters: { value: 0.5 } },
+          { id: 'n-out', type: 'final-output', position: { x: 100, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          {
+            id: 'c1',
+            sourceNodeId: 'n-cf',
+            sourcePort: 'out',
+            targetNodeId: 'n-out',
+            targetPort: 'in',
+          },
+        ],
+      };
+    }
+
+    it('param-only uniform change hash-skips without assembleShader / full emit', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const base = simpleConstGraph();
+      const prev = compiler.compile(base);
+      expect(prev.glslSectionHashes?.aggregate).toBeTruthy();
+      expect(prev.metadata.errors).toHaveLength(0);
+
+      resetGlslIncrementalEmitStats();
+      const assembleSpy = vi.spyOn(MainCodeGenerator.prototype, 'assembleShader');
+      const functionsSpy = vi.spyOn(FunctionGenerator.prototype, 'collectAndDeduplicateFunctions');
+
+      const next: NodeGraph = {
+        ...base,
+        nodes: [
+          { id: 'n-cf', type: 'constant-float', position: { x: 0, y: 0 }, parameters: { value: 0.9 } },
+          base.nodes[1]!,
+        ],
+      };
+      const incr = compiler.compileIncremental(next, prev, new Set(['n-cf']));
+
+      expect(incr).not.toBeNull();
+      expect(incr!.incrementalHashSkip).toBe(true);
+      expect(incr!.shaderCode).toBe(prev.shaderCode);
+      expect(incr!.paramLayout).toEqual(prev.paramLayout);
+      expect(incr!.glslSectionHashes?.aggregate).toBe(prev.glslSectionHashes?.aggregate);
+      expect(assembleSpy).not.toHaveBeenCalled();
+      expect(functionsSpy).not.toHaveBeenCalled();
+      expect(glslIncrementalEmitStats.hashSkips).toBe(1);
+      expect(glslIncrementalEmitStats.fullEmits).toBe(0);
+
+      assembleSpy.mockRestore();
+      functionsSpy.mockRestore();
+    });
+
+    it('connection change does not hash-skip (falls back to full compile path)', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const base: NodeGraph = {
+        id: 'g-hash-conn',
+        name: 'g',
+        version: '2.0',
+        nodes: [
+          { id: 'n-time', type: 'time', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-cf', type: 'constant-float', position: { x: 50, y: 0 }, parameters: { value: 0.5 } },
+          { id: 'n-out', type: 'final-output', position: { x: 100, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          {
+            id: 'c1',
+            sourceNodeId: 'n-cf',
+            sourcePort: 'out',
+            targetNodeId: 'n-out',
+            targetPort: 'in',
+          },
+        ],
+      };
+      const prev = compiler.compile(base);
+      expect(prev.metadata.errors).toHaveLength(0);
+
+      resetGlslIncrementalEmitStats();
+      const assembleSpy = vi.spyOn(MainCodeGenerator.prototype, 'assembleShader');
+
+      const withDrive: NodeGraph = {
+        ...base,
+        connections: [
+          ...base.connections,
+          {
+            id: 'c-drive',
+            sourceNodeId: 'n-time',
+            sourcePort: 'out',
+            targetNodeId: 'n-cf',
+            targetParameter: 'value',
+          },
+        ],
+      };
+      const incr = compiler.compileIncremental(withDrive, prev, new Set(['n-cf', 'n-out', 'n-time']));
+
+      // Order guards may return null (caller full-compiles) or full-emit inside incremental.
+      expect(incr?.incrementalHashSkip).toBeFalsy();
+      expect(glslIncrementalEmitStats.hashSkips).toBe(0);
+      if (incr != null) {
+        expect(assembleSpy).toHaveBeenCalled();
+        expect(glslIncrementalEmitStats.fullEmits).toBe(1);
+        expect(incr.shaderCode).not.toBe(prev.shaderCode);
+      }
+
+      assembleSpy.mockRestore();
+    });
+
+    it('string param change still full-emits (baked into GLSL)', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const base: NodeGraph = {
+        id: 'g-hash-swizzle',
+        name: 'g',
+        version: '2.0',
+        nodes: [
+          {
+            id: 'n-c4',
+            type: 'constant-vec4',
+            position: { x: 0, y: 0 },
+            parameters: { x: 1, y: 0, z: 0, w: 1 },
+          },
+          {
+            id: 'n-sw',
+            type: 'swizzle',
+            position: { x: 50, y: 0 },
+            parameters: { swizzle: 'xyzw' },
+          },
+          { id: 'n-out', type: 'final-output', position: { x: 100, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          {
+            id: 'c1',
+            sourceNodeId: 'n-c4',
+            sourcePort: 'out',
+            targetNodeId: 'n-sw',
+            targetPort: 'in',
+          },
+          {
+            id: 'c2',
+            sourceNodeId: 'n-sw',
+            sourcePort: 'out',
+            targetNodeId: 'n-out',
+            targetPort: 'in',
+          },
+        ],
+      };
+      const prev = compiler.compile(base);
+      expect(prev.metadata.errors).toHaveLength(0);
+      expect(prev.glslSectionHashes?.aggregate).toBeTruthy();
+
+      resetGlslIncrementalEmitStats();
+      const assembleSpy = vi.spyOn(MainCodeGenerator.prototype, 'assembleShader');
+
+      const next: NodeGraph = {
+        ...base,
+        nodes: base.nodes.map((n) =>
+          n.id === 'n-sw' ? { ...n, parameters: { swizzle: 'wzyx' } } : n
+        ),
+      };
+      const incr = compiler.compileIncremental(next, prev, new Set(['n-sw']));
+
+      expect(incr).not.toBeNull();
+      expect(incr!.incrementalHashSkip).toBeFalsy();
+      expect(assembleSpy).toHaveBeenCalled();
+      expect(glslIncrementalEmitStats.fullEmits).toBe(1);
+      expect(glslIncrementalEmitStats.hashSkips).toBe(0);
+      expect(incr!.shaderCode).not.toBe(prev.shaderCode);
+
+      assembleSpy.mockRestore();
+    });
+
+    it('worker-slim previousResult hash-skips with incrementalHashSkip stub (no shader payload)', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const base = simpleConstGraph();
+      const prev = compiler.compile(base);
+      const slim = {
+        metadata: { executionOrder: [...prev.metadata.executionOrder] },
+        glslSectionHashes: prev.glslSectionHashes,
+      };
+      const next: NodeGraph = {
+        ...base,
+        nodes: [
+          { id: 'n-cf', type: 'constant-float', position: { x: 0, y: 0 }, parameters: { value: 0.1 } },
+          base.nodes[1]!,
+        ],
+      };
+      resetGlslIncrementalEmitStats();
+      const incr = compiler.compileIncremental(next, slim, new Set(['n-cf']));
+      expect(incr?.incrementalHashSkip).toBe(true);
+      expect(incr?.shaderCode).toBe('');
+      expect(incr?.glslSectionHashes?.aggregate).toBe(prev.glslSectionHashes?.aggregate);
+      expect(glslIncrementalEmitStats.hashSkips).toBe(1);
+    });
+  });
+
+  describe('compileIncremental WebGPU hash-skip (04B)', () => {
+    function simpleWgslGraph(): NodeGraph {
+      return {
+        id: 'g-wgpu-hash-skip',
+        name: 'g',
+        version: '2.0',
+        nodes: [
+          {
+            id: 'n-const',
+            type: 'constant-vec3',
+            position: { x: 0, y: 0 },
+            parameters: { x: 0.1, y: 0.2, z: 0.3 },
+          },
+          { id: 'n-out', type: 'final-output', position: { x: 100, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          {
+            id: 'c1',
+            sourceNodeId: 'n-const',
+            sourcePort: 'out',
+            targetNodeId: 'n-out',
+            targetPort: 'in',
+          },
+        ],
+      };
+    }
+
+    function blurPassPlanGraph(blurAmount = 0.5): NodeGraph {
+      return {
+        id: 'g-wgpu-blur-hash',
+        name: 'g',
+        version: '2.0',
+        nodes: [
+          {
+            id: 'n-const',
+            type: 'constant-vec4',
+            position: { x: 0, y: 0 },
+            parameters: { x: 0.5, y: 0.5, z: 0.5, w: 1.0 },
+          },
+          {
+            id: 'n-blur',
+            type: 'blur',
+            position: { x: 50, y: 0 },
+            parameters: { blurAmount, blurRadius: 4.0 },
+          },
+          { id: 'n-out', type: 'final-output', position: { x: 100, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          {
+            id: 'c1',
+            sourceNodeId: 'n-const',
+            sourcePort: 'out',
+            targetNodeId: 'n-blur',
+            targetPort: 'in',
+          },
+          {
+            id: 'c2',
+            sourceNodeId: 'n-blur',
+            sourcePort: 'out',
+            targetNodeId: 'n-out',
+            targetPort: 'in',
+          },
+        ],
+      };
+    }
+
+    it('param-only uniform change hash-skips without compileWgslMvp', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const base = simpleWgslGraph();
+      const prev = compiler.compile(base, null, { backend: 'webgpu' });
+      expect(prev.supported).toBe(true);
+      expect(prev.wgslSectionHashes?.aggregate).toBeTruthy();
+
+      resetWgslIncrementalEmitStats();
+
+      const next: NodeGraph = {
+        ...base,
+        nodes: [
+          {
+            id: 'n-const',
+            type: 'constant-vec3',
+            position: { x: 0, y: 0 },
+            parameters: { x: 0.9, y: 0.2, z: 0.3 },
+          },
+          base.nodes[1]!,
+        ],
+      };
+      const incr = compiler.compileIncremental(next, prev, new Set(['n-const']), null, {
+        backend: 'webgpu',
+      });
+
+      expect(incr).not.toBeNull();
+      expect(incr!.incrementalHashSkip).toBe(true);
+      expect(incr!.backend).toBe('webgpu');
+      expect(incr!.code).toBe(prev.code);
+      expect(incr!.wgslSectionHashes?.aggregate).toBe(prev.wgslSectionHashes?.aggregate);
+      // Honest skip: full-emit counter stays 0 (compileWgslMvp only runs on full path).
+      expect(wgslIncrementalEmitStats.hashSkips).toBe(1);
+      expect(wgslIncrementalEmitStats.fullEmits).toBe(0);
+    });
+
+    it('connection change does not hash-skip (full WGSL emit)', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const base: NodeGraph = {
+        id: 'g-wgpu-conn',
+        name: 'g',
+        version: '2.0',
+        nodes: [
+          {
+            id: 'n-a',
+            type: 'constant-vec3',
+            position: { x: 0, y: 0 },
+            parameters: { x: 0.1, y: 0.2, z: 0.3 },
+          },
+          {
+            id: 'n-b',
+            type: 'constant-vec3',
+            position: { x: 50, y: 0 },
+            parameters: { x: 0.9, y: 0.8, z: 0.7 },
+          },
+          { id: 'n-out', type: 'final-output', position: { x: 100, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          {
+            id: 'c1',
+            sourceNodeId: 'n-a',
+            sourcePort: 'out',
+            targetNodeId: 'n-out',
+            targetPort: 'in',
+          },
+        ],
+      };
+      const prev = compiler.compile(base, null, { backend: 'webgpu' });
+      expect(prev.supported).toBe(true);
+
+      resetWgslIncrementalEmitStats();
+
+      const swapped: NodeGraph = {
+        ...base,
+        connections: [
+          {
+            id: 'c1',
+            sourceNodeId: 'n-b',
+            sourcePort: 'out',
+            targetNodeId: 'n-out',
+            targetPort: 'in',
+          },
+        ],
+      };
+      const incr = compiler.compileIncremental(
+        swapped,
+        prev,
+        new Set(['n-a', 'n-b', 'n-out']),
+        null,
+        { backend: 'webgpu' }
+      );
+
+      expect(incr?.incrementalHashSkip).toBeFalsy();
+      expect(wgslIncrementalEmitStats.hashSkips).toBe(0);
+      if (incr != null) {
+        expect(wgslIncrementalEmitStats.fullEmits).toBe(1);
+        expect(incr.code).not.toBe(prev.code);
+        expect(incr.supported).toBe(true);
+        expect(incr.wgslSectionHashes?.aggregate).toBeTruthy();
+      }
+    });
+
+    it('pass-plan uniform-only change hash-skips', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const base = blurPassPlanGraph(0.5);
+      const prev = compiler.compile(base, null, { backend: 'webgpu' });
+      expect(prev.supported).toBe(true);
+      expect(prev.webgpuPassPlan?.kind).toBe('pass.blur.gaussian-separable.v1');
+      expect(prev.wgslSectionHashes?.passPlan).toBeTruthy();
+
+      resetWgslIncrementalEmitStats();
+
+      const next = blurPassPlanGraph(0.9);
+      const incr = compiler.compileIncremental(next, prev, new Set(['n-blur']), null, {
+        backend: 'webgpu',
+      });
+
+      expect(incr?.incrementalHashSkip).toBe(true);
+      expect(wgslIncrementalEmitStats.hashSkips).toBe(1);
+      expect(wgslIncrementalEmitStats.fullEmits).toBe(0);
+      expect(incr!.webgpuPassPlan?.kind).toBe('pass.blur.gaussian-separable.v1');
+    });
+
+    it('unsupported WebGPU graphs still fail clearly (supported=false)', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      // gradient → generic-raymarcher.sdf is a known WebGPU MVP allowlist miss.
+      const unsupported: NodeGraph = {
+        id: 'g-wgpu-unsup',
+        name: 'g',
+        version: '2.0',
+        nodes: [
+          { id: 'n-uv', type: 'uv-coordinates', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-ray', type: 'generic-raymarcher', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-bad-sdf', type: 'gradient', position: { x: 0, y: 0 }, parameters: {} },
+          { id: 'n-out', type: 'final-output', position: { x: 0, y: 0 }, parameters: {} },
+        ],
+        connections: [
+          { id: 'c1', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-ray', targetPort: 'in' },
+          { id: 'c0', sourceNodeId: 'n-uv', sourcePort: 'out', targetNodeId: 'n-bad-sdf', targetPort: 'in' },
+          {
+            id: 'c2',
+            sourceNodeId: 'n-bad-sdf',
+            sourcePort: 'out',
+            targetNodeId: 'n-ray',
+            targetPort: 'sdf',
+          },
+          {
+            id: 'c4',
+            sourceNodeId: 'n-ray',
+            sourcePort: 'out',
+            targetNodeId: 'n-out',
+            targetPort: 'in',
+          },
+        ],
+      };
+      const bad = compiler.compile(unsupported, null, { backend: 'webgpu' });
+      expect(bad.backend).toBe('webgpu');
+      expect(bad.supported).toBe(false);
+      expect((bad.unsupportedReasons ?? []).join('\n')).toMatch(/generic-raymarcher \(WebGPU MVP\)/);
+    });
+
+    it('worker-slim previousResult hash-skips with stub (no WGSL payload)', () => {
+      const nodeSpecsMap = buildNodeSpecsMap();
+      const compiler = new NodeShaderCompiler(nodeSpecsMap);
+      const base = simpleWgslGraph();
+      const prev = compiler.compile(base, null, { backend: 'webgpu' });
+      const slim = {
+        metadata: { executionOrder: [...prev.metadata.executionOrder] },
+        wgslSectionHashes: prev.wgslSectionHashes,
+      };
+      const next: NodeGraph = {
+        ...base,
+        nodes: [
+          {
+            id: 'n-const',
+            type: 'constant-vec3',
+            position: { x: 0, y: 0 },
+            parameters: { x: 0.5, y: 0.2, z: 0.3 },
+          },
+          base.nodes[1]!,
+        ],
+      };
+      resetWgslIncrementalEmitStats();
+      const incr = compiler.compileIncremental(next, slim, new Set(['n-const']), null, {
+        backend: 'webgpu',
+      });
+      expect(incr?.incrementalHashSkip).toBe(true);
+      expect(incr?.code).toBe('');
+      expect(incr?.wgslSectionHashes?.aggregate).toBe(prev.wgslSectionHashes?.aggregate);
+      expect(wgslIncrementalEmitStats.hashSkips).toBe(1);
     });
   });
 

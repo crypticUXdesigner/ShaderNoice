@@ -1,6 +1,7 @@
 /**
- * WebGPU MVP bounds for `generic-raymarcher` — shared with wire-time validation
- * (`src/data-model/webGpuExclusiveConnectionValidation.ts`) and `WgslMvpCompiler`.
+ * WebGPU MVP bounds for `generic-raymarcher` — owned by platform-validation so
+ * data-model wire rules and `WgslMvpCompiler` share one allowlist without
+ * data-model importing `src/shaders/compilation/*`.
  */
 
 /** Bounded generic-raymarcher pilot: sdf port allow-list (parity with WGSL helpers + marching loop). */

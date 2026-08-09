@@ -1,6 +1,6 @@
 /**
- * Editor preview runtime bootstrap: URL flags (`?renderBackend=…`, `?webgpuPreviewDependencyClock=…`)
- * and `createRuntimeManager` wiring (no Svelte).
+ * Editor preview runtime bootstrap: URL flags (`?renderBackend=…`, `?webgpuPreviewDependencyClock=…`,
+ * `?project=`, `?previewOverlay=`), preview compile UI sink, and `createRuntimeManager` wiring (no Svelte).
  */
 
 import type { NodeShaderCompiler } from '../../shaders/NodeShaderCompiler';
@@ -16,6 +16,11 @@ import type { RuntimeManager } from '../../runtime/RuntimeManager';
 import { WaveformService } from '../../runtime';
 import type { AudioSetup } from '../../data-model/audioSetupTypes';
 import { getPrimaryFileId } from '../../data-model/audioSetupTypes';
+import {
+  beginPreviewCompileProgressToast,
+  clearPreviewCompileProgressToast,
+  previewCompileFailedKeptLastGood,
+} from '../stores/previewCompileStatusStore';
 
 /**
  * `?renderBackend=auto|webgpu|webgl` — drives preview and export rasterization together.
@@ -31,6 +36,51 @@ export function parseUrlRenderBackendOverride(): RenderBackendMode | undefined {
   } catch {
     return undefined;
   }
+}
+
+/** `?project=` deep-link id (hub highlight / open-once). */
+export function parseUrlProjectId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const id = new URLSearchParams(window.location.search).get('project')?.trim();
+    return id || null;
+  } catch {
+    return null;
+  }
+}
+
+/** `?previewOverlay=1|true|yes` enables the preview scheduler debug overlay. */
+export function parseUrlPreviewOverlayEnabled(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const raw = new URLSearchParams(window.location.search).get('previewOverlay')?.trim().toLowerCase();
+    return raw === '1' || raw === 'true' || raw === 'yes';
+  } catch {
+    return false;
+  }
+}
+
+/** Remove `project` from the address bar after a deep link is consumed (or rejected). */
+export function stripProjectQueryFromUrl(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const u = new URL(window.location.href);
+    if (!u.searchParams.has('project')) return;
+    u.searchParams.delete('project');
+    const qs = u.searchParams.toString();
+    history.replaceState(null, '', `${u.pathname}${qs ? `?${qs}` : ''}${u.hash}`);
+  } catch {
+    // ignore
+  }
+}
+
+/** App toast sink for preview compile lifecycle (injected into RuntimeManager). */
+export function createEditorPreviewCompileUiSink(): PreviewCompileUiSink {
+  return {
+    beginPreviewCompileProgressToast,
+    clearPreviewCompileProgressToast,
+    previewCompileFailedKeptLastGood,
+  };
 }
 
 function buildPreviewRuntimeInitOptions(previewCompileUiSink: PreviewCompileUiSink): {

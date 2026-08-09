@@ -1,17 +1,16 @@
 /**
- * Single-frame image export orchestrator.
+ * Single-frame image export orchestrator (pure API — no Svelte).
  *
  * Dialog preview and final still use the same exclusive raster API as the live session
  * (`exportRasterBackend`): WebGL2 via `ExportRenderPath`, or WebGPU via `renderWebGpuExportRgba8`.
+ * Lib mounts `ImageExportDialog` and calls `runImageExport` with the resolved config.
  */
 
-import { mount, unmount } from 'svelte';
 import type { NodeGraph } from '../data-model/types';
 import type { AudioSetup } from '../data-model/audioSetupTypes';
 import type { ShaderCompiler } from '../runtime/types';
 import { createExportRenderPath } from '../video-export/ExportRenderPath';
 import { buildExportFrameState } from '../video-export/buildExportFrameState';
-import ImageExportDialog from '../lib/components/export/ImageExportDialog.svelte';
 import type { ImageExportConfirmPayload } from './types';
 import { renderWebGpuExportRgba8 } from './WebGpuExportRenderPath';
 import type { ExportRasterBackend } from '../runtime/renderBackends/renderBackendTypes';
@@ -20,12 +19,14 @@ import { formatWebGpuRasterExportUserMessage } from '../export/webGpuRasterExpor
 /** Same exclusive raster choice as live preview (`RuntimeManager.getExportRasterBackend`). */
 export type { ExportRasterBackend } from '../runtime/renderBackends/renderBackendTypes';
 
-export interface ImageExportOrchestratorOptions {
+export interface ImageExportRunOptions {
   graph: NodeGraph;
   audioSetup: AudioSetup;
   compiler: ShaderCompiler;
-  getTimelineState: () => { currentTime: number; duration?: number } | null;
   exportRasterBackend: ExportRasterBackend;
+  config: ImageExportConfirmPayload;
+  /** Playhead time when `config.mode === 'playhead'`. */
+  playheadTimeSeconds: number;
 }
 
 type DialogResult = ImageExportConfirmPayload;
@@ -39,69 +40,6 @@ export interface ImageExportPreviewRenderOptions {
 export type ImageExportPreviewRenderFn = (
   opts: ImageExportPreviewRenderOptions
 ) => Promise<HTMLCanvasElement | null>;
-
-interface ShowImageExportDialogOptions {
-  initialTimeSeconds: number;
-  durationSeconds: number;
-  renderPreviewFrame: ImageExportPreviewRenderFn;
-}
-
-function showImageExportDialog(opts: ShowImageExportDialogOptions): {
-  config: Promise<DialogResult>;
-  close: () => void;
-} {
-  const container = document.createElement('div');
-  document.body.appendChild(container);
-
-  let instance: ReturnType<typeof mount> | null = null;
-  let settled = false;
-
-  const cleanup = () => {
-    if (!container.parentNode) return;
-    if (instance) unmount(instance);
-    container.remove();
-  };
-
-  let resolveConfig!: (cfg: DialogResult) => void;
-  let rejectConfig!: (err: Error) => void;
-  const config = new Promise<DialogResult>((resolve, reject) => {
-    resolveConfig = resolve;
-    rejectConfig = reject;
-  });
-
-  const handleClose = () => {
-    if (settled) return;
-    settled = true;
-    cleanup();
-    rejectConfig(new Error('Cancelled'));
-  };
-
-  const handleConfirm = (cfg: DialogResult) => {
-    if (settled) return;
-    settled = true;
-    cleanup();
-    resolveConfig(cfg);
-  };
-
-  instance = mount(ImageExportDialog, {
-    target: container,
-    props: {
-      visible: true,
-      initialTimeSeconds: opts.initialTimeSeconds,
-      durationSeconds: opts.durationSeconds,
-      renderPreviewFrame: opts.renderPreviewFrame,
-      onClose: handleClose,
-      onConfirm: handleConfirm,
-    },
-  });
-
-  return {
-    config,
-    close() {
-      cleanup();
-    },
-  };
-}
 
 function mimeTypeForFormat(format: DialogResult['format']): string {
   if (format === 'png') return 'image/png';
@@ -171,7 +109,7 @@ function rgba8ToCanvas(width: number, height: number, rgba8: Uint8Array): HTMLCa
  */
 const PREVIEW_MAX_DIM = 480;
 
-interface PreviewController {
+export interface ImageExportPreviewController {
   renderPreviewFrame: ImageExportPreviewRenderFn;
   dispose: () => void;
 }
@@ -182,12 +120,12 @@ interface PreviewController {
  * when the user picks a different aspect ratio in the dialog), so scrubbing time
  * is cheap and only updates the time uniform.
  */
-function createPreviewController(
+export function createImageExportPreviewController(
   graph: NodeGraph,
   compiler: ShaderCompiler,
   audioSetup: AudioSetup,
   exportRasterBackend: ExportRasterBackend
-): PreviewController {
+): ImageExportPreviewController {
   let cached: {
     width: number;
     height: number;
@@ -289,81 +227,59 @@ function createPreviewController(
 }
 
 /**
- * Run image export: dialog → render single frame → download.
- * Throws on cancellation or failure; caller is expected to surface errors via app-level handler.
+ * Render a single frame and download. Caller supplies dialog-resolved config.
+ * Throws on failure; caller is expected to surface errors via app-level handler.
  */
-export async function runImageExportFlow(options: ImageExportOrchestratorOptions): Promise<void> {
-  const timelineState = options.getTimelineState();
-  const initialTimeSeconds = Math.max(0, timelineState?.currentTime ?? 0);
-  const durationSeconds = Math.max(0, timelineState?.duration ?? 0);
+export async function runImageExport(options: ImageExportRunOptions): Promise<void> {
+  const { config } = options;
+  const timeSeconds =
+    config.mode === 'time' ? Math.max(0, config.timeSeconds) : Math.max(0, options.playheadTimeSeconds);
 
-  const previewController = createPreviewController(
-    options.graph,
-    options.compiler,
-    options.audioSetup,
-    options.exportRasterBackend
-  );
+  const frameState = buildExportFrameState({
+    graph: options.graph,
+    audioSetup: options.audioSetup,
+    frameIndex: 0,
+    frameRate: 1,
+    startTimeSeconds: timeSeconds,
+    shaderTime: timeSeconds,
+    timelineTimeOverride: timeSeconds,
+    replayStatefulDrivers: true,
+  });
+
+  if (options.exportRasterBackend === 'webgpu') {
+    const wg = await renderWebGpuExportRgba8(options.graph, options.compiler, options.audioSetup, {
+      width: config.width,
+      height: config.height,
+      timeSeconds,
+      timelineTimeSeconds: frameState.timelineTime,
+      uniformUpdates: frameState.uniformUpdates,
+    });
+    if (!wg.ok) {
+      const detail = wg.compilation?.unsupportedReasons?.join('; ') ?? wg.reason;
+      throw new Error(formatWebGpuRasterExportUserMessage(wg.reason, detail), { cause: wg.error });
+    }
+    const canvas = rgba8ToCanvas(config.width, config.height, wg.rgba8);
+    const blob = await canvasToBlob(canvas, config.format, config.quality);
+    downloadBlob(blob, defaultFilename(config.format));
+    return;
+  }
+
+  const frameRate = 1;
+  const frameIndex = 0;
+
+  const renderPath = createExportRenderPath(options.graph, options.compiler, options.audioSetup, {
+    width: config.width,
+    height: config.height,
+    frameRate,
+    startTimeSeconds: timeSeconds,
+  });
 
   try {
-    const dialog = showImageExportDialog({
-      initialTimeSeconds,
-      durationSeconds,
-      renderPreviewFrame: previewController.renderPreviewFrame,
-    });
-    const config = await dialog.config;
-
-    const timeSeconds = config.mode === 'time' ? Math.max(0, config.timeSeconds) : initialTimeSeconds;
-
-    const frameState = buildExportFrameState({
-      graph: options.graph,
-      audioSetup: options.audioSetup,
-      frameIndex: 0,
-      frameRate: 1,
-      startTimeSeconds: timeSeconds,
-      shaderTime: timeSeconds,
-      timelineTimeOverride: timeSeconds,
-      replayStatefulDrivers: true,
-    });
-
-    if (options.exportRasterBackend === 'webgpu') {
-      const wg = await renderWebGpuExportRgba8(options.graph, options.compiler, options.audioSetup, {
-        width: config.width,
-        height: config.height,
-        timeSeconds,
-        timelineTimeSeconds: frameState.timelineTime,
-        uniformUpdates: frameState.uniformUpdates,
-      });
-      if (!wg.ok) {
-        const detail = wg.compilation?.unsupportedReasons?.join('; ') ?? wg.reason;
-        throw new Error(formatWebGpuRasterExportUserMessage(wg.reason, detail), { cause: wg.error });
-      }
-      const canvas = rgba8ToCanvas(config.width, config.height, wg.rgba8);
-      const blob = await canvasToBlob(canvas, config.format, config.quality);
-      downloadBlob(blob, defaultFilename(config.format));
-    } else {
-      const frameRate = 1;
-      const frameIndex = 0;
-
-      const renderPath = createExportRenderPath(options.graph, options.compiler, options.audioSetup, {
-        width: config.width,
-        height: config.height,
-        frameRate,
-        startTimeSeconds: timeSeconds,
-      });
-
-      try {
-        const canvasLike = renderPath.renderFrame(frameIndex, frameState);
-        const canvas = canvasLike as HTMLCanvasElement;
-        const blob = await canvasToBlob(canvas, config.format, config.quality);
-        downloadBlob(blob, defaultFilename(config.format));
-      } finally {
-        renderPath.dispose();
-      }
-    }
-
-    dialog.close();
+    const canvasLike = renderPath.renderFrame(frameIndex, frameState);
+    const canvas = canvasLike as HTMLCanvasElement;
+    const blob = await canvasToBlob(canvas, config.format, config.quality);
+    downloadBlob(blob, defaultFilename(config.format));
   } finally {
-    previewController.dispose();
+    renderPath.dispose();
   }
 }
-

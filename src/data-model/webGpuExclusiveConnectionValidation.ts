@@ -3,7 +3,8 @@ import { isPortConnection } from './connectionUtils';
 import {
   GENERIC_RAYMARCHER_WEBGPU_MVP_SDF_TYPES,
   genericRaymarcherWebGpuMvpSdfAllowedListSentence,
-} from '../shaders/compilation/genericRaymarcherWebGpuMvpAllowlist';
+} from '../platform-validation';
+
 import type { ConnectionValidationContext } from './connectionValidationContext';
 import type { NodeSpecification } from './validationTypes';
 import { getDownstreamExpectedInputType, getUpstreamOutputType } from './connectionWireTypes';

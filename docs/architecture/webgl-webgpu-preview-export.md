@@ -1,6 +1,6 @@
 # WebGL vs WebGPU preview and export (exclusive session modes)
 
-**Last updated:** 2026-08-09 (arch-perf remediation closeout)
+**Last updated:** 2026-08-09 (arch-perf-followups closeout)
 
 **Shipped:** Exclusive preview/export modes and hybrid preview removal were delivered 2026-05-12 (formerly tracked under `docs/implementation/webgl-webgpu-exclusive-modes/`, consolidated here).
 
@@ -8,7 +8,17 @@
 
 - For any **preview session** or **single export job**, **at most one** live raster API runs: **WebGL2** or **WebGPU** (the CPU compiler may still emit both GLSL and WGSL).
 - **WebGPU-only preview** does not keep a parallel WebGL2 context for nominal frames. `WebGpuRenderBackend` does not extend the WebGL backend; `getGLContext()` is null on that path. See [`preview-and-recompilation.md`](./preview-and-recompilation.md) (*Reliability properties*).
-- **Export** uses the **same** raster backend as the editor session (`RuntimeManager.getExportRasterBackend` → `runImageExportFlow` / `runVideoExportFlow`). There is **no** silent WebGPU→WebGL fallback inside one export job.
+- **Export** uses the **same** raster backend as the editor session (`RuntimeManager.getExportRasterBackend` → `runImageExport` / `runVideoExport`). There is **no** silent WebGPU→WebGL fallback inside one export job.
+
+## Export API ownership (dialog inversion)
+
+| Layer | Owns |
+| --- | --- |
+| [`src/image-export/`](../../src/image-export/), [`src/video-export/`](../../src/video-export/) | Pure run APIs (`runImageExport`, `runVideoExport`, preview controllers / UI sessions). **No** Svelte `mount`/`unmount` and **no** `.svelte` imports. |
+| [`src/lib/app/`](../../src/lib/app/) | Dialog hosts (`imageExportDialogHost`, `videoExportDialogHost`) + `appExportSession` (dialog → resolved config → run). |
+| [`App.svelte`](../../src/lib/App.svelte) | User-facing handlers still call `runEditor*ExportSession` wrappers. |
+
+Product UX is unchanged; only the package boundary moved (arch-perf-followups **02**).
 
 ## Shared WebGPU pass-plan executor
 
@@ -52,7 +62,7 @@ Per export frame, non-GLSL parameter drivers are applied as **uniform updates** 
 ## Optional follow-ups (not required for exclusive modes)
 
 - **Telemetry:** frame time, memory, WebGPU block rate — add when instrumenting preview/runtime.
-- **Validation timing / allowlist injection:** some gaps may later surface as **connection-time** or **add-node** rules in WebGPU mode; coordinate with [`WIRE-VALIDATION-DESIGN.md`](./WIRE-VALIDATION-DESIGN.md) and [`GAP-INVENTORY.md`](./GAP-INVENTORY.md). Tracked under [`arch-perf-followups`](../implementation/arch-perf-followups/_OVERVIEW.md) (**A6**).
+- **Further wire / add-node guards:** Phase 1 generic-raymarcher allowlists are owned by [`src/platform-validation/`](../../src/platform-validation/) (data-model + WGSL compilers consume it; data-model does **not** import `shaders/compilation`). Additional connection-time or add-node rules: [`WIRE-VALIDATION-DESIGN.md`](./WIRE-VALIDATION-DESIGN.md), [`GAP-INVENTORY.md`](./GAP-INVENTORY.md). App shell / export dialog / hash-skip / analysis-hop work from the 2026-08-09 review is **shipped** in [`arch-perf-followups`](../implementation/arch-perf-followups/_OVERVIEW.md) — do not re-litigate that deferred scope.
 
 ## Manual QA (spot-check after large GPU changes)
 

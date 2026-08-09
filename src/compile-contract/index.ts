@@ -262,16 +262,61 @@ export type WebGpuPassPlan =
     };
 
 /**
+ * Digests of the last successful GLSL emit (arch-perf-followups 04A).
+ * Small enough to post on incremental worker payloads; shader source is not included.
+ *
+ * `aggregate` is a codegen-input digest (uniform values omitted when they map to uniforms).
+ * Matching `aggregate` allows hash-skip without re-assembling GLSL. Per-node / section
+ * fields support future splice reuse; WebGPU uses {@link WgslSectionHashes} (04B).
+ */
+export type GlslSectionHashes = {
+  /** Codegen-input digest for the full compile slice (bypass-aware order + connections). */
+  aggregate: string;
+  /** Hash of final assembled GLSL (present after a real emit; omitted on hash-skip stubs). */
+  shaderContent?: string;
+  /** Sorted uniform-name layout fingerprint. */
+  uniformsLayout?: string;
+  /** Sorted paramLayout key fingerprint. */
+  paramLayout?: string;
+  /** Per-node main-body digests (node id → hash). Optional seam for section reuse. */
+  nodeBodies?: Record<string, string>;
+};
+
+/**
+ * Digests of the last successful WGSL / WebGPU emit (arch-perf-followups 04B).
+ * Posted on slim worker incremental payloads; does not include WGSL source or pass-plan blobs.
+ *
+ * `aggregate` covers codegen inputs plus pass-plan topology. Matching allows hash-skip
+ * without calling `compileWgslMvp` / re-emitting pass plans.
+ */
+export type WgslSectionHashes = {
+  /** Codegen-input digest (uniform values → `@u`) + pass-plan topology fingerprint. */
+  aggregate: string;
+  /** Hash of emitted WGSL main / upstream `code` (after a real emit). */
+  shaderContent?: string;
+  /** Sorted uniform-name layout fingerprint. */
+  uniformsLayout?: string;
+  /** Sorted paramLayout key fingerprint. */
+  paramLayout?: string;
+  /** Pass-plan descriptor digest (`kind|nodeId|slots`, no `inputWgsl`). */
+  passPlan?: string;
+};
+
+/**
  * Subset of {@link CompilationResult} that `NodeShaderCompiler.compileIncremental` reads.
  * Worker compile posts must clone only these fields (not code / uniforms / pass plans).
  *
  * Retained today:
- * - `metadata.executionOrder` — order-safety / subsequence guards for incremental WebGL emits
+ * - `metadata.executionOrder` — order-safety / subsequence guards for incremental emits
+ * - `glslSectionHashes` — WebGL hash-skip without shipping shader source (04A)
+ * - `wgslSectionHashes` — WebGPU hash-skip without shipping WGSL / pass plans (04B)
  */
 export type IncrementalPreviousResult = {
   metadata: {
     executionOrder: string[];
   };
+  glslSectionHashes?: GlslSectionHashes;
+  wgslSectionHashes?: WgslSectionHashes;
 };
 
 /**
@@ -328,4 +373,20 @@ export interface CompilationResult {
    * instead of the single fullscreen fragment program in `code`.
    */
   webgpuPassPlan?: WebGpuPassPlan;
+
+  /**
+   * Digests from the last real GLSL emit. Used for incremental hash-skip and worker slim payloads.
+   */
+  glslSectionHashes?: GlslSectionHashes;
+
+  /**
+   * Digests from the last real WGSL / WebGPU emit (04B). Used for incremental hash-skip.
+   */
+  wgslSectionHashes?: WgslSectionHashes;
+
+  /**
+   * When true, this result means “reuse last-good program” — do not link/apply `code`/`shaderCode`.
+   * Set by GLSL (04A) and WebGPU (04B) `compileIncremental` hash-skip.
+   */
+  incrementalHashSkip?: boolean;
 }

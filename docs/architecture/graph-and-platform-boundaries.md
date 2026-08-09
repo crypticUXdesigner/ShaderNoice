@@ -1,6 +1,6 @@
 # Graph, stores, and platform boundaries
 
-**Last updated:** 2026-08-09 (arch-perf remediation closeout)
+**Last updated:** 2026-08-09 (arch-perf-followups closeout)
 
 The **node graph** (nodes, connections, view state, automation metadata) is owned by the **data model** and exposed through a **Svelte 5 module store**. **Runtime and compilation read the graph**; they do not mutate it in place. This page is the canonical description of that boundary and of related seams (types, serialization, connections, change detection, runtime-only parameters).
 
@@ -10,6 +10,7 @@ The **node graph** (nodes, connections, view state, automation metadata) is owne
 - **Updates** — Pure updaters in [`src/data-model/immutableUpdates.ts`](../../src/data-model/immutableUpdates.ts) (`updateNodeParameter`, `addNode`, `removeConnection`, …) return a **new** graph reference.
 - **Store** — [`src/lib/stores/graphStore.svelte.ts`](../../src/lib/stores/graphStore.svelte.ts) holds `$state` for the graph and audio setup; actions call immutable updaters then assign `graph = …`.
 - **Compile IR** — Pass-plan / uniform / preview-mask types live in [`src/compile-contract/`](../../src/compile-contract/) (neutral module shared by `shaders` emit and `runtime` consume). Do **not** import those IR types from `runtime/types`.
+- **WebGPU capability allowlists** — Wire-time / compile MVP allowlists (e.g. generic-raymarcher SDF types) live in [`src/platform-validation/`](../../src/platform-validation/). Data-model validation and WGSL compilers both import that module; data-model must not import `src/shaders/compilation/*` for policy data.
 
 [`src/utils/changeDetection/GraphChangeDetector.ts`](../../src/utils/changeDetection/GraphChangeDetector.ts) assumes **reference equality means no change** (`oldGraph === newGraph`). Any in-place mutation of an object still held by the store would break change detection and incremental compilation.
 
@@ -54,6 +55,7 @@ Supported save/load uses [`src/data-model/serialization.ts`](../../src/data-mode
 | --- | --- |
 | **`src/data-model/`** | Graph types, immutable updates, validation, serialization, connection keys; audio **virtual node** ids ([`virtualNodes.ts`](../../src/data-model/virtualNodes.ts)) |
 | **`src/compile-contract/`** | Neutral compile IR / pass-plan / preview-mask types (no runtime or shader imports) |
+| **`src/platform-validation/`** | Neutral WebGPU / platform capability allowlists shared by data-model wire validation and compilers (no shader emit imports) |
 | **`src/runtime/`** or **`src/shaders/`** | Preview loop, compile scheduling, GLSL/WGSL emission, GPU backends |
 | **`src/lib/`** / **`src/ui/`** | Svelte UI components vs canvas engine / interactions |
 | **`src/image-export/`**, **`src/video-export/`**, **`src/export/`** | Export orchestration and raster-API user messaging |
@@ -84,7 +86,7 @@ Two layers both use graph diffing, for different jobs:
 1. **`RuntimeManager`** — Skips heavy work for layout-only changes (`isOnlyPositionChange`), decides cleanup and **immediate** vs debounced recompile for structure changes, and treats some automation edits as not requiring shader recompile.
 2. **`CompilationManager.recompile`** — Uses `detectGraphChanges` for **full vs incremental** compile and to maintain metadata for the next comparison.
 
-Incremental compile is used when connections are unchanged, a previous result exists, and the set of affected nodes is small enough; connection changes force a full compile path.
+Incremental compile is used when connections are unchanged, a previous result exists, and the set of affected nodes is small enough; connection changes force a full compile path. When eligible, both GLSL and WebGPU paths may **hash-skip** unchanged codegen (reuse last-good / skip emit) — see [`preview-and-recompilation.md`](./preview-and-recompilation.md) (*Incremental / hash-skip*). Do not assume incremental always full-emits.
 
 ### Who calls what (change detection)
 

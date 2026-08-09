@@ -118,6 +118,54 @@ describe('slimPreviousResultForWorker / cloneableCompilePayload', () => {
     expect(cloned.previousResult?.metadata).not.toHaveProperty('previewDependencies');
   });
 
+  it('retains glslSectionHashes on slim incremental previousResult (hash-skip seam)', () => {
+    const fat = fatCompilationResultWithAudioRemapSlot();
+    fat.glslSectionHashes = {
+      aggregate: 'agg-1',
+      shaderContent: 'sc-1',
+      uniformsLayout: 'ul-1',
+      paramLayout: 'pl-1',
+      nodeBodies: { 'n-a': 'nb-a' },
+    };
+    const slim = slimPreviousResultForWorker(fat, true);
+    expect(slim).toEqual({
+      metadata: { executionOrder: ['n-a', 'n-out'] },
+      glslSectionHashes: {
+        aggregate: 'agg-1',
+        shaderContent: 'sc-1',
+        uniformsLayout: 'ul-1',
+        paramLayout: 'pl-1',
+        nodeBodies: { 'n-a': 'nb-a' },
+      },
+    });
+    expect(slim).not.toHaveProperty('shaderCode');
+  });
+
+  it('retains wgslSectionHashes on slim incremental previousResult (04B hash-skip seam)', () => {
+    const fat = fatCompilationResultWithAudioRemapSlot();
+    fat.backend = 'webgpu';
+    fat.wgslSectionHashes = {
+      aggregate: 'w-agg-1',
+      shaderContent: 'w-sc-1',
+      uniformsLayout: 'w-ul-1',
+      paramLayout: 'w-pl-1',
+      passPlan: 'w-pp-1',
+    };
+    const slim = slimPreviousResultForWorker(fat, true);
+    expect(slim).toEqual({
+      metadata: { executionOrder: ['n-a', 'n-out'] },
+      wgslSectionHashes: {
+        aggregate: 'w-agg-1',
+        shaderContent: 'w-sc-1',
+        uniformsLayout: 'w-ul-1',
+        paramLayout: 'w-pl-1',
+        passPlan: 'w-pp-1',
+      },
+    });
+    expect(slim).not.toHaveProperty('webgpuPassPlan');
+    expect(slim).not.toHaveProperty('code');
+  });
+
   it('cloneableCompilePayload keeps tryIncremental false with null previousResult (full compile channel)', () => {
     const payload: WorkerCompilePayload = {
       type: 'compile',

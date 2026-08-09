@@ -1,6 +1,6 @@
 # Preview, recompilation, and graph updates
 
-**Last updated:** 2026-08-09 (arch-perf remediation; WebGPU preview clock policy A)
+**Last updated:** 2026-08-09 (arch-perf-followups closeout — incremental hash-skip)
 
 This document describes **how graph and structure changes reach the runtime**, how **`CompilationManager`** schedules full compiles vs fast paths, and how **`PreviewScheduler`** records signals for debugging and telemetry. For the parameter-specific path, see [`parameters-pipeline.md`](./parameters-pipeline.md). For worker offload of GLSL generation, see [`compilation-worker.md`](./compilation-worker.md).
 
@@ -25,6 +25,17 @@ With immutable updates, the reference passed into `setGraph` is always the lates
 
 1. **`RuntimeManager`** — Decides whether to skip work (`isOnlyPositionChange`), what cleanup to run, and whether to ask for an **immediate** recompile path (`onGraphStructureChange(true)`) vs a debounced one (`false`). Treats some automation edits as not requiring shader recompile.
 2. **`CompilationManager.recompile`** — Uses `detectGraphChanges(this.graph)` for **full vs incremental** compilation and to update cached metadata for the next run.
+
+### Incremental / hash-skip (honest semantics)
+
+When connections are unchanged and an affected-node set is eligible, `NodeShaderCompiler.compileIncremental` may **hash-skip** instead of always full-emitting:
+
+| Backend | Digest / hashes | Skip behavior |
+| --- | --- | --- |
+| **WebGL (GLSL)** | `glslSectionHashes` (`GlslSectionHashes.aggregate` over codegen-input digest; uniform-backed params → `@u`) | Matching aggregate sets `incrementalHashSkip`; skips function collect / `assembleShader`. `CompilationManager.applyIncrementalHashSkip` keeps the last-good program. |
+| **WebGPU (WGSL)** | `wgslSectionHashes` (`WgslSectionHashes.aggregate` = GLSL digest + pass-plan topology fingerprint) | Matching aggregate skips `compileWgslMvp` (`wgslIncrementalEmitStats`). Pass-plan descriptor hash stored without `inputWgsl`. |
+
+Hash miss or guard fail → full emit. Unsupported WebGPU graphs still return `supported: false`. Helpers: `src/shaders/compilation/glslSectionHashes.ts`, `wgslSectionHashes.ts`. Worker slim `previousResult` may carry these hashes; see [`compilation-worker.md`](./compilation-worker.md). Do **not** describe this path as “always full re-emit.”
 
 ### Per-node Power (`NodeInstance.bypassed`)
 

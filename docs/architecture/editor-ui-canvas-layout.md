@@ -1,6 +1,6 @@
 # Editor UI and canvas layout
 
-**Last updated:** 2026-05
+**Last updated:** 2026-08-09 (arch-perf-followups closeout)
 
 ShaderNoice splits **what the user sees (Svelte)** from **the 2D node canvas engine (plain TypeScript)**. This page describes **where code lives today** and the **import bridge** between layers. It is not a product spec; shell and panel behavior are covered in [`docs/user-goals/`](../user-goals/README.md).
 
@@ -13,6 +13,21 @@ ShaderNoice splits **what the user sees (Svelte)** from **the 2D node canvas eng
 | **Interactions** | [`src/ui/interactions/`](../../src/ui/interactions/) | Pan, zoom, drag, connection gestures — used with the canvas |
 
 **Principle:** Svelte owns DOM for chrome and node **parameter** UI; the canvas uses a **`HTMLCanvasElement`** and imperative drawing. [`CanvasOverlayBridge.ts`](../../src/lib/CanvasOverlayBridge.ts) coordinates overlay positions between lib and the canvas.
+
+## App shell modules (`src/lib/app`)
+
+[`App.svelte`](../../src/lib/App.svelte) stays a thin orchestrator. Feature wiring that is not a Svelte component lives under [`src/lib/app/`](../../src/lib/app/):
+
+| Module | Role |
+| --- | --- |
+| `graphHistory.ts` | Undo/redo snapshot wiring |
+| `audiotoolEditorWiring.ts` | Audiotool account / hub session callbacks |
+| `hubGraphPrepare.ts` | Hub graph load/prepare helpers |
+| `editorRuntimeBootstrap.ts` | Runtime create, preview compile UI sink, URL render-backend helpers |
+| `appExportSession.ts` | Editor export entry → dialog host → pure export run |
+| `imageExportDialogHost.ts` / `videoExportDialogHost.ts` | Mount/unmount export dialogs in lib (not in `image-export` / `video-export`) |
+
+Still owned by `App.svelte` (not extracted): hub/autosave chrome, overlays, arrangement import, canvas↔runtime `$effect`s. Prefer adding new shell wiring as `lib/app/*` modules rather than growing `App.svelte` further. Shipped in [`arch-perf-followups`](../implementation/arch-perf-followups/_OVERVIEW.md) **01** / **02**.
 
 ## Current feature-oriented layout (lib)
 

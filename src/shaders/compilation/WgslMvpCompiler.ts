@@ -29,7 +29,8 @@ import { getParameterDefaultValue as getParameterDefaultValueHelper, isAudioNode
 import {
   GENERIC_RAYMARCHER_WEBGPU_MVP_SDF_TYPES,
   genericRaymarcherWebGpuMvpSdfAllowedListSentence,
-} from './genericRaymarcherWebGpuMvpAllowlist';
+} from '../../platform-validation';
+
 import { buildRemapperTargetOutExpression } from '../../utils/driverRemap';
 import { getSignalIdFromVirtualNodeId, VIRTUAL_NODE_PREFIX } from '../../utils/virtualNodes';
 import { resolveParameterInputMode } from '../../utils/resolveParameterInputMode';
@@ -245,13 +246,9 @@ export const WGSL_SUPPORTED_NODE_TYPES = new Set([
  * precedence when topology is `… → bokeh → final-output` / `… → blur → final-output`.
  *
  * Grow this set only alongside a matching compiler branch + runtime/export handlers.
+ * SSOT lives in {@link ./wgslPassPlanNodeTypes.ts} (hash-skip fingerprints import the same Set).
  */
-export const WGSL_WEBGPU_PASS_PLAN_NODE_TYPES = new Set<string>([
-  'blur',
-  'glow-bloom',
-  'bokeh',
-  'crepuscular-rays',
-]);
+export { WGSL_WEBGPU_PASS_PLAN_NODE_TYPES } from './wgslPassPlanNodeTypes';
 
 /**
  * Pass-plan effect params are grafted onto `paramLayout` after the upstream subgraph compile,

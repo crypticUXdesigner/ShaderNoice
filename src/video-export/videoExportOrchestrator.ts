@@ -1,12 +1,10 @@
 /**
- * Video Export Orchestrator & UI
+ * Video export orchestrator (pure API — no Svelte).
  *
- * Dialog for resolution, duration, full-audio option, bitrate; progress + cancel;
- * offline loop using OfflineAudioProvider (01), ExportRenderPath (02B), WebCodecsVideoExporter (02A);
- * file save.
+ * Offline loop using OfflineAudioProvider, ExportRenderPath / WebGPU path, WebCodecsVideoExporter.
+ * Lib mounts `VideoExportDialog`, resolves config, and drives progress/cancel via `VideoExportUiSession`.
  */
 
-import { mount, unmount } from 'svelte';
 import type { NodeGraph } from '../data-model/types';
 import type { AudioSetup } from '../data-model/audioSetupTypes';
 import { getPrimaryFileId } from '../data-model/audioSetupTypes';
@@ -23,20 +21,8 @@ import {
   MAX_EXPORT_HEIGHT,
   formatExportLimitError,
 } from './exportLimits';
-import { writable } from 'svelte/store';
-import VideoExportDialog from '../lib/components/export/VideoExportDialog.svelte';
 import type { ExportRasterBackend } from '../runtime/renderBackends/renderBackendTypes';
 import { formatWebGpuRasterExportUserMessage } from '../export/webGpuRasterExportUserMessage';
-
-export interface VideoExportOrchestratorOptions {
-  graph: NodeGraph;
-  audioSetup: AudioSetup;
-  compiler: ShaderCompiler;
-  /** Returns the primary file (from audioSetup) with loaded buffer, or null. */
-  getPrimaryAudio: () => { nodeId: string; buffer: AudioBuffer } | null;
-  /** Same exclusive raster choice as live preview (`RuntimeManager.getExportRasterBackend`). */
-  exportRasterBackend: ExportRasterBackend;
-}
 
 export interface VideoExportDialogConfig {
   width: number;
@@ -82,94 +68,23 @@ export type VideoExportResolvedConfig = VideoExportDialogConfig & {
   audioDurationSeconds?: number;
 };
 
-/**
- * Show modal dialog to collect export config. Resolves with config on Confirm, rejects on Cancel.
- * After confirm, the dialog stays open and swaps to progress view.
- */
-function showExportDialog(options: VideoExportOrchestratorOptions): {
-  config: Promise<VideoExportResolvedConfig>;
+/** Progress / cancel surface owned by lib while the dialog stays open after confirm. */
+export interface VideoExportUiSession {
   setProgress: (current: number, total: number) => void;
   setDestinationReady: (ready: boolean) => void;
-  requestCancel: () => void;
-  close: () => void;
+  /** Resolves when the user requests cancel during encode. */
   cancelled: Promise<void>;
-} {
-  const progressStore = writable({ current: 0, total: 0 });
-  const destinationReadyStore = writable(false);
-  const container = document.createElement('div');
-  document.body.appendChild(container);
+  close: () => void;
+}
 
-  let instance: ReturnType<typeof mount> | null = null;
-  let settled = false;
-
-  let resolveCancelled: () => void;
-  const cancelled = new Promise<void>((r) => {
-    resolveCancelled = r;
-  });
-  let cancelRequested = false;
-
-  const cleanup = () => {
-    if (!container.parentNode) return;
-    if (instance) unmount(instance);
-    container.remove();
-  };
-
-  let resolveConfig!: (config: VideoExportResolvedConfig) => void;
-  let rejectConfig!: (err: Error) => void;
-  const config = new Promise<VideoExportResolvedConfig>((resolve, reject) => {
-    resolveConfig = resolve;
-    rejectConfig = reject;
-  });
-
-  const handleClose = () => {
-    if (settled) return;
-    settled = true;
-    cleanup();
-    rejectConfig(new Error('Cancelled'));
-  };
-
-  const handleConfirm = (cfg: VideoExportResolvedConfig) => {
-    if (settled) return;
-    settled = true;
-    // Important: do NOT cleanup here. The dialog stays open and switches to progress step.
-    resolveConfig(cfg);
-  };
-
-  const handleCancelExport = () => {
-    if (cancelRequested) return;
-    cancelRequested = true;
-    resolveCancelled();
-  };
-
-  instance = mount(VideoExportDialog, {
-    target: container,
-    props: {
-      visible: true,
-      getPrimaryAudio: options.getPrimaryAudio,
-      onClose: handleClose,
-      onConfirm: handleConfirm,
-      progress: progressStore,
-      destinationReady: destinationReadyStore,
-      onCancelExport: handleCancelExport,
-    },
-  });
-
-  return {
-    config,
-    setProgress(current: number, total: number) {
-      progressStore.set({ current, total });
-    },
-    setDestinationReady(ready: boolean) {
-      destinationReadyStore.set(ready);
-    },
-    requestCancel() {
-      handleCancelExport();
-    },
-    close() {
-      cleanup();
-    },
-    cancelled,
-  };
+export interface VideoExportRunOptions {
+  graph: NodeGraph;
+  audioSetup: AudioSetup;
+  compiler: ShaderCompiler;
+  /** Same exclusive raster choice as live preview (`RuntimeManager.getExportRasterBackend`). */
+  exportRasterBackend: ExportRasterBackend;
+  config: VideoExportResolvedConfig;
+  ui: VideoExportUiSession;
 }
 
 /**
@@ -239,17 +154,15 @@ function createFileSystemWritableStream(
 }
 
 /**
- * Run the full video export flow: dialog → progress → offline loop → save.
+ * Run video export with a dialog-resolved config and lib-owned UI session.
  * Throws if WebCodecs not supported or user cancels. Audio is optional (video-only when no primary audio).
  */
-export async function runVideoExportFlow(options: VideoExportOrchestratorOptions): Promise<void> {
+export async function runVideoExport(options: VideoExportRunOptions): Promise<void> {
   if (!isSupported()) {
     throw new Error('Video export is not supported in this browser. WebCodecs (VideoEncoder/AudioEncoder) is required.');
   }
 
-  const dialog = showExportDialog(options);
-  const config = await dialog.config;
-  const { graph, audioSetup, compiler } = options;
+  const { graph, audioSetup, compiler, config, ui } = options;
   const { width, height, maxDurationSeconds, frameRate } = config;
 
   const hasAudio = config.buffer != null;
@@ -300,14 +213,14 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
   }
 
   let cancelled = false;
-  dialog.cancelled.then(() => {
+  ui.cancelled.then(() => {
     cancelled = true;
   });
 
   // Pick output file upfront so we can stream bytes and avoid 4 GiB ArrayBuffer limits.
   const filename = defaultFilename();
   const fileHandle = await pickSaveHandle(filename);
-  dialog.setDestinationReady(true);
+  ui.setDestinationReady(true);
   const fileStream = await fileHandle.createWritable();
   const writable = createFileSystemWritableStream(fileStream);
 
@@ -369,7 +282,7 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
       const shouldYield = frameIndex === 0 || frameIndex === maxFrames - 1 || frameIndex % yieldEvery === 0;
       // Avoid per-frame UI churn: update progress roughly at the same cadence we yield.
       if (shouldYield) {
-        dialog.setProgress(frameIndex + 1, maxFrames);
+        ui.setProgress(frameIndex + 1, maxFrames);
         // Important: allow the browser to paint progress updates before potentially blocking on encoding / stream backpressure.
         await new Promise<void>((r) => requestAnimationFrame(() => r()));
       }
@@ -419,7 +332,7 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
     }
 
     const data = await exporter.finalize();
-    dialog.close();
+    ui.close();
     renderPath.dispose();
     // Stream target returns null; buffer target returns bytes (kept for backwards compatibility).
     if (data) {
@@ -433,7 +346,7 @@ export async function runVideoExportFlow(options: VideoExportOrchestratorOptions
     } catch {
       // ignore
     }
-    dialog.close();
+    ui.close();
     renderPath.dispose();
     throw err;
   }

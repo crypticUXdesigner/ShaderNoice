@@ -1,12 +1,12 @@
 # Architecture documentation
 
-**Last updated:** 2026-08-09
+**Last updated:** 2026-08-09 (arch-perf-followups closeout)
 
 This folder describes **how the codebase is shaped**: ownership of the graph, control flow from UI to WebGL/WebGPU, where compilation runs (main thread vs worker), and where major subsystems live. **Product behavior** for users is specified in [`docs/user-goals/`](../user-goals/README.md). **Delivery tasks and experiments** live in [`docs/implementation/`](../implementation/README.md).
 
 ## System at a glance
 
-Solid arrows are the **primary preview path**: graph edits and parameters flow **store → App callbacks → runtime → GPU**. When no worker is configured, `CompilationManager` runs `NodeShaderCompiler` **in the same process** instead of the dashed worker leg. Preview/export use one exclusive raster API per session (`?renderBackend=auto|webgl|webgpu`). **Detail:** [parameters-pipeline](./parameters-pipeline.md), [preview-and-recompilation](./preview-and-recompilation.md), [compilation-worker](./compilation-worker.md), [editor-ui-canvas-layout](./editor-ui-canvas-layout.md), [webgl-webgpu-preview-export](./webgl-webgpu-preview-export.md).
+Solid arrows are the **primary preview path**: graph edits and parameters flow **store → App callbacks → runtime → GPU**. When no worker is configured, `CompilationManager` runs `NodeShaderCompiler` **in the same process** instead of the dashed worker leg. Preview/export use one exclusive raster API per session (`?renderBackend=auto|webgl|webgpu`). **Detail:** [parameters-pipeline](./parameters-pipeline.md), [preview-and-recompilation](./preview-and-recompilation.md), [compilation-worker](./compilation-worker.md), [editor-ui-canvas-layout](./editor-ui-canvas-layout.md) (`src/lib/app/*` shell modules), [webgl-webgpu-preview-export](./webgl-webgpu-preview-export.md).
 
 ```mermaid
 flowchart TB
@@ -53,7 +53,9 @@ flowchart TB
 | Where does GLSL compilation run (main vs worker)? | [`compilation-worker.md`](./compilation-worker.md) — `src/runtime/compilation/compilationWorker.ts` vs in-process |
 | How does audio drive connected parameters? | [`audio-reactivity.md`](./audio-reactivity.md) — compiler wiring + `TimeManager` / `AudioParameterHandler` |
 | Where is shared helper code (`src/utils`)? | [`graph-and-platform-boundaries.md`](./graph-and-platform-boundaries.md) — *Where `src/utils` fits* |
-| Where is Svelte vs canvas TypeScript? | [`editor-ui-canvas-layout.md`](./editor-ui-canvas-layout.md) — `src/lib/` vs `src/ui/` |
+| Where is Svelte vs canvas TypeScript? | [`editor-ui-canvas-layout.md`](./editor-ui-canvas-layout.md) — `src/lib/` vs `src/ui/`; App shell modules in `src/lib/app/` |
+| How does incremental compile avoid full re-emit? | [`preview-and-recompilation.md`](./preview-and-recompilation.md) — *Incremental / hash-skip*; [`compilation-worker.md`](./compilation-worker.md) |
+| Preview vs export audio analysis hop? | [`audio-reactivity.md`](./audio-reactivity.md) — *Offline analysis rates* (60 Hz preview / 120 Hz export) |
 | How do I enable the **adaptive preview (P2) DPR** dev experiment? | [`adaptive-preview-p2-toggle.md`](./adaptive-preview-p2-toggle.md) — **not** a shipped user setting; `localStorage` key `shadernoice.previewAdaptive` or `__previewSchedulerDebug.setAdaptivePreview` (see [`PRODUCTIZATION.md`](./PRODUCTIZATION.md)) |
 | **Manual QA:** adaptive × WebGL/WebGPU preview × image export | [`INTEGRATION-QA-CHECKLIST.md`](./INTEGRATION-QA-CHECKLIST.md) — sign-off matrix for releases / risky changes |
 | **WebGPU preview dependency clock** (static subset default + optional `?webgpuPreviewDependencyClock=`) | [`preview-and-recompilation.md`](./preview-and-recompilation.md) — *Optional developer URL flags*; `src/runtime/webGpuPreviewDependencyClock.ts` |
@@ -84,5 +86,5 @@ flowchart TB
 | [PARITY-PLAN.md](./PARITY-PLAN.md) | CI vs `test:webgpu-golden`, RMS thresholds, “drop WebGL” checklist. |
 | [WIRE-VALIDATION-DESIGN.md](./WIRE-VALIDATION-DESIGN.md) | Mode-aware WebGPU connection validation (Phase 1 rules, API shape, non-goals). |
 | [compilation-worker.md](./compilation-worker.md) | Optional Web Worker for `NodeShaderCompiler`; message flow; factory wiring; main-thread `applyCompilationResult`. |
-| [audio-reactivity.md](./audio-reactivity.md) | Parameter connections to audio, compiler invariants, `TimeManager` policy for audio uniform passes. |
-| [editor-ui-canvas-layout.md](./editor-ui-canvas-layout.md) | `src/lib/components/*` vs `src/ui/editor/*` and interactions; where to add UI vs canvas code. |
+| [audio-reactivity.md](./audio-reactivity.md) | Parameter connections to audio, compiler invariants, `TimeManager` policy for audio uniform passes; offline analysis hop (preview 60 Hz / export 120 Hz). |
+| [editor-ui-canvas-layout.md](./editor-ui-canvas-layout.md) | `src/lib/components/*` vs `src/ui/editor/*` and interactions; `src/lib/app/*` App shell modules; where to add UI vs canvas code. |

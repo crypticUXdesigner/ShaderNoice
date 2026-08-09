@@ -8,6 +8,7 @@ import type { AnalyzerConfig } from '../../video-export/OfflineAudioProvider';
 import { extractFrequencyBands01Into } from '../audio/extractFrequencyBands01';
 import { clampToStoredChannelBounds, remapOutputClampBounds, remapValue } from '../audio/remapValue';
 import type { AudioAnalysisCurveCache } from './AudioAnalysisCurveSampler';
+import { analysisPartialPublishEveryFrames } from './audioAnalysisRates';
 
 const TWO_PI = 2 * Math.PI;
 
@@ -38,6 +39,11 @@ export type BuildAnalysisParams = {
   remapperConfigs: Array<{ id: string; bandId: string; inMin: number; inMax: number }>;
   /** When set, invoked every N frames with progress 0..1. Return false to cancel. */
   onProgress?: (progress01: number) => boolean | void;
+  /**
+   * Progressive live builds: invoked with a prefix cache (copied values) so UI can
+   * sample analyzed time before the full clip finishes. Return false to cancel.
+   */
+  onPartialCache?: (partial: AudioAnalysisCurveCache) => boolean | void;
 };
 
 function fftInPlace(buffer: Float32Array, fftSize: number): void {
@@ -311,14 +317,37 @@ export function buildBandSmoothedSeriesSubset(
   return seriesByBandId;
 }
 
+function toSamplerChannels(
+  channels: AnalysisChannelMeta[]
+): AudioAnalysisCurveCache['channels'] {
+  return channels.map((c) => ({
+    nodeId: c.nodeId,
+    paramName: c.paramName,
+    min: c.min,
+    max: c.max,
+    defaultValue: c.defaultValue,
+  }));
+}
+
 /** Full offline analysis cache (all bands + remappers on one file). */
 export function buildFullAnalysisCache(params: BuildAnalysisParams): AudioAnalysisCurveCache {
   const { hopSeconds, frameCount } = computeAnalysisFrameCount(params);
-  const { analyzerConfigs, remapperConfigs, pcmChannels, sampleRate, startTimeSeconds, onProgress } = params;
+  const {
+    analyzerConfigs,
+    remapperConfigs,
+    pcmChannels,
+    sampleRate,
+    startTimeSeconds,
+    onProgress,
+    onPartialCache,
+    hopHz,
+  } = params;
 
   const channels = buildAnalysisChannels(analyzerConfigs, remapperConfigs);
   const channelCount = channels.length;
   const values = new Float32Array(frameCount * channelCount);
+  const samplerChannels = toSamplerChannels(channels);
+  const partialEvery = onPartialCache ? analysisPartialPublishEveryFrames(hopHz) : 0;
 
   const spectrumFftSize = 4096;
   const spectrumBinCount = spectrumFftSize / 2;
@@ -337,14 +366,8 @@ export function buildFullAnalysisCache(params: BuildAnalysisParams): AudioAnalys
         return {
           startTimeSeconds,
           hopSeconds,
-          frameCount,
-          channels: channels.map((c) => ({
-            nodeId: c.nodeId,
-            paramName: c.paramName,
-            min: c.min,
-            max: c.max,
-            defaultValue: c.defaultValue,
-          })),
+          frameCount: Math.max(2, k),
+          channels: samplerChannels,
           values,
         };
       }
@@ -437,6 +460,29 @@ export function buildFullAnalysisCache(params: BuildAnalysisParams): AudioAnalys
       v = clampToStoredChannelBounds(v, ch.min, ch.max);
       values[base + j] = v;
     }
+
+    const filled = k + 1;
+    if (onPartialCache && partialEvery > 0 && filled >= 2 && filled % partialEvery === 0 && filled < frameCount) {
+      const prefixLen = filled * channelCount;
+      const prefixValues = new Float32Array(prefixLen);
+      prefixValues.set(values.subarray(0, prefixLen));
+      const keepGoing = onPartialCache({
+        startTimeSeconds,
+        hopSeconds,
+        frameCount: filled,
+        channels: samplerChannels,
+        values: prefixValues,
+      });
+      if (keepGoing === false) {
+        return {
+          startTimeSeconds,
+          hopSeconds,
+          frameCount: filled,
+          channels: samplerChannels,
+          values,
+        };
+      }
+    }
   }
 
   if (onProgress) onProgress(1);
@@ -445,13 +491,7 @@ export function buildFullAnalysisCache(params: BuildAnalysisParams): AudioAnalys
     startTimeSeconds,
     hopSeconds,
     frameCount,
-    channels: channels.map((c) => ({
-      nodeId: c.nodeId,
-      paramName: c.paramName,
-      min: c.min,
-      max: c.max,
-      defaultValue: c.defaultValue,
-    })),
+    channels: samplerChannels,
     values,
   };
 }

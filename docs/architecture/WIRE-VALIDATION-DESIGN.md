@@ -1,8 +1,10 @@
 # Wire validation design (mode-aware, WebGPU strictness)
 
+**Last updated:** 2026-08-09 (arch-perf-followups **03** — platform-validation SSOT)
+
 **Goal:** Apply **small, high-signal** rules at **connection create** time when the editor session is on the **WebGPU** raster path, so finishers do not build graphs that compile on WebGL2 but **hard-block** on WebGPU only at preview/export.
 
-**Principles:** Immutable graph — validation is a **predicate** on `(proposed connection, graph, specs, session context)`; **no silent fixes**. Avoid importing the full compiler into the data-model; share only **small allowlists** with the WGSL MVP layer.
+**Principles:** Immutable graph — validation is a **predicate** on `(proposed connection, graph, specs, session context)`; **no silent fixes**. Avoid importing the full compiler into the data-model; share only **small allowlists** with the WGSL MVP layer via [`src/platform-validation/`](../../src/platform-validation/) (neutral policy module). Data-model must **not** import `src/shaders/compilation/*` for policy data; compilers and wire validation both consume `platform-validation`.
 
 ---
 
@@ -44,7 +46,7 @@ export interface ConnectionValidationContext {
 
 When `connectionValidation.exclusiveRasterGpu === 'webgpu'`:
 
-1. **Target `generic-raymarcher`, port `sdf`** — Reject if the source node's `type` is not in `GENERIC_RAYMARCHER_WEBGPU_MVP_SDF_TYPES` (shared module with `WgslMvpCompiler` / `validateGenericRaymarcherWebGpuMvp`).
+1. **Target `generic-raymarcher`, port `sdf`** — Reject if the source node's `type` is not in `GENERIC_RAYMARCHER_WEBGPU_MVP_SDF_TYPES` (SSOT in `src/platform-validation/`; also used by `WgslMvpCompiler` / `validateGenericRaymarcherWebGpuMvp`).
 2. **Target `generic-raymarcher`, port `displacement`** — Reject unless source is node type `displacement-3d` and `sourcePort === 'out'`.
 
 **User-facing errors:** Short, actionable (e.g. "WebGPU: connect an allowed SDF into Generic raymarcher, or switch to WebGL2 preview."). Surface via existing **toast** path when the canvas rejects a connection; patch tool uses `InsertNodeIntoConnectionResult.detail` when validation fails.
@@ -59,7 +61,7 @@ When `connectionValidation.exclusiveRasterGpu === 'webgpu'`:
 
 ## Implementation status (shipped slices)
 
-- **Phase 1** — `validateWebGpuExclusiveWireRules` in [`src/data-model/webGpuExclusiveConnectionValidation.ts`](../../src/data-model/webGpuExclusiveConnectionValidation.ts): `generic-raymarcher` **sdf** allow-list + **displacement** source; gated on `connectionValidation.exclusiveRasterGpu === 'webgpu'`; tests in [`webGpuExclusiveConnectionValidation.test.ts`](../../src/data-model/webGpuExclusiveConnectionValidation.test.ts).
+- **Phase 1** — `validateWebGpuExclusiveWireRules` in [`src/data-model/webGpuExclusiveConnectionValidation.ts`](../../src/data-model/webGpuExclusiveConnectionValidation.ts): `generic-raymarcher` **sdf** allow-list + **displacement** source; gated on `connectionValidation.exclusiveRasterGpu === 'webgpu'`; allowlist from [`src/platform-validation/`](../../src/platform-validation/); tests in [`webGpuExclusiveConnectionValidation.test.ts`](../../src/data-model/webGpuExclusiveConnectionValidation.test.ts).
 - **Phase 2 (partial)** — Same module: **bool port strictness** — if either side of a port wire is `bool`, the other end must be `bool` (WebGPU session only). Avoids WGSL surprises from bool↔numeric mixes that GLSL may accept. WebGL2 / omitted context unchanged (fail-open for mode).
 
 ---

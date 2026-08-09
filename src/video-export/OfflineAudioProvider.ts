@@ -11,6 +11,7 @@ import type { AudioSetup } from '../data-model/audioSetupTypes';
 import type { AudioBandMode } from '../data-model/audioSetupTypes';
 import { extractFrequencyBands01Into } from '../runtime/audio/extractFrequencyBands01';
 import { clampToStoredChannelBounds, remapOutputClampBounds } from '../runtime/audio/remapValue';
+import { EXPORT_ANALYSIS_HOP_SECONDS, EXPORT_ANALYSIS_RATE_HZ } from '../runtime/audio-analysis/audioAnalysisRates';
 
 // --- Types (API for 02B / 03) ---
 
@@ -166,12 +167,8 @@ const ANALYSER_MAX_DB = -30;
 // We approximate that internal smoothing stage offline so band values more closely match preview.
 const ANALYSER_SMOOTHING_TIME_CONSTANT = 0.8;
 
-// Canonical analysis timeline for export cache (Hz)
-const EXPORT_ANALYSIS_RATE_HZ = 120;
-const EXPORT_ANALYSIS_HOP_SECONDS = 1 / EXPORT_ANALYSIS_RATE_HZ;
-
-// Reference cadence for defaults and analyser smoothing math.
-const REFERENCE_FPS = 120;
+// Canonical analysis timeline for export cache (Hz) — denser than live preview hop.
+const REFERENCE_FPS = EXPORT_ANALYSIS_RATE_HZ;
 const REFERENCE_DT_SECONDS = 1 / REFERENCE_FPS;
 const DEFAULT_HALF_LIFE_SECONDS = 1 / REFERENCE_FPS;
 
@@ -432,7 +429,7 @@ export class OfflineAudioProvider {
       this.stepAnalysisAt(buffer, t, remainingWarmDt, tauAnalyserSeconds);
     }
 
-    // Build stored cache frames at exact 120 Hz grid starting at cacheStartSeconds.
+    // Build stored cache frames at exact export analysis grid starting at cacheStartSeconds.
     for (let k = 0; k < frameCount; k++) {
       const tk = cacheStartSeconds + k * EXPORT_ANALYSIS_HOP_SECONDS;
       const dt = k === 0 ? 0 : EXPORT_ANALYSIS_HOP_SECONDS;
@@ -755,11 +752,11 @@ export class OfflineAudioProvider {
   }
 
   /**
-   * Sample canonical 120 Hz analysis cache at an arbitrary time (seconds) and return
+   * Sample the export analysis cache at an arbitrary time (seconds) and return
    * final uniform-driving values (bands/remaps/remapper outs) as update objects.
    *
-   * This is used by live preview (Phase 2) to sample by audio playback time.
-   * Does not include file uniforms (currentTime/duration/isPlaying).
+   * Used by video export frame sampling. Live preview uses AudioManager worker
+   * curves (may use PREVIEW_ANALYSIS_RATE_HZ); both interpolate via hopSeconds.
    */
   getUniformUpdatesAtTime(timeSeconds: number): UniformUpdate[] {
     const cache = this.analysisCache;
@@ -821,7 +818,7 @@ export class OfflineAudioProvider {
       { nodeId: config.primaryFileId, paramName: 'isPlaying', value: 1 }
     );
 
-    // Sample the canonical 120 Hz cache at the frame-center time.
+    // Sample the export analysis cache at the frame-center time.
     uniformUpdates.push(...this.getUniformUpdatesAtTime(t));
 
     return { channelSamples, uniformUpdates, timelineTime: t };

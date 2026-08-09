@@ -11,7 +11,7 @@
   import { RuntimeMessageDispatcher } from '../runtime/RuntimeMessageDispatcher';
   import type { WaveformService } from '../runtime';
   import { WebGLContextError } from '../runtime/errors';
-  import type { GraphViewState, NodeGraph } from '../data-model/types';
+  import type { NodeGraph } from '../data-model/types';
   import { nodeSystemSpecs } from '../shaders/nodes/index';
   import { listPresets, loadPresetFromJson, downloadGraphAsJsonFile } from '../utils/presetManager';
   import { toValidationSpecs } from '../utils/nodeSpecUtils';
@@ -63,18 +63,34 @@
   import type { NodeSpec } from '../types';
   import { UndoRedoManager } from '../ui/editor';
   import { appToastStore, errorAnnouncer, formatErrorForAnnouncer } from './stores';
-  import type { PreviewCompileUiSink } from '../runtime/previewCompileUiSink';
-  import {
-    beginPreviewCompileProgressToast,
-    clearPreviewCompileProgressToast,
-    previewCompileFailedKeptLastGood,
-  } from './stores/previewCompileStatusStore';
   import { ErrorAnnouncer, AppSplashScreen } from './components/ui';
   import { getHelpContent } from '../utils/ContextualHelpManager';
   import type { HelpContent } from '../utils/ContextualHelpManager';
 
-  import { createEditorPreviewRuntimeManager, createEditorWaveformService } from './app/editorRuntimeBootstrap';
+  import {
+    createEditorPreviewCompileUiSink,
+    createEditorPreviewRuntimeManager,
+    createEditorWaveformService,
+    parseUrlPreviewOverlayEnabled,
+    parseUrlProjectId,
+    stripProjectQueryFromUrl,
+  } from './app/editorRuntimeBootstrap';
   import { attachGraphRevisionListeners } from './app/graphRevisionListeners';
+  import {
+    performGraphRedo as performGraphRedoFromModule,
+    performGraphUndo as performGraphUndoFromModule,
+    type GraphHistoryRestoreHost,
+  } from './app/graphHistory';
+  import {
+    applyPlaylistAdvanceFromBundledCatalog,
+    audiotoolPlaylistHydrateTrackId as resolveAudiotoolPlaylistHydrateTrackId,
+    hydrateAudiotoolPlaylistTrack,
+    reconnectAudiotoolLoginAfterDisconnect as reconnectAudiotoolLoginAfterDisconnectFromModule,
+  } from './app/audiotoolEditorWiring';
+  import {
+    applyStartingTrack as applyStartingTrackFromModule,
+    remapGraphIds,
+  } from './app/hubGraphPrepare';
   import NodeEditorLayout from './components/editor/NodeEditorLayout.svelte';
   import BottomBar from './components/bottom-bar/BottomBar.svelte';
   import { NodePanelContent, DocsPanelContent } from './components/side-panel';
@@ -192,18 +208,10 @@
   });
 
   async function reconnectAudiotoolLoginAfterDisconnect(): Promise<void> {
-    if (!useAudiotoolGate) return;
-    try {
-      const auth = await initAudiotoolBrowserAuth();
-      if (auth.status === 'unauthenticated') {
-        const login = (): void => {
-          auth.login();
-        };
-        dispatchAt({ type: 'DISCONNECTED_LOGIN_RESTORED', login });
-      }
-    } catch {
-      // Top bar sign-in may stay unavailable until reload; editor continues to work.
-    }
+    await reconnectAudiotoolLoginAfterDisconnectFromModule({
+      useAudiotoolGate,
+      dispatch: dispatchAt,
+    });
   }
 
   const nodeSpecs: NodeSpec[] = nodeSystemSpecs;
@@ -270,32 +278,20 @@
     const rm = runtimeManager;
     if (!rm) return;
     rm.setOnPlaylistAdvance((nextState) => {
-      void (async () => {
-        const data = await getTracksData();
-        const live = graphStore.audioSetup;
-        const order = live?.playlistState?.order ?? [];
-        const trackId = order[nextState.currentIndex];
-        if (trackId == null) return;
-        const prevPrimaryId = getPrimaryFileId(live);
-        let setup = live;
-        setup = setPlaylistCurrentIndex(setup, nextState.currentIndex);
-        setup = setPrimarySource(setup, playlistPrimaryFromBundledCatalog(trackId, data));
-        const newPrimaryId = getPrimaryFileId(setup);
-        setup = retargetBandsToPrimary(setup, prevPrimaryId, newPrimaryId);
-        commitAudioSetup(setup, { autoPlayWhenReady: true });
-        runtimeDispatcher?.playPrimary();
-      })();
+      void applyPlaylistAdvanceFromBundledCatalog({
+        nextIndex: nextState.currentIndex,
+        getAudioSetup: () => graphStore.audioSetup,
+        commitAudioSetup,
+        playPrimary: () => runtimeDispatcher?.playPrimary(),
+      });
     });
     return () => rm.setOnPlaylistAdvance(undefined);
   });
 
   /** `tracks/*` playlist id only — excludes display-metadata updates so hydration does not loop on graph saves. */
-  const audiotoolPlaylistHydrateTrackId = $derived.by(() => {
-    const primary = graphStore.audioSetup.primarySource;
-    if (primary?.type !== 'playlist') return null;
-    const tid = primary.trackId.trim();
-    return tid.startsWith('tracks/') ? tid : null;
-  });
+  const audiotoolPlaylistHydrateTrackId = $derived.by(() =>
+    resolveAudiotoolPlaylistHydrateTrackId(graphStore.audioSetup.primarySource)
+  );
 
   /** Background hydrate: Audiotool GetTrack refreshes playback URL registry + persisted display title outside bundled catalog. */
   $effect(() => {
@@ -306,55 +302,22 @@
     const gen = ++audiotoolTrackHydrateGeneration;
 
     void (async () => {
-      const data = await getTracksData();
-      if (gen !== audiotoolTrackHydrateGeneration) return;
-      const bundledEntry = data[trackId];
-      const bundledTitle =
-        bundledEntry?.displayName?.trim() ?? (typeof bundledEntry?.name === 'string' ? bundledEntry.name.trim() : '');
-      if (bundledTitle.length > 0) return;
-
-      const res = await withAudiotoolUserSession(session, (client) => fetchAudiotoolTrackViaGetTrack(client, trackId));
-      if (gen !== audiotoolTrackHydrateGeneration) return;
-      if (!res.ok || !res.value) return;
-
-      const { playbackUrl, displayName: apiName } = res.value;
-      if (playbackUrl) registerAudiotoolPlaylistTrackPlaybackUrl(trackId, playbackUrl);
-      const dn = apiName?.trim();
-      if (dn?.length) setAudiotoolTrackDisplayNameCache(trackId, dn);
-
-      untrack(() => {
-        const cur = graphStore.audioSetup.primarySource;
-        if (cur?.type !== 'playlist' || cur.trackId.trim() !== trackId) return;
-
-        let setup = graphStore.audioSetup;
-        let graphChanged = false;
-
-        if (dn?.length && cur.displayName !== dn) {
-          const merged: PlaylistPrimarySource = {
-            ...cur,
-            trackId,
-            displayName: dn,
-            displayNameSource: 'audiotool',
-            displayNameUpdatedAt: new Date().toISOString(),
-          };
-          setup = setPrimarySource(setup, merged);
-          graphChanged = true;
-        }
-
-        if (graphChanged) commitAudioSetup(setup);
-        else if (playbackUrl !== undefined || (dn?.length ?? 0) > 0)
-          runtimeDispatcher?.setAudioSetup(graphStore.audioSetup);
+      const result = await hydrateAudiotoolPlaylistTrack({
+        trackId,
+        session,
+        isStale: () => gen !== audiotoolTrackHydrateGeneration,
+        getAudioSetup: () => graphStore.audioSetup,
+        runUntracked: untrack,
       });
+      if (result.kind !== 'applied') return;
+      if (result.graphChanged) commitAudioSetup(result.setup);
+      else if (result.notifyRuntimeOnly) runtimeDispatcher?.setAudioSetup(graphStore.audioSetup);
     })();
   });
 
   const nodeSpecsMap = new Map<string, NodeSpec>(nodeSpecs.map((s) => [s.id, s]));
 
-  const previewCompileUiSink: PreviewCompileUiSink = {
-    beginPreviewCompileProgressToast,
-    clearPreviewCompileProgressToast,
-    previewCompileFailedKeptLastGood,
-  };
+  const previewCompileUiSink = createEditorPreviewCompileUiSink();
 
   let previewMount: HTMLDivElement;
   let compiler = $state<NodeShaderCompiler | null>(null);
@@ -373,56 +336,44 @@
   });
   let canvasApi = $state<NodeEditorCanvasWrapperAPI | null>(null);
 
-  /** Merge current pan/zoom/selection into a semantic snapshot so undo/redo never rewires the camera or selection. */
-  function graphWithLiveViewStateRestored(semantic: NodeGraph): NodeGraph {
-    const live = canvasApi?.getViewState?.();
-    const storeVs = graphStore.graph.viewState;
-    const vs: GraphViewState = live
-      ? {
-          zoom: live.zoom,
-          panX: live.panX,
-          panY: live.panY,
-          selectedNodeIds: [...live.selectedNodeIds],
-        }
-      : {
-          zoom: storeVs?.zoom ?? 1,
-          panX: storeVs?.panX ?? 0,
-          panY: storeVs?.panY ?? 0,
-          selectedNodeIds: [...(storeVs?.selectedNodeIds ?? [])],
-        };
-    return { ...semantic, viewState: vs };
-  }
-
   function handleRevealParameterInNodeEditor(nodeId: string, paramName: string) {
     revealParameterInNodeEditor((id, opts) => canvasApi?.focusNode(id, opts), nodeId, paramName);
   }
 
-  async function applyGraphHistorySnapshot(g: NodeGraph): Promise<void> {
-    const merged = graphWithLiveViewStateRestored(g);
-    canvasApi?.beginGraphHistoryRestore();
-    try {
-      graphStore.clearPatchPicks();
-      graphStore.setGraph(merged, { skipGraphChangedListener: true });
-      localRevision++;
-      await runtimeDispatcher?.loadGraph(merged);
-    } finally {
-      undoStackRevision++;
-      canvasApi?.completeGraphHistoryRestore(graphStore.graph);
-    }
+  /** Host for undo/redo snapshot apply (live view state + store + runtime). */
+  function graphHistoryRestoreHost(): GraphHistoryRestoreHost {
+    return {
+      getLiveViewState: () => canvasApi?.getViewState?.(),
+      getStoreViewState: () => graphStore.graph.viewState,
+      beginGraphHistoryRestore: () => canvasApi?.beginGraphHistoryRestore(),
+      completeGraphHistoryRestore: (g) => canvasApi?.completeGraphHistoryRestore(g),
+      clearPatchPicks: () => graphStore.clearPatchPicks(),
+      setGraph: (g, options) => graphStore.setGraph(g, options),
+      getGraphAfterSet: () => graphStore.graph,
+      bumpLocalRevision: () => {
+        localRevision++;
+      },
+      bumpUndoStackRevision: () => {
+        undoStackRevision++;
+      },
+      loadGraph: (g) => runtimeDispatcher?.loadGraph(g),
+    };
   }
 
   async function performGraphUndo(): Promise<void> {
-    if (!runtimeDispatcher || !undoRedoManager) return;
-    const g = undoRedoManager.undo();
-    if (!g) return;
-    await applyGraphHistorySnapshot(g);
+    await performGraphUndoFromModule({
+      undoRedoManager,
+      host: graphHistoryRestoreHost(),
+      canApply: runtimeDispatcher != null,
+    });
   }
 
   async function performGraphRedo(): Promise<void> {
-    if (!runtimeDispatcher || !undoRedoManager) return;
-    const g = undoRedoManager.redo();
-    if (!g) return;
-    await applyGraphHistorySnapshot(g);
+    await performGraphRedoFromModule({
+      undoRedoManager,
+      host: graphHistoryRestoreHost(),
+      canApply: runtimeDispatcher != null,
+    });
   }
 
   /** API exposed by BottomBar via bind:this (exported functions). */
@@ -765,65 +716,11 @@
     return false;
   }
 
-  function remapGraphIds(g: NodeGraph): NodeGraph {
-    const newGraphId = `graph-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const nodeIdMap = new Map<string, string>();
-    const nodes = g.nodes.map((n) => {
-      const newId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      nodeIdMap.set(n.id, newId);
-      return { ...n, id: newId };
-    });
-    const connections = g.connections.map((c) => ({
-      ...c,
-      id: `conn-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      sourceNodeId: nodeIdMap.get(c.sourceNodeId) ?? c.sourceNodeId,
-      targetNodeId: nodeIdMap.get(c.targetNodeId) ?? c.targetNodeId,
-    }));
-    const automation =
-      g.automation == null
-        ? undefined
-        : {
-            ...g.automation,
-            lanes: g.automation.lanes.map((lane) => ({
-              ...lane,
-              nodeId: nodeIdMap.get(lane.nodeId) ?? lane.nodeId,
-            })),
-          };
-    return {
-      ...g,
-      id: newGraphId,
-      nodes,
-      connections,
-      ...(automation !== undefined && { automation }),
-      viewState: {
-        ...(g.viewState ?? { zoom: 1, panX: 0, panY: 0, selectedNodeIds: [] }),
-        selectedNodeIds: [],
-      },
-    };
-  }
-
   async function applyStartingTrack(
     audioSetup: AudioSetup,
     startingTrackId: string
   ): Promise<AudioSetup> {
-    try {
-      const data = await getTracksData();
-      const order = getPlaylistOrder(data);
-      let setup = setPlaylistOrder(audioSetup, order);
-      setup = setPrimarySource(setup, playlistPrimaryFromBundledCatalog(startingTrackId, data));
-      const idx = order.indexOf(startingTrackId);
-      setup = setPlaylistCurrentIndex(setup, idx >= 0 ? idx : 0);
-      return clearArrangementSnapshotIfPrimaryMismatch(setup);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      globalErrorHandler.report(
-        'runtime',
-        'warning',
-        `Could not sync the bundled track catalog (${msg}). Using the playlist saved in this project.`,
-        { originalError: e instanceof Error ? e : undefined }
-      );
-      return audioSetup;
-    }
+    return applyStartingTrackFromModule(audioSetup, startingTrackId, globalErrorHandler);
   }
 
   async function handleImportPresetFromFile(json: string): Promise<void> {
@@ -904,39 +801,6 @@
     await runtimeDispatcher.loadProject(graphStore.graph, graphStore.audioSetup);
     if (resolved.graph.nodes.length > 0) {
       setTimeout(() => canvasApi?.fitToView(), 150);
-    }
-  }
-
-  function parseUrlProjectId(): string | null {
-    if (typeof window === 'undefined') return null;
-    try {
-      const id = new URLSearchParams(window.location.search).get('project')?.trim();
-      return id || null;
-    } catch {
-      return null;
-    }
-  }
-
-  function parseUrlPreviewOverlayEnabled(): boolean {
-    if (typeof window === 'undefined') return false;
-    try {
-      const raw = new URLSearchParams(window.location.search).get('previewOverlay')?.trim().toLowerCase();
-      return raw === '1' || raw === 'true' || raw === 'yes';
-    } catch {
-      return false;
-    }
-  }
-
-  function stripProjectQueryFromUrl(): void {
-    if (typeof window === 'undefined') return;
-    try {
-      const u = new URL(window.location.href);
-      if (!u.searchParams.has('project')) return;
-      u.searchParams.delete('project');
-      const qs = u.searchParams.toString();
-      history.replaceState(null, '', `${u.pathname}${qs ? `?${qs}` : ''}${u.hash}`);
-    } catch {
-      // ignore
     }
   }
 

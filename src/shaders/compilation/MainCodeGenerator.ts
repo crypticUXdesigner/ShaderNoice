@@ -80,7 +80,13 @@ export class MainCodeGenerator {
     functionNameMap: Map<string, Map<string, string>> = new Map(),
     structNameMap: Map<string, Map<string, string>> = new Map(),
     effectiveNodeSpecsById?: Map<string, NodeSpec>
-  ): { variableDeclarations: string; mainCode: string; genericRaymarcherSdfFunctions: string } {
+  ): {
+    variableDeclarations: string;
+    mainCode: string;
+    genericRaymarcherSdfFunctions: string;
+    /** Raw (unindented) per-node main bodies for section hashing / future splice reuse. */
+    nodeBodies: Record<string, string>;
+  } {
     const finalOutputNode = findFinalOutputNodeImpl(graph, executionOrder, this.nodeSpecs);
     const reachableNodeIds =
       finalOutputNode != null
@@ -103,6 +109,7 @@ export class MainCodeGenerator {
     const variableDeclarations = declLines.join('\n');
     const mainCode: string[] = [];
     const genericRaymarcherSdfFunctions: string[] = [];
+    const nodeBodies: Record<string, string> = {};
     const nodeCodeCtx = this.getNodeCodeContext(variableNames, executionOrder, effectiveNodeSpecsById);
 
     for (const nodeId of executionOrder) {
@@ -141,6 +148,7 @@ export class MainCodeGenerator {
         structNameMap,
         nodeCodeCtx
       );
+      nodeBodies[nodeId] = nodeCode;
       mainCode.push(`  // Node: ${nodeSpec.displayName} (${nodeId})`);
       mainCode.push('  {');
       const indentedCode = nodeCode.split('\n').map(line => line ? '  ' + line : line).join('\n');
@@ -152,7 +160,8 @@ export class MainCodeGenerator {
     return {
       variableDeclarations,
       mainCode: mainCode.join('\n'),
-      genericRaymarcherSdfFunctions: genericRaymarcherSdfFunctions.join('\n\n')
+      genericRaymarcherSdfFunctions: genericRaymarcherSdfFunctions.join('\n\n'),
+      nodeBodies,
     };
   }
 

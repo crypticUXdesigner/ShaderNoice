@@ -35,7 +35,7 @@ Existing precedent: WebGPU **blur** Gaussian separable uses runtime ping-pong te
 | Graph | Immutable; sim state **not** in `NodeGraph` — runtime/session only. |
 | Compile | New type → pass-plan / compute path; do not force into `WGSL_SUPPORTED_NODE_TYPES` fullscreen. |
 | `RuntimeManager` | Owns lifecycle; preview clock + param updates; no graph mutation. |
-| Export | **Same exclusive raster API** as preview (`getExportRasterBackend` → `runImageExportFlow` / `runVideoExportFlow`). No silent WebGPU→WebGL fallback ([`webgl-webgpu-preview-export.md`](./webgl-webgpu-preview-export.md)). Sim must declare WebGL and/or WebGPU support and hard-block otherwise. |
+| Export | **Same exclusive raster API** as preview (`getExportRasterBackend` → `runImageExport` / `runVideoExport`). No silent WebGPU→WebGL fallback ([`webgl-webgpu-preview-export.md`](./webgl-webgpu-preview-export.md)). Sim must declare WebGL and/or WebGPU support and hard-block otherwise. |
 | WebGPU | Prefer compute or render-pass plan; reuse texture-pool / pass-plan patterns from blur/bloom. |
 
 ## Recommendation

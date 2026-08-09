@@ -1,8 +1,8 @@
 # Compilation Web Worker
 
-**Last updated:** 2026-08-09 (arch-perf remediation closeout)
+**Last updated:** 2026-08-09 (arch-perf-followups closeout — GLSL + WebGPU hash-skip)
 
-Graph → GLSL compilation can run **off the main thread** in a dedicated worker while **WebGL program build and rendering** stay on the main thread. This document is the **contract reference** for that boundary.
+Graph → GLSL / WGSL compilation can run **off the main thread** in a dedicated worker while **WebGL program build and rendering** stay on the main thread. This document is the **contract reference** for that boundary.
 
 ## What runs where
 
@@ -29,7 +29,8 @@ Payload and reply shapes are defined in [`src/runtime/compilation/workerMessages
 ### Worker responsibilities
 
 - **`init`** — Build a `Map` of `NodeSpec`, construct **`NodeShaderCompiler`**, reply `{ type: 'inited' }`.
-- **`compile`** — Receive graph, optional `audioSetup`, optional `previousResult` ( **`null` when `tryIncremental` is false**; when incremental, only a slim **`IncrementalPreviousResult`** from [`src/compile-contract/`](../../src/compile-contract/) — today `metadata.executionOrder` — see `slimPreviousResultForWorker` / arch-perf task 03), `affectedNodeIds`, `tryIncremental`. Run incremental compile when allowed; fall back to full **`compile`**. Reply `{ type: 'result', id, result }` or `{ type: 'error', id, message }`.
+- **`compile`** — Receive graph, optional `audioSetup`, optional `previousResult` ( **`null` when `tryIncremental` is false**; when incremental, slim **`IncrementalPreviousResult`** from [`src/compile-contract/`](../../src/compile-contract/) — `metadata.executionOrder` plus optional `glslSectionHashes` / `wgslSectionHashes` for hash-skip — see `slimPreviousResultForWorker`), `affectedNodeIds`, `tryIncremental`. Run incremental compile when allowed; fall back to full **`compile`**. Reply `{ type: 'result', id, result }` or `{ type: 'error', id, message }`.
+  - **Hash-skip honesty:** When the codegen-input aggregate matches the previous result, `compileIncremental` may return with `incrementalHashSkip: true` (GLSL and WebGPU) instead of re-emitting (`assembleShader` / `compileWgslMvp`). Main thread must treat `result.incrementalHashSkip` as **reuse last-good** (do not link an empty stub shader). Details: [`preview-and-recompilation.md`](./preview-and-recompilation.md) (*Incremental / hash-skip*).
 
 ### Slim payload (structuredClone cost)
 

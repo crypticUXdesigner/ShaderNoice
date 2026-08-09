@@ -122,7 +122,8 @@ export function collectAudioUniformUpdates(
   }
 
   // Preferred live path (Phase 2): when we have a decoded AudioBuffer, sample the same
-  // canonical 120 Hz analysis curve used by export and emit those values directly.
+  // offline analysis curve family used by export (hop stored on cache; preview may use a
+  // cheaper hop — see audioAnalysisRates.ts) and emit those values directly.
   //
   // When provided, offlineFileUniforms should cover all file-backed sources in audioSetup;
   // in that case, we skip the analyser-returned uniform branch + panel remap blocks to avoid duplicates.
@@ -135,8 +136,8 @@ export function collectAudioUniformUpdates(
       for (const u of uniformUpdates) {
         const key = `${u.nodeId}.${u.paramName}`;
         // For the canonical-curve path we must avoid refresh-rate-dependent "update skipping".
-        // Export pushes every sampled value; live should do the same so 60 Hz and 120 Hz
-        // displays don't diverge due to the change-threshold heuristic.
+        // Export pushes every sampled value; live should do the same so display refresh rate
+        // does not diverge due to the change-threshold heuristic.
         updates.push({ nodeId: u.nodeId, paramName: u.paramName, value: u.value });
         previousUniformValues.set(key, u.value);
       }

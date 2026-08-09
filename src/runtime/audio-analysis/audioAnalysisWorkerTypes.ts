@@ -7,7 +7,8 @@ export type AudioAnalysisWorkerRequest =
       fileId: string;
       sampleRate: number;
       startTimeSeconds: number;
-      hopHz: number; // canonical rate (e.g. 120)
+      /** Live preview hop (typically PREVIEW_ANALYSIS_RATE_HZ); export uses EXPORT_ANALYSIS_RATE_HZ separately. */
+      hopHz: number;
       frameRateForDuration: number; // used with maxFrames to compute lastSampleTime
       maxFrames: number;
       pcmChannels: Float32Array[]; // channel data arrays (full track), copied for worker use
@@ -42,23 +43,33 @@ export type AudioAnalysisWorkerCanceled = {
   fileId: string;
 };
 
+export type AudioAnalysisCurveCachePayload = {
+  startTimeSeconds: number;
+  hopSeconds: number;
+  frameCount: number;
+  channels: Array<{
+    nodeId: string;
+    paramName: string;
+    min?: number;
+    max?: number;
+    defaultValue?: number;
+  }>;
+  values: Float32Array;
+};
+
 export type AudioAnalysisWorkerResult = {
   type: 'result';
   buildId: string;
   fileId: string;
-  cache: {
-    startTimeSeconds: number;
-    hopSeconds: number;
-    frameCount: number;
-    channels: Array<{
-      nodeId: string;
-      paramName: string;
-      min?: number;
-      max?: number;
-      defaultValue?: number;
-    }>;
-    values: Float32Array;
-  };
+  cache: AudioAnalysisCurveCachePayload;
+};
+
+/** Progressive prefix of a full build so live preview can sample before the clip finishes. */
+export type AudioAnalysisWorkerPartialResult = {
+  type: 'partialResult';
+  buildId: string;
+  fileId: string;
+  cache: AudioAnalysisCurveCachePayload;
 };
 
 /** Tier B subset rebuild: smoothed band series (index 0) per band id. */

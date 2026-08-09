@@ -29,7 +29,7 @@ export interface WorkerCompilePayload {
    * Slim previous snapshot for incremental compiles only.
    * Always `null` when `tryIncremental` is false (omit fat `CompilationResult` from the clone).
    * When incremental, only {@link IncrementalPreviousResult} fields are posted — see
-   * `slimPreviousResultForWorker`.
+   * `slimPreviousResultForWorker` (`metadata.executionOrder` + optional section hashes).
    */
   previousResult: IncrementalPreviousResult | null;
   affectedNodeIds: string[];
@@ -73,11 +73,46 @@ export function slimPreviousResultForWorker(
   if (!tryIncremental || previousResult == null) {
     return null;
   }
-  return {
+  const slim: IncrementalPreviousResult = {
     metadata: {
       executionOrder: [...(previousResult.metadata.executionOrder ?? [])],
     },
   };
+  if (previousResult.glslSectionHashes) {
+    slim.glslSectionHashes = {
+      aggregate: previousResult.glslSectionHashes.aggregate,
+      ...(previousResult.glslSectionHashes.shaderContent != null
+        ? { shaderContent: previousResult.glslSectionHashes.shaderContent }
+        : {}),
+      ...(previousResult.glslSectionHashes.uniformsLayout != null
+        ? { uniformsLayout: previousResult.glslSectionHashes.uniformsLayout }
+        : {}),
+      ...(previousResult.glslSectionHashes.paramLayout != null
+        ? { paramLayout: previousResult.glslSectionHashes.paramLayout }
+        : {}),
+      ...(previousResult.glslSectionHashes.nodeBodies != null
+        ? { nodeBodies: { ...previousResult.glslSectionHashes.nodeBodies } }
+        : {}),
+    };
+  }
+  if (previousResult.wgslSectionHashes) {
+    slim.wgslSectionHashes = {
+      aggregate: previousResult.wgslSectionHashes.aggregate,
+      ...(previousResult.wgslSectionHashes.shaderContent != null
+        ? { shaderContent: previousResult.wgslSectionHashes.shaderContent }
+        : {}),
+      ...(previousResult.wgslSectionHashes.uniformsLayout != null
+        ? { uniformsLayout: previousResult.wgslSectionHashes.uniformsLayout }
+        : {}),
+      ...(previousResult.wgslSectionHashes.paramLayout != null
+        ? { paramLayout: previousResult.wgslSectionHashes.paramLayout }
+        : {}),
+      ...(previousResult.wgslSectionHashes.passPlan != null
+        ? { passPlan: previousResult.wgslSectionHashes.passPlan }
+        : {}),
+    };
+  }
+  return slim;
 }
 
 /**

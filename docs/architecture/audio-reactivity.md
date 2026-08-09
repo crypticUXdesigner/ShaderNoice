@@ -1,6 +1,6 @@
 # Audio reactivity and parameter connections
 
-**Last updated:** 2026-05
+**Last updated:** 2026-08-09 (arch-perf-followups closeout — analysis hop policy)
 
 This document describes how **parameter connections** to audio (and related) nodes reach **generated GLSL** and how **per-frame uniforms** stay in sync. UI behavior for audio is specified in [`docs/user-goals/06-audio.md`](../user-goals/06-audio.md).
 
@@ -19,6 +19,17 @@ This document describes how **parameter connections** to audio (and related) nod
 ### `TimeManager` and preview dependencies
 
 When the last successful compile exposes a **`PreviewDependencyMask`** (`usesAudioUniforms`, `usesWallTime`, `usesTimelineTime`, …), `TimeManager` **skips** redundant audio-uniform work while the timeline is paused and the shader does not use audio uniforms—unless the graph is dirty, the timeline is playing, or a **paused cap** (~15 Hz) applies for shaders that still use audio uniforms. That avoids orphan uploads when idle while keeping live preview responsive when it matters.
+
+## Offline analysis rates (preview vs export)
+
+FFT / curve-cache builds use hop rates from [`src/runtime/audio-analysis/audioAnalysisRates.ts`](../../src/runtime/audio-analysis/audioAnalysisRates.ts):
+
+| Path | Rate | Notes |
+| --- | --- | --- |
+| Live preview (worker curve builds) | **60 Hz** (`PREVIEW_ANALYSIS_RATE_HZ`) | Cheaper long-clip prep; progressive `partialResult` (~2 s prefixes) during full builds |
+| Export / `OfflineAudioProvider` | **120 Hz** (`EXPORT_ANALYSIS_RATE_HZ`) | Dense canonical grid for video-frame sampling |
+
+Fingerprint includes `hop:`. Export rebuilds at 120 Hz and does **not** reuse 60 Hz preview caches. **Intentional fidelity delta:** preview vs export band uniforms may differ slightly between hops (smoothing accumulates on a coarser grid). Same-hop live↔export samples stay aligned (tested). Product UX for bands/remaps is unchanged; see [`docs/user-goals/06-audio.md`](../user-goals/06-audio.md).
 
 ## Contract (invariants)
 

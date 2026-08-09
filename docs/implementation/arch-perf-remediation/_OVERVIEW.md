@@ -22,7 +22,7 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 
 **Invariants:** No silent WebGPU→WebGL export fallback; failed compile keeps last-good preview.
 
-**Out of scope (tracked in [`arch-perf-followups`](../arch-perf-followups/_OVERVIEW.md)):** True partial GLSL/WGSL codegen (P3); full `App.svelte` decomposition (A2); export dialog unmount (A4); WebGPU allowlist injection (A6); offline FFT hop redesign (P5). Also out: adaptive DPR productization; new user-facing settings.
+**Out of scope (landed in [`arch-perf-followups`](../arch-perf-followups/_OVERVIEW.md)):** True partial GLSL/WGSL codegen / hash-skip (P3); `App.svelte` feature modules (A2); export dialog unmount / pure run APIs (A4); WebGPU allowlist injection (A6); offline FFT hop redesign (P5). Also out of *this* package: adaptive DPR productization; new user-facing settings.
 
 **Allowable deltas:** WebGPU paused/static graphs may skip full-rate work once clock mask ships safely; export may use fence/sync instead of `finish` if black-frame QA passes.
 
@@ -62,13 +62,13 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 | Topic | Decision |
 | --- | --- |
 | Scope source | Review canvas + agent findings 2026-08-09 (`A1–A8`, `P1–P2`, `P4`, `P6–P7`, `P10–P12`). |
-| Deferred | Moved to [`arch-perf-followups`](../arch-perf-followups/_OVERVIEW.md): `P3`, `A2`, `A4`, `A6`, `P5`. |
+| Deferred | **Landed** in [`arch-perf-followups`](../arch-perf-followups/_OVERVIEW.md): `P3`, `A2`, `A4`, `A6`, `P5` (do not re-open as remediation leftovers). |
 | Conflict risk | `WebGpuRenderBackend` + both export paths — serialize 04A/04B; avoid parallel edits. |
 | Clock safety | Prefer conservative mask / golden coverage before flipping URL default on. |
 | 02 compile-contract | Neutral home: `src/compile-contract/index.ts` (not under `shaders/`) so runtime does not import shaders for IR. **08** removed `runtime/types` re-export shim; call sites import contract directly. |
-| 03 worker payload | `cloneableCompilePayload` omits `previousResult` when `!tryIncremental`; incremental posts `IncrementalPreviousResult` (`metadata.executionOrder` only). Graph still structured-cloned (proxy safety). |
+| 03 worker payload | `cloneableCompilePayload` omits `previousResult` when `!tryIncremental`; incremental posts slim `IncrementalPreviousResult` (`metadata.executionOrder`; hashes added in followups **04***). Graph still structured-cloned (proxy safety). |
 | 04A (2026-08-09) | Added `src/runtime/renderBackends/webgpuPassPlanExecutor.ts` (`setParamSlot`, graph transfer w/ runtime-only + override suppression, `encodeWebGpuPassPlanFrame`). Callers unchanged; packing parity tests in `webgpuPassPlanExecutor.test.ts`. Unblocks **04B**. |
 | 04B (2026-08-09) | Wired `WebGpuRenderBackend`, `WebGpuExportRenderPath`, `WebGpuVideoExportRenderPath` to shared executor; removed private `setParamSlot` / transfer / encode switchboards. Manual QA: INTEGRATION-QA rows 5–7 (WebGPU preview + image export) and a short WebGPU video-export smoke if available. |
 | 05 WebGPU clock | **Policy A:** always apply proven-static subset (no wall/timeline/audio/spawn/frame + no primary audio); keep `?webgpuPreviewDependencyClock=` for broader wall/timeline masks. Fail-open elsewhere. Tests: `webGpuPreviewDependencyClock.test.ts`; docs: `preview-and-recompilation.md`. |
-| 08 closeout | Moved `virtualNodes` → `src/data-model/virtualNodes.ts` (utils re-export shim). Documented approved utils residuals (`paramDriverBypass`, etc.). Removed compile-contract re-exports from `runtime/types`. Arch docs: `graph-and-platform-boundaries`, `compilation-worker`, `webgl-webgpu-preview-export`, `preview-and-recompilation` (05 already current), `COVERAGE-MATRIX` pointer. Deferred leftovers stay in [`arch-perf-followups`](../arch-perf-followups/_OVERVIEW.md): A2, A4, A6, P3, P5. |
+| 08 closeout | Moved `virtualNodes` → `src/data-model/virtualNodes.ts` (utils re-export shim). Documented approved utils residuals (`paramDriverBypass`, etc.). Removed compile-contract re-exports from `runtime/types`. Arch docs: `graph-and-platform-boundaries`, `compilation-worker`, `webgl-webgpu-preview-export`, `preview-and-recompilation` (05 already current), `COVERAGE-MATRIX` pointer. Deferred leftovers **shipped** in [`arch-perf-followups`](../arch-perf-followups/_OVERVIEW.md): A2, A4, A6, P3, P5. |
 | Post-ship improvement iteration (2026-08-09) | Seeded compiler `UniformMetadata` defaults into shared WebGPU pass-plan packing before graph transfer (`applyPassPlanUniformDefaults` / `fillPassPlanParamsBuffer`); wired image + video WebGPU export paths so omitted default-valued params match preview. Also emit pass-plan effect-slot `UniformMetadata` from `WgslMvpCompiler` (previously layout-only, so defaults could never seed). Added packing + same-id connection-modify change-detection tests. Deferred: full `virtualNodes` caller migration off utils shim; pass-plan preview runtime signature/recreate hardening. |

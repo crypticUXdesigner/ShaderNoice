@@ -34,6 +34,45 @@ import {
   generateParameterCombination as generateParameterCombinationHelper,
   generateSwizzleCode as generateSwizzleCodeHelper
 } from './compilation/NodeShaderCompilerHelpers';
+import {
+  buildGlslSectionHashes,
+  cloneGlslSectionHashes,
+  computeGlslCodegenDigest,
+  glslIncrementalEmitStats,
+} from './compilation/glslSectionHashes';
+import {
+  buildWgslSectionHashes,
+  cloneWgslSectionHashes,
+  computeWgslCodegenDigest,
+  wgslIncrementalEmitStats,
+} from './compilation/wgslSectionHashes';
+
+/** True when `prev` carries a reusable WebGL program (main-thread full prior result). */
+function isReusableWebglCompilationResult(
+  prev: IncrementalPreviousResult
+): prev is CompilationResult {
+  return (
+    'shaderCode' in prev &&
+    typeof (prev as CompilationResult).shaderCode === 'string' &&
+    (prev as CompilationResult).shaderCode.length > 0 &&
+    Array.isArray((prev as CompilationResult).uniforms) &&
+    (prev as CompilationResult).backend === 'webgl'
+  );
+}
+
+/** True when `prev` carries a reusable WebGPU program (main-thread full prior result). */
+function isReusableWebgpuCompilationResult(
+  prev: IncrementalPreviousResult
+): prev is CompilationResult {
+  return (
+    'code' in prev &&
+    typeof (prev as CompilationResult).code === 'string' &&
+    (prev as CompilationResult).code.length > 0 &&
+    Array.isArray((prev as CompilationResult).uniforms) &&
+    (prev as CompilationResult).backend === 'webgpu' &&
+    (prev as CompilationResult).supported === true
+  );
+}
 
 function computeParamLayout(uniforms: CompilationResult['uniforms']): CompilationResult['paramLayout'] {
   const keys = uniforms.map((u) => `${u.nodeId}.${u.paramName}`);
@@ -109,16 +148,20 @@ export class NodeShaderCompiler {
   }
 
   /**
-   * Incremental compilation: same full codegen as {@link compile} after cheap structural checks,
-   * so the GPU still links a full program, but the worker can skip work when the change is unsafe
-   * (falls back to {@link compile} via caller).
+   * Incremental compilation for WebGL and WebGPU.
+   *
+   * After structural / execution-order guards:
+   * 1. **Hash-skip** — when the codegen-input digest matches the previous section hashes
+   *    (e.g. uniform-only param edits), return the previous program (or a stub with
+   *    `incrementalHashSkip: true`) without collecting functions / assembling GLSL or
+   *    calling `compileWgslMvp`.
+   * 2. Otherwise **full emit** (same codegen as {@link compile}) and refresh section hashes.
    *
    * Supports **node additions** when the new execution order keeps the previous order as a subsequence
-   * (no removals; existing pipeline order preserved among old nodes).
+   * (no removals; existing pipeline order preserved among old nodes). Additions always miss hash-skip
+   * and full-emit inside this path when guards pass.
    *
-   * @param graph - Current node graph
-   * @param previousResult - Last successful compilation result (must match graph history for execution order)
-   * @param affectedNodeIds - Changed / added nodes and dependents (from GraphChangeDetector)
+   * Caller falls back to {@link compile} when this returns `null`.
    */
   compileIncremental(
     graph: NodeGraph,
@@ -128,10 +171,6 @@ export class NodeShaderCompiler {
     options?: CompileTargetOptions
   ): CompilationResult | null {
     const targetBackend: RenderBackendKind = options?.backend ?? 'webgl';
-    if (targetBackend === 'webgpu') {
-      // MVP: keep WebGPU compilation deterministic; skip incremental.
-      return null;
-    }
 
     if (!previousResult) {
       // No previous result - must do full compilation
@@ -143,12 +182,6 @@ export class NodeShaderCompiler {
     if (affectedNodeIds.size > changeThreshold) {
       return null;
     }
-    
-    // Phase 2: Implement incremental compilation
-    // Strategy:
-    // 1. Find downstream dependents of changed nodes (nodes that depend on changed nodes)
-    // 2. Regenerate code only for changed nodes + their dependents
-    // 3. Reuse unchanged sections where possible
     
     try {
       // Step 1: Validate graph structure (quick check)
@@ -169,7 +202,7 @@ export class NodeShaderCompiler {
       try {
         executionOrder = this.graphAnalyzer.topologicalSort(graph);
         executionOrder = audioNodesFirstHelper(executionOrder, graph);
-      } catch (error) {
+      } catch {
         // Circular dependency or other error - fall back to full compilation
         return null;
       }
@@ -245,9 +278,94 @@ export class NodeShaderCompiler {
         compileGraphView.bypassedNodeIds
       );
 
-      const variableNames = this.variableNameGenerator.generateVariableNames(graph);
-
       const uniformNames = this.uniformGenerator.generateUniformNameMapping(compileGraph, audioSetup ?? null);
+
+      if (targetBackend === 'webgpu') {
+        const prevHashes = previousResult.wgslSectionHashes;
+        if (prevHashes?.aggregate) {
+          const aggregate = computeWgslCodegenDigest({
+            compileGraph,
+            compileExecutionOrder,
+            nodeSpecs: this.nodeSpecs,
+            uniformNames,
+            audioSetup: audioSetup ?? null,
+          });
+          if (aggregate === prevHashes.aggregate) {
+            wgslIncrementalEmitStats.hashSkips += 1;
+            const hashes = cloneWgslSectionHashes(prevHashes);
+            if (isReusableWebgpuCompilationResult(previousResult)) {
+              return {
+                ...previousResult,
+                wgslSectionHashes: hashes,
+                incrementalHashSkip: true,
+              };
+            }
+            return {
+              backend: 'webgpu',
+              supported: true,
+              code: '',
+              shaderCode: '',
+              uniforms: [],
+              paramLayout: {},
+              wgslSectionHashes: hashes,
+              incrementalHashSkip: true,
+              metadata: {
+                warnings: [],
+                errors: [],
+                executionOrder: [...compileExecutionOrder],
+                finalOutputNodeId: null,
+              },
+            };
+          }
+        }
+
+        wgslIncrementalEmitStats.fullEmits += 1;
+        return this.compile(graph, audioSetup, options);
+      }
+
+      // Hash-skip: same codegen inputs as last emit → reuse previous GLSL (no full collect/assemble).
+      const prevHashes = previousResult.glslSectionHashes;
+      if (prevHashes?.aggregate) {
+        const aggregate = computeGlslCodegenDigest({
+          compileGraph,
+          compileExecutionOrder,
+          nodeSpecs: this.nodeSpecs,
+          uniformNames,
+          audioSetup: audioSetup ?? null,
+        });
+        if (aggregate === prevHashes.aggregate) {
+          glslIncrementalEmitStats.hashSkips += 1;
+          const hashes = cloneGlslSectionHashes(prevHashes);
+          if (isReusableWebglCompilationResult(previousResult)) {
+            return {
+              ...previousResult,
+              glslSectionHashes: hashes,
+              incrementalHashSkip: true,
+            };
+          }
+          // Worker slim previousResult: signal reuse; CompilationManager keeps last-good program.
+          return {
+            backend: 'webgl',
+            supported: true,
+            code: '',
+            shaderCode: '',
+            uniforms: [],
+            paramLayout: {},
+            glslSectionHashes: hashes,
+            incrementalHashSkip: true,
+            metadata: {
+              warnings: [],
+              errors: [],
+              executionOrder: [...compileExecutionOrder],
+              finalOutputNodeId: null,
+            },
+          };
+        }
+      }
+
+      glslIncrementalEmitStats.fullEmits += 1;
+
+      const variableNames = this.variableNameGenerator.generateVariableNames(graph);
 
       let { functions, functionNameMap, structNameMap } = this.functionGenerator.collectAndDeduplicateFunctions(
         compileGraph,
@@ -257,15 +375,16 @@ export class NodeShaderCompiler {
         audioSetup ?? null
       );
 
-      const { variableDeclarations, mainCode, genericRaymarcherSdfFunctions } = this.mainCodeGenerator.generateMainCode(
-        compileGraph,
-        compileExecutionOrder,
-        variableNames,
-        uniformNames,
-        functionNameMap,
-        structNameMap,
-        effectiveNodeSpecsById
-      );
+      const { variableDeclarations, mainCode, genericRaymarcherSdfFunctions, nodeBodies } =
+        this.mainCodeGenerator.generateMainCode(
+          compileGraph,
+          compileExecutionOrder,
+          variableNames,
+          uniformNames,
+          functionNameMap,
+          structNameMap,
+          effectiveNodeSpecsById
+        );
       if (genericRaymarcherSdfFunctions) {
         functions = functions ? `${functions}\n\n${genericRaymarcherSdfFunctions}` : genericRaymarcherSdfFunctions;
       }
@@ -291,6 +410,21 @@ export class NodeShaderCompiler {
 
       const automationFunctions = this.mainCodeGenerator.generateAutomationFunctions(graph, compileExecutionOrder);
       const shaderCode = this.mainCodeGenerator.assembleShader(functions, uniforms, variableDeclarations, mainCode, finalColorVar, automationFunctions);
+      const paramLayout = computeParamLayout(uniforms);
+      const aggregate = computeGlslCodegenDigest({
+        compileGraph,
+        compileExecutionOrder,
+        nodeSpecs: this.nodeSpecs,
+        uniformNames,
+        audioSetup: audioSetup ?? null,
+      });
+      const glslSectionHashes = buildGlslSectionHashes({
+        aggregate,
+        shaderCode,
+        uniformNames,
+        paramLayout,
+        nodeBodies,
+      });
 
       return {
         backend: 'webgl',
@@ -298,6 +432,7 @@ export class NodeShaderCompiler {
         code: shaderCode,
         shaderCode,
         uniforms,
+        glslSectionHashes,
         metadata: {
           warnings,
           errors: [],
@@ -311,7 +446,7 @@ export class NodeShaderCompiler {
             audioSetup
           )
         },
-        paramLayout: computeParamLayout(uniforms),
+        paramLayout,
       };
       
     } catch (error) {
@@ -486,8 +621,27 @@ export class NodeShaderCompiler {
         wgslResult.metadata.previewDependencies,
         wgslResult.webgpuPassPlan != null
       );
+      const uniformNames = this.uniformGenerator.generateUniformNameMapping(
+        compileGraph,
+        audioSetup ?? null
+      );
+      const aggregate = computeWgslCodegenDigest({
+        compileGraph,
+        compileExecutionOrder,
+        nodeSpecs: this.nodeSpecs,
+        uniformNames,
+        audioSetup: audioSetup ?? null,
+      });
+      const wgslSectionHashes = buildWgslSectionHashes({
+        aggregate,
+        wgslCode: wgslResult.code,
+        uniformNames,
+        paramLayout: wgslResult.paramLayout,
+        passPlan: wgslResult.webgpuPassPlan,
+      });
       return {
         ...wgslResult,
+        wgslSectionHashes,
         metadata: {
           ...wgslResult.metadata,
           previewDependencies
@@ -518,7 +672,7 @@ export class NodeShaderCompiler {
     // Step 7: Generate main code (returns variable declarations, main code, and generic-raymarcher SDF functions).
     // Uses `compileGraph` (filtered connections) and `compileExecutionOrder` (bypassed nodes
     // dropped) so the emitted code follows the two Power rules from `_OVERVIEW.md`.
-    const { variableDeclarations, mainCode, genericRaymarcherSdfFunctions } = this.mainCodeGenerator.generateMainCode(
+    const { variableDeclarations, mainCode, genericRaymarcherSdfFunctions, nodeBodies } = this.mainCodeGenerator.generateMainCode(
       compileGraph,
       compileExecutionOrder,
       variableNames,
@@ -569,6 +723,21 @@ export class NodeShaderCompiler {
     // GLSL for any lane whose node never runs.
     const automationFunctions = this.mainCodeGenerator.generateAutomationFunctions(graph, compileExecutionOrder);
     const shaderCode = this.mainCodeGenerator.assembleShader(functions, uniforms, variableDeclarations, mainCode, finalColorVar, automationFunctions);
+    const paramLayout = computeParamLayout(uniforms);
+    const aggregate = computeGlslCodegenDigest({
+      compileGraph,
+      compileExecutionOrder,
+      nodeSpecs: this.nodeSpecs,
+      uniformNames,
+      audioSetup: audioSetup ?? null,
+    });
+    const glslSectionHashes = buildGlslSectionHashes({
+      aggregate,
+      shaderCode,
+      uniformNames,
+      paramLayout,
+      nodeBodies,
+    });
 
     return {
       backend: 'webgl',
@@ -576,6 +745,7 @@ export class NodeShaderCompiler {
       code: shaderCode,
       shaderCode,
       uniforms,
+      glslSectionHashes,
       metadata: {
         warnings,
         errors: [],
@@ -589,7 +759,7 @@ export class NodeShaderCompiler {
           audioSetup
         )
       },
-      paramLayout: computeParamLayout(uniforms),
+      paramLayout,
     };
   }
 

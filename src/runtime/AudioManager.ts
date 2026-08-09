@@ -33,6 +33,7 @@ import type {
   AudioAnalysisWorkerBandResult,
   AudioAnalysisWorkerCanceled,
   AudioAnalysisWorkerError,
+  AudioAnalysisWorkerPartialResult,
   AudioAnalysisWorkerProgress,
   AudioAnalysisWorkerResult,
 } from './audio-analysis/audioAnalysisWorkerTypes';
@@ -53,6 +54,10 @@ import {
   patchRemapperChannelsFromBandCache,
 } from './audio-analysis/audioAnalysisRemapperPatch';
 import type { AudioAnalysisCurveCache } from './audio-analysis/AudioAnalysisCurveSampler';
+import {
+  hopHzFromCacheHopSeconds,
+  PREVIEW_ANALYSIS_RATE_HZ,
+} from './audio-analysis/audioAnalysisRates';
 import { buildOfflineAudioAnalysisConfigs } from '../video-export/OfflineAudioProvider';
 import { normalizeUrlForAudioDedupe } from '../utils/normalizeUrlForAudioDedupe';
 
@@ -342,7 +347,8 @@ export class AudioManager implements Disposable {
       if (!buf) return `${fileId}:missing`;
       return `${fileId}:${buf.sampleRate}:${buf.duration}:${buf.length}:${buf.numberOfChannels}`;
     });
-    return `${bandDigest}|${fileParts.join(';')}`;
+    // Include preview hop so a rate change invalidates ready fingerprints.
+    return `${bandDigest}|hop:${PREVIEW_ANALYSIS_RATE_HZ}|${fileParts.join(';')}`;
   }
 
   private runOfflineProvidersRebuild(): void {
@@ -534,6 +540,7 @@ export class AudioManager implements Disposable {
       ev: MessageEvent<
         | AudioAnalysisWorkerProgress
         | AudioAnalysisWorkerResult
+        | AudioAnalysisWorkerPartialResult
         | AudioAnalysisWorkerBandResult
         | AudioAnalysisWorkerError
         | AudioAnalysisWorkerCanceled
@@ -572,6 +579,14 @@ export class AudioManager implements Disposable {
         p.resolve();
         pending.delete(key);
         removeActiveKey(key);
+        return;
+      }
+
+      if (msg.type === 'partialResult') {
+        if (!isCurrentGen) return;
+        // Prefix cache: enable live sampling for analyzed time while build continues.
+        // Do not mark fingerprint ready until the final `result`.
+        this.curveSamplersByFileId.set(msg.fileId, new AudioAnalysisCurveSampler(msg.cache));
         return;
       }
 
@@ -645,8 +660,8 @@ export class AudioManager implements Disposable {
       }
 
       const transferables = pcmChannels.map((a) => a.buffer);
-      const hopHz = 120;
-      const frameRateForDuration = 120;
+      const hopHz = PREVIEW_ANALYSIS_RATE_HZ;
+      const frameRateForDuration = PREVIEW_ANALYSIS_RATE_HZ;
       const maxFrames = Math.ceil(buffer.duration * frameRateForDuration) + 2;
       const { analyzerConfigs, remapperConfigs } = buildOfflineAudioAnalysisConfigs(this.audioSetup!, fileId);
 
@@ -1194,8 +1209,9 @@ export class AudioManager implements Disposable {
 
       const { analyzerConfigs } = buildOfflineAudioAnalysisConfigs(setup, fileId);
       const subsetConfigs = analyzerConfigs.filter((a) => bandIds.includes(a.nodeId));
-      const hopHz = 120;
-      const frameRateForDuration = 120;
+      // Match the retained cache hop so series length aligns for channel patching.
+      const hopHz = hopHzFromCacheHopSeconds(cache.hopSeconds);
+      const frameRateForDuration = hopHz;
       const maxFrames = Math.ceil(buffer.duration * frameRateForDuration) + 2;
 
       worker.postMessage(

@@ -345,6 +345,10 @@ export class CompilationManager implements Disposable {
           this.maybePreviewCompileFailedKeptLastGood();
           return;
         }
+        if (result.incrementalHashSkip) {
+          this.applyIncrementalHashSkip(result);
+          return;
+        }
         try {
           this.applyCompilationResult(result);
         } catch (err) {
@@ -686,6 +690,30 @@ export class CompilationManager implements Disposable {
     this.lastSyncedCompileGraphIdentityRevision = this.compileGraphIdentityRevision;
   }
   
+  /**
+   * GLSL (04A) / WebGPU (04B) hash-skip: keep last-good program; refresh structural hash + toast.
+   * Does not create a new ShaderInstance (failed compiles also keep last-good).
+   */
+  private applyIncrementalHashSkip(result: CompilationResult): void {
+    previewPerfCounters.incrementalHashSkips += 1;
+    if (this.compilationMetadata?.result) {
+      const nextResult = { ...this.compilationMetadata.result, incrementalHashSkip: undefined };
+      if (result.glslSectionHashes) {
+        nextResult.glslSectionHashes = result.glslSectionHashes;
+      }
+      if (result.wgslSectionHashes) {
+        nextResult.wgslSectionHashes = result.wgslSectionHashes;
+      }
+      this.compilationMetadata = {
+        result: nextResult,
+        executionOrder: this.compilationMetadata.executionOrder,
+      };
+    }
+    this.recordGraphStructuralHashAfterCompileSync();
+    this.previewCompileUiSink?.clearPreviewCompileProgressToast();
+    getPreviewScheduler().recordCompileSucceeded();
+  }
+
   /**
    * Apply a compilation result on the main thread: create ShaderInstance, transfer params/time, update state, render.
    * Used by both main-thread compile path and worker result handler. Run inside try/catch at call site; reports errors via getErrorHandler().
@@ -1180,7 +1208,7 @@ export class CompilationManager implements Disposable {
         graph: this.graph,
         audioSetup: this.audioSetup,
         // cloneableCompilePayload omits previousResult when !tryIncremental and strips to
-        // IncrementalPreviousResult (executionOrder only) when incremental.
+        // IncrementalPreviousResult (executionOrder + section hashes) when incremental.
         previousResult: tryIncremental ? previousResult : null,
         affectedNodeIds: Array.from(changes.affectedNodeIds),
         tryIncremental,
@@ -1200,6 +1228,10 @@ export class CompilationManager implements Disposable {
           { backend: targetBackend }
         );
         if (incrementalResult) {
+          if (incrementalResult.incrementalHashSkip) {
+            this.applyIncrementalHashSkip(incrementalResult);
+            return;
+          }
           result = incrementalResult;
         } else {
           result = this.compiler.compile(this.graph, this.audioSetup, { backend: targetBackend });

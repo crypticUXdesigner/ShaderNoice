@@ -45,6 +45,8 @@ export const PreviewPerfMark = {
 export const previewPerfCounters = {
   previewFrameCommits: 0,
   compileRequests: 0,
+  /** GLSL/WGSL compileIncremental hash-skip (reuse last-good program; no full emit/apply). */
+  incrementalHashSkips: 0,
   // Task 12: WebGPU perf counters (best-effort; dev overlay).
   webgpuShaderModuleCreates: 0,
   webgpuShaderModuleCacheHits: 0,
@@ -65,6 +67,7 @@ export const previewPerfCounters = {
 export function previewPerfResetCounters(): void {
   previewPerfCounters.previewFrameCommits = 0;
   previewPerfCounters.compileRequests = 0;
+  previewPerfCounters.incrementalHashSkips = 0;
   previewPerfCounters.webgpuShaderModuleCreates = 0;
   previewPerfCounters.webgpuShaderModuleCacheHits = 0;
   previewPerfCounters.webgpuRenderPipelineCreates = 0;

@@ -33,6 +33,7 @@ Audio drives the shader in real time (frequency bands, remapped values) and anch
 - Web Audio (and OfflineAudioContext for export); export codec support varies by browser.
 - **Import / portability** — Uploaded file ids may need re-upload after import JSON or moving machines.
 - Driver panel unification: [12-parameter-drivers.md](./12-parameter-drivers.md). Audio panel remains the natural home for **browse/edit library** without a target port.
+- **Preview vs export analysis hop** — Live band/curve prep may use a coarser offline FFT hop than video export (architecture: [`../architecture/audio-reactivity.md`](../architecture/audio-reactivity.md) — *Offline analysis rates*). Export keeps the denser grid; same-hop sampling stays aligned. Users should not see a separate setting for this.
 
 ## 6. Related
 
