@@ -22,6 +22,7 @@ import type { ErrorHandler } from '../utils/errorHandling';
 import { globalErrorHandler, ErrorUtils } from '../utils/errorHandling';
 import type { Disposable } from '../utils/Disposable';
 import { GraphChangeDetector } from '../utils/changeDetection/GraphChangeDetector';
+import type { ChangeDetectionResult } from '../utils/changeDetection/types';
 import { automationEqual } from '../utils/changeDetection/automationComparison';
 import { isCompileTimeBakeParameter } from '../utils/compileTimeBakeParams';
 import { isRuntimeOnlyParameter } from '../utils/runtimeOnlyParams';
@@ -122,6 +123,15 @@ export class CompilationManager implements Disposable {
   
   // Track previous graph for change detection (incremental compilation)
   private previousGraph: NodeGraph | null = null;
+
+  /**
+   * Optional precomputed {@link GraphChangeDetector.detectChanges} from RuntimeManager.setGraph.
+   * Consumed by {@link detectGraphChanges} when `from` matches {@link previousGraph} (same pair).
+   */
+  private pendingChangeDetection: {
+    from: NodeGraph | null;
+    result: ChangeDetectionResult;
+  } | null = null;
   
   // Track previous graph state metadata for incremental compilation
   private previousGraphState: {
@@ -255,9 +265,15 @@ export class CompilationManager implements Disposable {
   
   /**
    * Set the node graph.
+   * @param changeDetection - When provided from RuntimeManager after the same old→new pair
+   *   walk, {@link recompile} reuses it instead of calling {@link GraphChangeDetector.detectChanges} again.
    */
-  setGraph(graph: NodeGraph): void {
+  setGraph(
+    graph: NodeGraph,
+    changeDetection?: { from: NodeGraph | null; result: ChangeDetectionResult }
+  ): void {
     this.graph = graph;
+    this.pendingChangeDetection = changeDetection ?? null;
     this.clearPreviewParameterSurfaceCache();
   }
 
@@ -1233,18 +1249,19 @@ export class CompilationManager implements Disposable {
   /**
    * Detect what changed in the graph compared to previous state.
    * Returns information about added/removed nodes and affected nodes.
-   * Uses unified change detection system.
+   * Uses unified change detection system, or a RuntimeManager-provided result when the pair matches.
    */
   private detectGraphChanges(graph: NodeGraph): GraphCompileChanges {
-    // Use unified change detection system
-    const changeResult = GraphChangeDetector.detectChanges(
-      this.previousGraph,
-      graph,
-      {
-        trackAffectedNodes: true,
-        includeConnectionIds: true
-      }
-    );
+    const pending = this.pendingChangeDetection;
+    this.pendingChangeDetection = null;
+
+    const changeResult =
+      pending && pending.from === this.previousGraph
+        ? pending.result
+        : GraphChangeDetector.detectChanges(this.previousGraph, graph, {
+            trackAffectedNodes: true,
+            includeConnectionIds: true
+          });
     
     // Update previous graph state metadata for incremental compilation
     const currentNodeIds = new Set(graph.nodes.map(n => n.id));
@@ -1334,6 +1351,7 @@ export class CompilationManager implements Disposable {
     this.compilationMetadata = null;
     this.previousGraphState = null;
     this.previousGraph = null;
+    this.pendingChangeDetection = null;
     this.previewDependencyMask = null;
     this.lastSuccessfulCompileAudioFingerprint = null;
     this.clearPreviewParameterSurfaceCache();

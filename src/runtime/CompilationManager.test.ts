@@ -16,6 +16,7 @@ import { createCompilationManager } from './factories';
 import type { ShaderCompiler } from './types';
 import type { RenderBackendSelection } from './renderBackends/renderBackendTypes';
 import * as runtimeUtils from './utils';
+import { GraphChangeDetector } from '../utils/changeDetection/GraphChangeDetector';
 
 // Mock ShaderInstance so we don't need WebGL. CompilationManager and parameterTransfer
 // only need: setParameter, getParameters, setTimelineTime, setTime, getTimelineTime, getTime, destroy.
@@ -1305,6 +1306,47 @@ describe('CompilationManager', () => {
 
       // setShaderInstance should not have been called from this stale reply
       expect(renderer.setShaderInstance).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('shared change detection', () => {
+    it('reuses RuntimeManager-provided detectChanges when from matches previousGraph', () => {
+      const compiler = createMockCompiler();
+      const renderer = createMockRenderer();
+      const cm = createCompilationManager(compiler, renderer);
+
+      const g1 = minimalGraph();
+      cm.setGraph(g1);
+      cm.onGraphStructureChange(true);
+      vi.runAllTimers();
+      expect(compiler.compile).toHaveBeenCalledTimes(1);
+
+      const g2: NodeGraph = {
+        ...g1,
+        connections: [
+          ...g1.connections,
+          {
+            id: 'c2',
+            sourceNodeId: 'n1',
+            sourcePort: 'out',
+            targetNodeId: 'n2',
+            targetPort: 'in',
+          },
+        ],
+      };
+      const shared = GraphChangeDetector.detectChanges(g1, g2, {
+        trackAffectedNodes: true,
+        includeConnectionIds: true,
+      });
+      const spy = vi.spyOn(GraphChangeDetector, 'detectChanges');
+
+      cm.setGraph(g2, { from: g1, result: shared });
+      cm.onGraphStructureChange(true);
+      vi.runAllTimers();
+
+      expect(spy).not.toHaveBeenCalled();
+      expect(compiler.compile).toHaveBeenCalledTimes(2);
+      spy.mockRestore();
     });
   });
 

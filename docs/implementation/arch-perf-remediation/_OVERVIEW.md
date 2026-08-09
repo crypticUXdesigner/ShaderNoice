@@ -45,17 +45,17 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 | 04B | [Wire preview + exports to shared executor](./04B-webgpu-pass-executor-wire-arch-perf-remediation.md) | ⬜ | Single path for three callers | — |
 | 05 | [WebGPU preview dependency clock](./05-webgpu-preview-clock-arch-perf-remediation.md) | ✅ | Safer mask default or conservative subset | — |
 | 06 | [Export WebGL sync](./06-export-webgl-sync-arch-perf-remediation.md) | ✅ | Faster export without black frames | — |
-| 07 | [Change-detection sharing](./07-change-detection-sharing-arch-perf-remediation.md) | ⬜ | Fewer walks; tighter wire-affected sets | — |
+| 07 | [Change-detection sharing](./07-change-detection-sharing-arch-perf-remediation.md) | ✅ | Fewer walks; tighter wire-affected sets | — |
 | 08 | [Ownership closeout + arch docs](./08-ownership-docs-closeout-arch-perf-remediation.md) | ⬜ | utils hygiene slice; architecture doc sync | — |
 
 **Execution order:** `01` anytime; `02` → `03`; `04A` → `04B`; `05` ∥ `06` ∥ `07` after `01` (no hard dep); `08` last.
 
 ## Progress tracker
 
-- **Overall:** ~66% — **01**, **02**, **03**, **04A**, **05**, and **06** done (2026-08-09): hygiene/frame CPU + compile-contract + slim worker payloads + shared WebGPU pass-plan pack/encode; WebGPU preview dependency clock (policy A always-safe static subset); WebGL export fence sync (`clientWaitSync`, `finish` fallback) instead of unconditional `gl.finish()`; **04B** unblocked; callers still on private copies until **04B**.
+- **Overall:** ~78% — **01**, **02**, **03**, **04A**, **05**, **06**, and **07** done (2026-08-09): hygiene/frame CPU + compile-contract + slim worker payloads + shared WebGPU pass-plan pack/encode; WebGPU preview dependency clock (policy A always-safe static subset); WebGL export fence sync (`clientWaitSync`, `finish` fallback) instead of unconditional `gl.finish()`; shared `GraphChangeDetector` result runtime→compile with connection-only affected sets (endpoint+BFS); **04B** unblocked; callers still on private copies until **04B**.
 - **Milestone A:** 01–03 (hygiene + compile boundary) — 01 ✅, 02 ✅, 03 ✅.
 - **Milestone B:** 04A ✅ → **04B** unblocked (wire three callers).
-- **Milestone C:** 05–08 (clock, export sync, change detection, docs) — 05 ✅, 06 ✅.
+- **Milestone C:** 05–08 (clock, export sync, change detection, docs) — 05 ✅, 06 ✅, 07 ✅.
 
 ## Notes & risks
 
