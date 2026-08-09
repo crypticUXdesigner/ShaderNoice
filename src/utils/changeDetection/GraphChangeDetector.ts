@@ -274,6 +274,41 @@ export class GraphChangeDetector {
   }
 
   /**
+   * Seed node IDs from connection add/remove/modify endpoints that still exist in `newGraph`.
+   * Used so connection-only edits do not mark every node as affected.
+   */
+  private static collectConnectionEndpointSeeds(
+    oldGraph: NodeGraph,
+    newGraph: NodeGraph,
+    newNodeIds: Set<string>
+  ): Set<string> {
+    const seeds = new Set<string>();
+    const addEndpoints = (c: { sourceNodeId: string; targetNodeId: string }) => {
+      if (newNodeIds.has(c.sourceNodeId)) seeds.add(c.sourceNodeId);
+      if (newNodeIds.has(c.targetNodeId)) seeds.add(c.targetNodeId);
+    };
+
+    const oldById = new Map(oldGraph.connections.map((c) => [c.id, c]));
+    const newById = new Map(newGraph.connections.map((c) => [c.id, c]));
+
+    for (const [id, newConn] of newById) {
+      const oldConn = oldById.get(id);
+      if (!oldConn) {
+        addEndpoints(newConn);
+      } else if (!connectionsEqual([oldConn], [newConn])) {
+        addEndpoints(oldConn);
+        addEndpoints(newConn);
+      }
+    }
+    for (const [id, oldConn] of oldById) {
+      if (!newById.has(id)) {
+        addEndpoints(oldConn);
+      }
+    }
+    return seeds;
+  }
+
+  /**
    * Compare two graphs and detect all changes
    */
   private static compareGraphs(
@@ -418,67 +453,35 @@ export class GraphChangeDetector {
         result.isParametersChanged ||
         result.isNodeTypesChanged
       ) {
-        // Use dependency tracking to find only truly affected nodes
-        const changedNodeIds = new Set<string>();
-        
-        // Add changed nodes (type or parameters changed)
-        result.changedNodeIds.forEach(id => changedNodeIds.add(id));
-        
-        // Add added nodes (new nodes need compilation)
-        result.addedNodeIds.forEach(id => changedNodeIds.add(id));
-        
-        // For removed nodes, we need to recompile nodes that depended on them
-        // But since they're removed, we'll mark all nodes as potentially affected
-        // if connections changed (conservative approach for safety)
-        if (result.isConnectionsChanged || result.removedNodeIds.length > 0) {
-          // When connections change or nodes are removed, use dependency tracking
-          // to find affected nodes more precisely
-          const graphAnalyzer = new GraphAnalyzer();
-          
-          // Find nodes affected by changed/added nodes
-          if (changedNodeIds.size > 0) {
-            const affected = graphAnalyzer.findAffectedNodes(newGraph, changedNodeIds);
-            affected.forEach(id => result.affectedNodeIds.add(id));
+        const seedNodeIds = new Set<string>();
+        result.changedNodeIds.forEach((id) => seedNodeIds.add(id));
+        result.addedNodeIds.forEach((id) => seedNodeIds.add(id));
+
+        // Connection-only (and mixed) edits: seed from wire endpoints, not every node.
+        if (result.isConnectionsChanged) {
+          for (const id of this.collectConnectionEndpointSeeds(oldGraph, newGraph, newNodeIds)) {
+            seedNodeIds.add(id);
           }
-          
-          // For removed nodes, find nodes that depended on them using the old graph
-          if (result.removedNodeIds.length > 0) {
-            // Use old graph to find what depended on removed nodes
-            const oldGraphAnalyzer = new GraphAnalyzer();
-            const oldDependents = oldGraphAnalyzer.buildDependentsGraph(oldGraph);
-            
-            // Find all nodes in new graph that depended on removed nodes
-            for (const removedId of result.removedNodeIds) {
-              const dependents = oldDependents.get(removedId);
-              if (dependents) {
-                for (const dependentId of dependents) {
-                  // Only add if the dependent still exists in the new graph
-                  if (newNodeIds.has(dependentId)) {
-                    result.affectedNodeIds.add(dependentId);
-                  }
-                }
+        }
+
+        const graphAnalyzer = new GraphAnalyzer();
+        if (seedNodeIds.size > 0) {
+          const affected = graphAnalyzer.findAffectedNodes(newGraph, seedNodeIds);
+          affected.forEach((id) => result.affectedNodeIds.add(id));
+        }
+
+        // Removed nodes: dependents from the old graph that still exist.
+        if (result.removedNodeIds.length > 0) {
+          const oldDependents = graphAnalyzer.buildDependentsGraph(oldGraph);
+          for (const removedId of result.removedNodeIds) {
+            const dependents = oldDependents.get(removedId);
+            if (!dependents) continue;
+            for (const dependentId of dependents) {
+              if (newNodeIds.has(dependentId)) {
+                result.affectedNodeIds.add(dependentId);
               }
             }
-            
-            // Also mark removed nodes themselves as affected (for cleanup)
-            // But they're not in new graph, so we don't need to add them
-          } else if (result.isConnectionsChanged && changedNodeIds.size === 0) {
-            // Connections changed but no nodes changed - use dependency tracking
-            // to find nodes affected by connection changes
-            // For safety, mark all nodes as affected when connections change significantly
-            newGraph.nodes.forEach(n => result.affectedNodeIds.add(n.id));
           }
-          
-          // Find nodes affected by changed/added nodes (if any)
-          if (changedNodeIds.size > 0) {
-            const affected = graphAnalyzer.findAffectedNodes(newGraph, changedNodeIds);
-            affected.forEach(id => result.affectedNodeIds.add(id));
-          }
-        } else if (changedNodeIds.size > 0) {
-          // Only parameters/types changed - use dependency tracking
-          const graphAnalyzer = new GraphAnalyzer();
-          const affected = graphAnalyzer.findAffectedNodes(newGraph, changedNodeIds);
-          affected.forEach(id => result.affectedNodeIds.add(id));
         }
       }
     }

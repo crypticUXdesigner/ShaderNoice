@@ -598,8 +598,16 @@ export interface IAudioManager {
 export interface ICompilationManager {
   /**
    * Set the node graph.
+   * Optional `changeDetection` shares a RuntimeManager {@link import('../utils/changeDetection/GraphChangeDetector').GraphChangeDetector.detectChanges}
+   * result when `from` matches the compile baseline.
    */
-  setGraph(graph: import('../data-model/types').NodeGraph): void;
+  setGraph(
+    graph: import('../data-model/types').NodeGraph,
+    changeDetection?: {
+      from: import('../data-model/types').NodeGraph | null;
+      result: import('../utils/changeDetection/types').ChangeDetectionResult;
+    }
+  ): void;
 
   /**
    * Set audio setup from panel (for uniform generation from audio-derived signals).

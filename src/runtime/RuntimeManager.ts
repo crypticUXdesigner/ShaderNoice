@@ -221,14 +221,15 @@ export class RuntimeManager implements Disposable {
    * Apply structure change: cleanup removed nodes, set graph on compiler, schedule recompile, cleanup orphans.
    */
   private applyGraphStructureChange(oldGraph: NodeGraph | null, graph: NodeGraph): void {
+    // One detectChanges walk shared with CompilationManager.recompile when baselines match.
     const changeResult = GraphChangeDetector.detectChanges(oldGraph, graph, {
-      trackAffectedNodes: false,
-      includeConnectionIds: false
+      trackAffectedNodes: true,
+      includeConnectionIds: true
     });
     if (changeResult.removedNodeIds.length > 0) {
       this.audioParameterHandler.cleanupRemovedNodes(changeResult.removedNodeIds);
     }
-    this.compilationManager.setGraph(graph);
+    this.compilationManager.setGraph(graph, { from: oldGraph, result: changeResult });
     const onlyRegionTimes = GraphChangeDetector.isOnlyAutomationRegionTimesChange(oldGraph, graph);
     const connectionsOnly = changeResult.isConnectionsChanged && !changeResult.isStructureChanged;
     // Automation curves are compiled into GLSL (evalAutomation_*); always schedule recompile on graph push.

@@ -45,17 +45,17 @@ The 2026-08-09 architecture/performance review found **real SSOT discipline** bu
 | 04B | [Wire preview + exports to shared executor](./04B-webgpu-pass-executor-wire-arch-perf-remediation.md) | ⬜ | Single path for three callers | — |
 | 05 | [WebGPU preview dependency clock](./05-webgpu-preview-clock-arch-perf-remediation.md) | ⬜ | Safer mask default or conservative subset | — |
 | 06 | [Export WebGL sync](./06-export-webgl-sync-arch-perf-remediation.md) | ⬜ | Faster export without black frames | — |
-| 07 | [Change-detection sharing](./07-change-detection-sharing-arch-perf-remediation.md) | ⬜ | Fewer walks; tighter wire-affected sets | — |
+| 07 | [Change-detection sharing](./07-change-detection-sharing-arch-perf-remediation.md) | ✅ | Fewer walks; tighter wire-affected sets | — |
 | 08 | [Ownership closeout + arch docs](./08-ownership-docs-closeout-arch-perf-remediation.md) | ⬜ | utils hygiene slice; architecture doc sync | — |
 
 **Execution order:** `01` anytime; `02` → `03`; `04A` → `04B`; `05` ∥ `06` ∥ `07` after `01` (no hard dep); `08` last.
 
 ## Progress tracker
 
-- **Overall:** ~12% — **01** done (2026-08-09): deleted dead `graphComparison`; cached `getUniformName`; connection/band indexes; gated frame audio status writes.
+- **Overall:** ~25% — **01** + **07** done (2026-08-09): dead `graphComparison` gone; shared `GraphChangeDetector` result runtime→compile; connection-only affected sets are endpoint+BFS (not all nodes).
 - **Milestone A:** 01–03 (hygiene + compile boundary) — 01 ✅.
 - **Milestone B:** 04A–04B (shared WebGPU raster).
-- **Milestone C:** 05–08 (clock, export sync, change detection, docs).
+- **Milestone C:** 05–08 (clock, export sync, change detection, docs) — 07 ✅.
 
 ## Notes & risks
 
