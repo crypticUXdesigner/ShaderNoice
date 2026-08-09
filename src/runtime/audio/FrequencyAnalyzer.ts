@@ -39,6 +39,10 @@ export interface AnalyzerNodeState {
 /**
  * Manages frequency analysis for audio nodes.
  */
+type GraphConnectionsForAnalysis = {
+  connections: Array<{ sourceNodeId: string; targetNodeId: string; targetPort?: string }>;
+};
+
 export class FrequencyAnalyzer extends BaseDisposable {
   private contextManager: AudioContextManager;
   private analyzerNodes: Map<string, AnalyzerNodeState> = new Map();
@@ -49,11 +53,46 @@ export class FrequencyAnalyzer extends BaseDisposable {
   private fallbackFrequencyBinCount = 0;
   /** Ephemeral return buffer; cleared at start of each `updateFrequencyAnalysis` (consumers must copy in the same tick). */
   private readonly frequencyUniformUpdatesScratch: Array<{ nodeId: string; paramName: string; value: number }> = [];
+  /** Graph identity last used to build `connectionSourceByTargetPort` (ref equality). */
+  private connectionIndexGraph: GraphConnectionsForAnalysis | null = null;
+  /** `targetNodeId\0targetPort` → first matching `sourceNodeId` (same as connections.find). */
+  private connectionSourceByTargetPort: Map<string, string> | null = null;
   // errorHandler parameter kept for API consistency but not currently used
 
   constructor(contextManager: AudioContextManager, _errorHandler?: ErrorHandler) {
     super();
     this.contextManager = contextManager;
+  }
+
+  /**
+   * Rebuild connection index when the graph object identity changes.
+   * First connection wins per target+port (matches `connections.find`).
+   */
+  private ensureConnectionIndex(graph: GraphConnectionsForAnalysis): Map<string, string> {
+    if (graph === this.connectionIndexGraph && this.connectionSourceByTargetPort) {
+      return this.connectionSourceByTargetPort;
+    }
+    const index = new Map<string, string>();
+    for (const c of graph.connections) {
+      if (c.targetPort == null) continue;
+      const key = `${c.targetNodeId}\0${c.targetPort}`;
+      if (!index.has(key)) {
+        index.set(key, c.sourceNodeId);
+      }
+    }
+    this.connectionIndexGraph = graph;
+    this.connectionSourceByTargetPort = index;
+    return index;
+  }
+
+  /** @internal Vitest — inspect whether the connection index was rebuilt for this graph. */
+  getConnectionIndexGraphForTests(): GraphConnectionsForAnalysis | null {
+    return this.connectionIndexGraph;
+  }
+
+  /** @internal Vitest — lookup helper matching production index keys. */
+  getIndexedSourceForTests(targetNodeId: string, targetPort: string): string | undefined {
+    return this.connectionSourceByTargetPort?.get(`${targetNodeId}\0${targetPort}`);
   }
   
   /**
@@ -180,7 +219,7 @@ export class FrequencyAnalyzer extends BaseDisposable {
    */
   updateFrequencyAnalysis(
     audioNodeStates: Map<string, AudioNodeState>,
-    graph?: { connections: Array<{ sourceNodeId: string; targetNodeId: string; targetPort?: string }> } | null,
+    graph?: GraphConnectionsForAnalysis | null,
     previousUniformValues?: Map<string, number>,
     valueChangeThreshold: number = 0.001,
     forcePushAll: boolean = false
@@ -190,6 +229,7 @@ export class FrequencyAnalyzer extends BaseDisposable {
     const updates = this.frequencyUniformUpdatesScratch;
     updates.length = 0;
     const sampleRate = this.contextManager.getSampleRate();
+    const connectionIndex = graph ? this.ensureConnectionIndex(graph) : null;
 
     // First pass: Get frequency data from all audio nodes that have an analyser
     // (Use analyser output regardless of isPlaying so reactivity works when playback
@@ -208,15 +248,10 @@ export class FrequencyAnalyzer extends BaseDisposable {
     for (const [nodeId, analyzerState] of this.analyzerNodes.entries()) {
       if (!analyzerState.analyserNode) continue;
       
-      // Find connected audio file node using graph context
+      // Find connected audio file node using graph context (indexed by target+port)
       let connectedAudioNodeId: string | null = null;
-      if (graph) {
-        const connection = graph.connections.find(
-          c => c.targetNodeId === nodeId && c.targetPort === 'audioFile'
-        );
-        if (connection) {
-          connectedAudioNodeId = connection.sourceNodeId;
-        }
+      if (connectionIndex) {
+        connectedAudioNodeId = connectionIndex.get(`${nodeId}\0audioFile`) ?? null;
       }
       
       // Fallback: try to find by shared analyserNode if graph not available

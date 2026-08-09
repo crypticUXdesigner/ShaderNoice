@@ -1,6 +1,44 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AutomationState, NodeGraph } from '../data-model/types';
-import { digestAutomationForCompileIdentity, hashGraph } from './utils';
+import {
+  clearUniformNameCacheForTests,
+  computeUniformNameUncached,
+  digestAutomationForCompileIdentity,
+  getUniformName,
+  getUniformNameCacheSizeForTests,
+  hashGraph,
+} from './utils';
+
+describe('getUniformName', () => {
+  beforeEach(() => {
+    clearUniformNameCacheForTests();
+  });
+
+  it('matches uncached sanitization for typical and edge ids', () => {
+    const cases: Array<[string, string]> = [
+      ['node-123', 'scale'],
+      ['123abc', 'amount'],
+      ['a/b:c', 'out-min'],
+      ['n1', ''],
+    ];
+    for (const [nodeId, paramName] of cases) {
+      expect(getUniformName(nodeId, paramName)).toBe(computeUniformNameUncached(nodeId, paramName));
+    }
+  });
+
+  it('caches by raw nodeId+paramName and returns the same string on hit', () => {
+    const first = getUniformName('node-x', 'gain');
+    expect(getUniformNameCacheSizeForTests()).toBe(1);
+    const second = getUniformName('node-x', 'gain');
+    expect(second).toBe(first);
+    expect(getUniformNameCacheSizeForTests()).toBe(1);
+    // Distinct raw keys that sanitize to the same form still get separate cache entries.
+    getUniformName('node_x', 'gain');
+    expect(getUniformNameCacheSizeForTests()).toBe(2);
+    expect(getUniformName('node_x', 'gain')).toBe(computeUniformNameUncached('node_x', 'gain'));
+  });
+});
+
 
 describe('digestAutomationForCompileIdentity', () => {
   it('is stable when automation lanes are listed in different order (sorted by lane id)', () => {

@@ -25,7 +25,9 @@ import { AudioLoader } from './audio/AudioLoader';
 import { AudioPlaybackController, type AudioNodeState } from './audio/AudioPlaybackController';
 import { FrequencyAnalyzer, type FrequencyBand, type AnalyzerNodeState } from './audio/FrequencyAnalyzer';
 import { collectAudioUniformUpdates } from './audio/audioUniformUpdates';
+import { get } from 'svelte/store';
 import { audioAnalysisStatusStore } from '../lib/stores/audioAnalysisStatusStore';
+import { nextFrameAudioAnalysisStatus } from './audio/frameAudioAnalysisStatus';
 import { AudioAnalysisCurveSampler } from './audio-analysis/AudioAnalysisCurveSampler';
 import type {
   AudioAnalysisWorkerBandResult,
@@ -291,7 +293,7 @@ export class AudioManager implements Disposable {
       forcePushAll ?? false,
       offlineUniforms
     );
-    // Update status chip state opportunistically.
+    // Update status chip state opportunistically — skip store writes when unchanged.
     const setup = this.audioSetup;
     if (setup) {
       const fileIdsWithBands = fileIdsWithBandsFromSetup(setup);
@@ -299,12 +301,10 @@ export class AudioManager implements Disposable {
       const loadedWithBands = [...fileIdsWithBands].filter((id) => audioNodeStates.get(id)?.audioBuffer != null);
       if (loadedWithBands.length > 0) {
         const allReady = loadedWithBands.every((id) => this.curveSamplersByFileId.has(id));
-        if (allReady) {
-          audioAnalysisStatusStore.set({ state: 'ready' });
-        } else {
-          audioAnalysisStatusStore.update((s) =>
-            s.state === 'building' ? s : { state: 'fallback', label: 'Live preview until analysis finishes' }
-          );
+        const current = get(audioAnalysisStatusStore);
+        const next = nextFrameAudioAnalysisStatus(current, allReady);
+        if (next) {
+          audioAnalysisStatusStore.set(next);
         }
       }
     }

@@ -105,5 +105,57 @@ describe('FrequencyAnalyzer band extraction modes', () => {
     expect(a).toBe(b);
     expect(a).toHaveLength(1);
   });
+
+  it('indexes audioFile connections by target+port (first match wins; rebuilds on graph identity change)', () => {
+    const sampleRate = 48_000;
+    const fftSize = 8;
+    const spectrum = new Uint8Array([10, 20, 30, 40]);
+    const analyserF1 = makeFakeAnalyserNode(spectrum) as unknown as AnalyserNode;
+    const analyserF2 = makeFakeAnalyserNode(new Uint8Array([50, 60, 70, 80])) as unknown as AnalyserNode;
+
+    const analyzer = new FrequencyAnalyzer({ getSampleRate: () => sampleRate } as any);
+    const audioNodeStates = new Map<string, any>([
+      ['f1', { analyserNode: analyserF1, frequencyData: new Uint8Array(spectrum.length) }],
+      ['f2', { analyserNode: analyserF2, frequencyData: new Uint8Array(4) }],
+    ]);
+
+    const band = { minHz: 0, maxHz: (3 / fftSize) * sampleRate };
+    // Analyzer shares f1's analyser so fallback path would pick f1; graph should override to f2.
+    analyzer.createAnalyzer(
+      'band-1',
+      'f1',
+      [band],
+      ['mean'],
+      [0],
+      undefined,
+      undefined,
+      fftSize,
+      audioNodeStates.get('f1')
+    );
+
+    const graphA = {
+      connections: [
+        { sourceNodeId: 'f2', targetNodeId: 'band-1', targetPort: 'audioFile' },
+        { sourceNodeId: 'f1', targetNodeId: 'band-1', targetPort: 'audioFile' },
+      ],
+    };
+    const previous = new Map<string, number>();
+    analyzer.updateFrequencyAnalysis(audioNodeStates, graphA, previous, 0.00001, true);
+    expect(analyzer.getConnectionIndexGraphForTests()).toBe(graphA);
+    expect(analyzer.getIndexedSourceForTests('band-1', 'audioFile')).toBe('f2');
+
+    const updatesFromF2 = analyzer.updateFrequencyAnalysis(audioNodeStates, graphA, previous, 0.00001, true);
+    const expectedF2Mean = ((50 + 60 + 70 + 80) / 4) / 255;
+    expect(updatesFromF2[0]!.value).toBeCloseTo(expectedF2Mean, 6);
+    // Same graph identity: index not rebuilt to a new Map object identity check via getConnectionIndexGraphForTests.
+    expect(analyzer.getConnectionIndexGraphForTests()).toBe(graphA);
+
+    const graphB = {
+      connections: [{ sourceNodeId: 'f1', targetNodeId: 'band-1', targetPort: 'audioFile' }],
+    };
+    analyzer.updateFrequencyAnalysis(audioNodeStates, graphB, previous, 0.00001, true);
+    expect(analyzer.getConnectionIndexGraphForTests()).toBe(graphB);
+    expect(analyzer.getIndexedSourceForTests('band-1', 'audioFile')).toBe('f1');
+  });
 });
 
