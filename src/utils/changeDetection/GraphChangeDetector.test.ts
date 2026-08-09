@@ -93,6 +93,38 @@ describe('GraphChangeDetector — connection-only affected sets', () => {
     expect(result.affectedNodeIds.has('iso-0')).toBe(false);
   });
 
+  it('same-id connection modify seeds old and new endpoints, not every node', () => {
+    const before = chainGraph();
+    const after: NodeGraph = {
+      ...before,
+      connections: before.connections.map((c) =>
+        c.id === 'c-bc'
+          ? {
+              ...c,
+              // Retarget B→C wire to B→out (same connection id).
+              targetNodeId: 'out',
+              targetPort: 'in',
+            }
+          : c
+      ),
+    };
+
+    const result = GraphChangeDetector.detectChanges(before, after, {
+      trackAffectedNodes: true,
+      includeConnectionIds: true,
+    });
+
+    expect(result.isConnectionsChanged).toBe(true);
+    expect(result.addedConnectionIds).toEqual([]);
+    expect(result.removedConnectionIds).toEqual([]);
+    // Old endpoints b+c and new target out
+    expect(result.affectedNodeIds.has('b')).toBe(true);
+    expect(result.affectedNodeIds.has('c')).toBe(true);
+    expect(result.affectedNodeIds.has('out')).toBe(true);
+    expect(result.affectedNodeIds.size).toBeLessThan(after.nodes.length);
+    expect(result.affectedNodeIds.has('iso-0')).toBe(false);
+  });
+
   it('position-only still short-circuits with empty affected set', () => {
     const before = chainGraph();
     const after: NodeGraph = {
