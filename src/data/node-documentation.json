@@ -10391,7 +10391,7 @@
       "title": "Fractal",
       "titleType": "node",
       "tagline": "Iterated 2D fractals — folds, escape maps, traps, Newton, Lyapunov, shape-conforming Julia",
-      "description": "Generates 2D fractal patterns by folding/scaling coordinates, escape-time iteration, Newton root-finding, Lyapunov sequences, or shape-modulus Julia. Mode selects the recipe: 0 = KIFS, 1 = Kaleidoscope, 2 = Cross, 3 = Escape (Julia / Mandelbrot / Burning Ship — not Mandelbrot-only), 4 = Orbit trap, 5 = Min distance, 6 = Newton (zⁿ−1 basins), 7 = Lyapunov (ABAB logistic stripes), 8 = Shape Julia (parametric shape-modulus detail shell, optional portal). Output is always a float field for Color Map / Mix.",
+      "description": "Generates a float fractal field from UV: folds (KIFS/kaleidoscope/cross), escape-time (Julia/Mandelbrot/Burning Ship), orbit traps, Newton basins, Lyapunov stripes, or shape-modulus Julia. Pick Mode, then use the Shape section that appears; feed Color Map or Mix.",
       "inputs": [
         {
           "name": "in",
@@ -10409,7 +10409,7 @@
       "parameters": [
         {
           "name": "Mode",
-          "description": "0 = KIFS, 1 = Kaleidoscope, 2 = Cross, 3 = Escape, 4 = Orbit trap, 5 = Min distance, 6 = Newton, 7 = Lyapunov, 8 = Shape Julia"
+          "description": "0 = KIFS, 1 = Kaleidoscope, 2 = Cross, 3 = Escape, 4 = Orbit trap, 5 = Min distance, 6 = Newton, 7 = Lyapunov, 8 = Shape Julia. Extra Shape controls appear for each mode."
         },
         {
           "name": "Intensity",
@@ -10446,74 +10446,6 @@
         {
           "name": "Offset Y",
           "description": "Fold anchor Y for fold-based modes"
-        },
-        {
-          "name": "Family",
-          "description": "Escape mode only: Julia (z₀=UV, c from Julia X/Y), Mandelbrot (z₀=0, c=UV), or Burning Ship (Mandelbrot-style with abs folds; Y flipped so the ship sits upright)"
-        },
-        {
-          "name": "Coloring",
-          "description": "Escape and Shape Julia: Iteration (discrete escape index), Smooth (continuous iteration), or Distance (Escape = exterior DE; Shape Julia = shape-shell band)"
-        },
-        {
-          "name": "Julia X",
-          "description": "Real part of Julia c (Escape Family = Julia, or Shape Julia)"
-        },
-        {
-          "name": "Julia Y",
-          "description": "Imaginary part of Julia c (Escape Family = Julia, or Shape Julia)"
-        },
-        {
-          "name": "Trap",
-          "description": "Orbit trap mode only: Ring (circle radius), Line (horizontal axis), Cross (nearest axis — snowflake-style), Spiral (Archimedean arm), or Multi (min of Ring and Cross distances)"
-        },
-        {
-          "name": "Radius",
-          "description": "Orbit trap Ring / Spiral / Multi: ring radius and spiral pitch base (default 0.5 matches the legacy ring trap)"
-        },
-        {
-          "name": "Power",
-          "description": "Newton mode only: polynomial degree n for zⁿ−1 (2–5; default 3 = cube roots of unity basins)"
-        },
-        {
-          "name": "Rate A",
-          "description": "Lyapunov mode only: base logistic growth rate for symbol A; UV.x offsets this in the (a,b) plane (clamped 0–4)"
-        },
-        {
-          "name": "Rate B",
-          "description": "Lyapunov mode only: base logistic growth rate for symbol B; UV.y offsets this (clamped 0–4)"
-        },
-        {
-          "name": "Radius",
-          "description": "Shape Julia only: parametric shape radius for the modulus shell (default 1 ≈ circular shell of detail)"
-        },
-        {
-          "name": "Aspect",
-          "description": "Shape Julia only: ellipse stretch of the shape modulus (1 = circle; soft blob mix when near 1)"
-        },
-        {
-          "name": "Thin",
-          "description": "Shape Julia only: shell band width — lower = thinner ring of fractal detail"
-        },
-        {
-          "name": "Shell",
-          "description": "Shape Julia only: offset added to shape radius (pushes the detail shell in/out)"
-        },
-        {
-          "name": "Portal",
-          "description": "Shape Julia only: Off/On — when On, a single disk remaps z in iteration space (localized self-similarity)"
-        },
-        {
-          "name": "Portal X",
-          "description": "Shape Julia + Portal On: portal disk center X in iteration space"
-        },
-        {
-          "name": "Portal Y",
-          "description": "Shape Julia + Portal On: portal disk center Y"
-        },
-        {
-          "name": "Portal R",
-          "description": "Shape Julia + Portal On: portal disk radius"
         },
         {
           "name": "Speed",

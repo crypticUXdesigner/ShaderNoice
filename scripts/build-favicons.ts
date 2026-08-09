@@ -45,7 +45,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  let sharp: typeof import('sharp');
+  // sharp 0.35+: module namespace is not callable; default export is SharpConstructor.
+  type SharpFn = typeof import('sharp').default;
+  let sharp: SharpFn;
   try {
     sharp = (await import('sharp')).default;
   } catch {
