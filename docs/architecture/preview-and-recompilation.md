@@ -45,7 +45,7 @@ Toggling **`bypassed`** is a **structural** graph change for compilation (same c
 
 ### `PreviewScheduler` (instrumentation)
 
-[`src/runtime/PreviewScheduler.ts`](../../src/runtime/PreviewScheduler.ts) records dirty reasons, compile phase transitions, and optional **developer-only** adaptive-preview flags. It is wired from [`Renderer.ts`](../../src/runtime/Renderer.ts) and [`CompilationManager.ts`](../../src/runtime/CompilationManager.ts). Relative to presentation cadence it is primarily **telemetry** (plus the optional adaptive DPR experiment); it does not own the main compile or rAF cadence. **Hot-path preview CPU work** lives in `CompilationManager` and adjacent runtime: compile-identity revision pairing to skip `hashGraph` on many uniform-only parameter updates, preview-parameter-surface memoization, audio-uniform collection scratch-buffer reuse, radial-pulse spawn-map pruning without spread churn, and (WebGPU-only) the optional URL experiment in *Optional developer URL flags* below.
+[`src/runtime/PreviewScheduler.ts`](../../src/runtime/PreviewScheduler.ts) records dirty reasons, compile phase transitions, and optional **developer-only** adaptive-preview flags. It is wired from [`Renderer.ts`](../../src/runtime/Renderer.ts) and [`CompilationManager.ts`](../../src/runtime/CompilationManager.ts). Relative to presentation cadence it is primarily **telemetry** (plus the optional adaptive DPR experiment); it does not own the main compile or rAF cadence. **Hot-path preview CPU work** lives in `CompilationManager` and adjacent runtime: compile-identity revision pairing to skip `hashGraph` on many uniform-only parameter updates, preview-parameter-surface memoization, audio-uniform collection scratch-buffer reuse, radial-pulse spawn-map pruning without spread churn, and (WebGPU-only) the conservative static preview-dependency clock plus optional URL-broadened path in *Optional developer URL flags* below.
 
 **Adaptive preview (P2):** dev-only experiment — how to enable (`localStorage` + dev API) in [`adaptive-preview-p2-toggle.md`](./adaptive-preview-p2-toggle.md); product stance in [`PRODUCTIZATION.md`](./PRODUCTIZATION.md). **Manual integration QA** (adaptive × WebGL/WebGPU × image export): [`INTEGRATION-QA-CHECKLIST.md`](./INTEGRATION-QA-CHECKLIST.md).
 
@@ -60,7 +60,11 @@ Toggling **`bypassed`** is a **structural** graph change for compilation (same c
 
 ### Optional developer URL flags (preview)
 
-- **`?webgpuPreviewDependencyClock=1|true|yes`** — WebGPU-only experiment: may pass the compile **preview dependency** mask into `TimeManager` so paused graphs can avoid full-rate clock work when `resolveWebGpuPreviewDependencyMaskForClock` accepts the mask (**default off**, fail-open to full-rate). Implementation: `src/runtime/webGpuPreviewDependencyClock.ts`, `RuntimeManager.setTime`.
+- **WebGPU preview dependency clock (policy A + experimental flag)** — Implementation: `src/runtime/webGpuPreviewDependencyClock.ts`, `RuntimeManager.setTime`.
+  - **Default (no flag):** WebGPU sessions pass the compile **preview dependency** mask into `TimeManager` only for a **conservative static subset** — the mask must prove no wall/timeline/audio/spawn/frame drivers and no primary audio file. Otherwise fail-open to `null` (full-rate). This safely throttles paused idle graphs without trusting incomplete WGSL motion inference for animated graphs.
+  - **`?webgpuPreviewDependencyClock=1|true|yes`:** Also accepts wall/timeline-driven masks (smarter paused cadence for audio-reactive graphs). Still fail-opens when non-clock motion flags are set without a clock driver (audio uniforms, radial-pulse spawn/virtual drive, frame index, or primary audio present).
+  - **WebGL** always uses the compile mask (unchanged).
+  - **False-negative risks** (missed motion → stuck preview) and mitigations are catalogued in the module comment on `webGpuPreviewDependencyClock.ts`. Prefer full-rate over a wrong static accept. Opt-in browser golden harness (`npm run test:webgpu-golden`) does not assert clock cadence; unit tests cover resolve fail-open / static-accept cases.
 
 ### Optional developer `localStorage` (preview, DEV-only)
 
